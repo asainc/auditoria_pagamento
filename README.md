@@ -96,7 +96,7 @@ memória + resumo + hashes técnicos
 
 A ordem documental é derivada de `<processo>_<sequencia>.pdf`, sendo a maior sequência o anexo mais recente. Recência não é, por si só, reforma: cada evidência recebe `natureza` e `efeito`, e a consolidação determinística só altera o estado quando há suporte estruturado suficiente. Conflitos não resolvidos permanecem para revisão humana.
 
-> **Dependências corporativas do frontend:** o projeto utiliza uma cópia local modificada do Browserslist sem `update-browserslist-db`. Essa alternativa requer aprovação interna; veja [docs/DEPENDENCIAS_NPM_CORPORATIVAS.md](docs/DEPENDENCIAS_NPM_CORPORATIVAS.md) antes de instalar.
+> **Dependências corporativas do frontend:** o projeto utiliza somente pacotes oficiais publicados no npm, sem forks locais. As versões fixadas no lockfile ainda precisam estar disponíveis e autorizadas no Nexus corporativo; veja [docs/DEPENDENCIAS_NPM_CORPORATIVAS.md](docs/DEPENDENCIAS_NPM_CORPORATIVAS.md) antes de instalar.
 
 ## Instalação local
 
@@ -124,10 +124,11 @@ python -m uvicorn backend.principal:aplicacao --reload --host 127.0.0.1 --port 8
 
 O `frontend/package-lock.json` fixa as dependências. Use uma versão de Node compatível com `frontend/package.json`.
 
-A dependência transitiva `update-browserslist-db` está fixada em `1.3.3` para não requisitar a versão bloqueada no Nexus. Verifique o lockfile com `cd frontend && npm run verify:lock`. A versão nova ainda exige aprovação/disponibilidade no Nexus; consulte [dependências npm corporativas](docs/DEPENDENCIAS_NPM_CORPORATIVAS.md) se houver HTTP 403.
+O frontend usa **somente pacotes oficiais do npm**, sem forks ou bibliotecas locais. Para evitar as versões que receberam 403, a árvore fixa `update-browserslist-db@1.3.3`, `negotiator@1.0.0` e `content-type@2.0.0` apenas onde as faixas declaradas permitem. Essas versões ainda dependem de disponibilidade e autorização no Nexus corporativo. Confira [dependências npm corporativas](docs/DEPENDENCIAS_NPM_CORPORATIVAS.md) e execute `npm run verify:lock` antes de instalar.
 
 ```bash
 cd frontend
+npm run verify:lock
 npm ci
 npm start
 ```
@@ -182,3 +183,7 @@ cd frontend && npm test
 PDFs são tratados como conteúdo não confiável. Prompts instruem o modelo a ignorar comandos contidos nos documentos. Logs HTTP não armazenam payloads nem credenciais. A trilha de revisão de parâmetros grava eventos imutáveis; em ambiente não local, o identificador técnico do operador é derivado de um subject confiável do gateway por hash, sem persistir identidade em claro.
 
 A retenção de documentos, eventos de auditoria, identificadores técnicos e o uso de dados pessoais devem ser definidos com Segurança, Compliance e DPO conforme a implantação. Critérios jurídicos, inclusive interpretação de sucessão de decisões, precisam de validação do time jurídico antes de serem tratados como política institucional.
+
+## Preparação para validação das dependências do frontend no Nexus
+
+A árvore de dependências oficiais foi preservada; não existe confirmação de homologação do banco nesta entrega. O frontend recebeu ferramentas para consultar todas as versões exigidas no Nexus e confrontá-las com o catálogo real de aprovação. Consulte [o procedimento de validação corporativa](docs/VALIDACAO_GOVERNANCA_FRONTEND.md) antes de executar `npm ci` no ambiente corporativo.

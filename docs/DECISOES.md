@@ -45,7 +45,10 @@ Regras que expressem interpretação jurídica, sucessão de decisões, polític
 
 ## Dependências npm — 16/09/2026
 
-- **Decisão:** manter Browserslist e fixar sua dependência transitiva `update-browserslist-db` em `1.3.3`, com override, lockfile e integridade verificada por teste local.
-- **Motivo:** a versão anterior retornou HTTP 403 no Nexus corporativo; substituir o pacote por implementação simulada ou desabilitar políticas de segurança não é adequado.
-- **Limitação:** disponibilidade e autorização da nova versão no Nexus, instalação completa e build ainda exigem validação na rede corporativa.
+- **Decisão:** utilizar exclusivamente pacotes oficiais publicados no npm, sem fork local, tarball de biblioteca ou substituto fictício.
+- **Browserslist:** restaurado para a distribuição oficial `4.28.9`. Como a distribuição oficial depende de `update-browserslist-db`, foi fixada a versão oficial `1.3.3` para não resolver a `1.3.2` que recebeu HTTP 403.
+- **Content-Type:** `negotiator` foi fixado na versão oficial `1.0.0`, aceita pelos consumidores `^1.0.0` e sem dependência de `content-type`; `body-parser` e `type-is` usam `content-type@2.0.0`, dentro das respectivas faixas `^2.0.0`.
+- **Motivo:** manter a árvore dentro dos contratos semânticos publicados pelos mantenedores e reduzir o risco de manutenção/homologação de forks.
+- **Trade-off:** `update-browserslist-db` volta a existir porque faz parte da distribuição oficial do Browserslist compatível com a linha usada pelo Angular. Se a versão `1.3.3` também for recusada pelo Nexus, a resolução deve ser feita com a governança corporativa, não por modificação local da biblioteca.
+- **Validação:** `npm run verify:lock`, testes de regressão e validação arquitetural passaram. A instalação offline completa não pôde ser executada porque o cache da sessão não possui todos os tarballs; o download real e o build dependem das permissões do Nexus.
 - **Responsável pela aprovação de dependências:** equipe proprietária do Nexus/segurança corporativa (a confirmar).

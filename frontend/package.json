@@ -8,7 +8,11 @@
     "build": "ng build --configuration production",
     "verify:registry": "node scripts/validate-angular.mjs --registry",
     "test": "tsc -p tsconfig.tests.json && node --test tests/*.test.cjs",
-    "verify:lock": "node scripts/validate-dependency-lock.mjs"
+    "verify:lock": "node scripts/validate-dependency-lock.mjs",
+    "governance:check": "node scripts/governance-check.mjs",
+    "governance:probe": "node scripts/nexus-preflight.mjs",
+    "governance:artifacts": "node scripts/nexus-preflight.mjs --artifacts",
+    "install:corporate": "npm run verify:lock && npm run governance:check && npm ci"
   },
   "dependencies": {
     "@angular/common": "21.2.21",
@@ -24,14 +28,20 @@
     "@angular/build": "21.2.21",
     "@angular/cli": "21.2.21",
     "@angular/compiler-cli": "21.2.21",
-    "typescript": "5.9.3",
-    "browserslist": "file:vendor/browserslist-no-updater-4.28.1.tgz"
+    "typescript": "5.9.3"
   },
   "engines": {
     "node": "^20.19.0 || ^22.12.0 || ^24.0.0",
     "npm": ">=10 <13"
   },
   "overrides": {
-    "browserslist": "$browserslist"
+    "update-browserslist-db": "1.3.3",
+    "negotiator": "1.0.0",
+    "body-parser": {
+      "content-type": "2.0.0"
+    },
+    "type-is": {
+      "content-type": "2.0.0"
+    }
   }
 }

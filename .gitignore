@@ -10,3 +10,7 @@ data/
 .env
 *.egg-info/
 docs/source.bundle
+
+# Relatórios locais e aprovações corporativas
+frontend/reports/
+frontend/config/approved-packages.json
