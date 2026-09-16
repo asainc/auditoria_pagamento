@@ -12,7 +12,7 @@
   "src/judicial_calc/core/types.py": "23cd937a55a5c7881c9b2fe3668b7e551255f293ccfd147af617dd2e3549437f",
   "src/judicial_calc/data/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "src/judicial_calc/data_sources/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "src/judicial_calc/data_sources/drcalc_updater.py": "932be6df102f0ce8b7e98bdcf616b0dc21e9a34a8686b15f82deaddb4d639e4f",
+  "src/judicial_calc/data_sources/drcalc_updater.py": "124aa0097b9f033e21b19232cc5bbe63b494a989ed36ea695aecb9578b0de03a",
   "src/judicial_calc/data_sources/http_client.py": "db3640544432b6904291989c2a6a42f464166171e5729a388b042a8e01b47749",
   "src/judicial_calc/data_sources/local_excel.py": "bf832d28b4d89ba2189b5436004bba95006e94316ea6e80afec5f662401a1f28",
   "src/judicial_calc/extraction/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",

@@ -96,6 +96,8 @@ memória + resumo + hashes técnicos
 
 A ordem documental é derivada de `<processo>_<sequencia>.pdf`, sendo a maior sequência o anexo mais recente. Recência não é, por si só, reforma: cada evidência recebe `natureza` e `efeito`, e a consolidação determinística só altera o estado quando há suporte estruturado suficiente. Conflitos não resolvidos permanecem para revisão humana.
 
+> **Dependências corporativas do frontend:** o projeto utiliza uma cópia local modificada do Browserslist sem `update-browserslist-db`. Essa alternativa requer aprovação interna; veja [docs/DEPENDENCIAS_NPM_CORPORATIVAS.md](docs/DEPENDENCIAS_NPM_CORPORATIVAS.md) antes de instalar.
+
 ## Instalação local
 
 ### Backend
@@ -121,6 +123,8 @@ python -m uvicorn backend.principal:aplicacao --reload --host 127.0.0.1 --port 8
 ### Frontend
 
 O `frontend/package-lock.json` fixa as dependências. Use uma versão de Node compatível com `frontend/package.json`.
+
+A dependência transitiva `update-browserslist-db` está fixada em `1.3.3` para não requisitar a versão bloqueada no Nexus. Verifique o lockfile com `cd frontend && npm run verify:lock`. A versão nova ainda exige aprovação/disponibilidade no Nexus; consulte [dependências npm corporativas](docs/DEPENDENCIAS_NPM_CORPORATIVAS.md) se houver HTTP 403.
 
 ```bash
 cd frontend

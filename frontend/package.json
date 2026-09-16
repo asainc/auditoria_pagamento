@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "start": "ng serve --host 127.0.0.1 --port 4200",
-    "prebuild": "node scripts/validate-angular.mjs",
+    "prebuild": "node scripts/validate-angular.mjs && node scripts/validate-dependency-lock.mjs",
     "build": "ng build --configuration production",
     "verify:registry": "node scripts/validate-angular.mjs --registry",
-    "test": "tsc -p tsconfig.tests.json && node --test tests/*.test.cjs"
+    "test": "tsc -p tsconfig.tests.json && node --test tests/*.test.cjs",
+    "verify:lock": "node scripts/validate-dependency-lock.mjs"
   },
   "dependencies": {
     "@angular/common": "21.2.21",
@@ -23,10 +24,14 @@
     "@angular/build": "21.2.21",
     "@angular/cli": "21.2.21",
     "@angular/compiler-cli": "21.2.21",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "browserslist": "file:vendor/browserslist-no-updater-4.28.1.tgz"
   },
   "engines": {
     "node": "^20.19.0 || ^22.12.0 || ^24.0.0",
     "npm": ">=10 <13"
+  },
+  "overrides": {
+    "browserslist": "$browserslist"
   }
 }

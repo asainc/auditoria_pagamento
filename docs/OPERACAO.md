@@ -56,7 +56,13 @@ A configuração pode ser consultada sem revelar token. Erros do provedor são t
 
 `IndexService` consulta catálogo, status e atualização. Cálculo e substituição das planilhas compartilham lock para evitar leitura de arquivo enquanto ele está sendo atualizado.
 
-O atualizador consulta a navegação do DrCalc para descobrir os identificadores vigentes das categorias de preços/custos, mercado financeiro e cálculos judiciais. Os IDs mantidos no código servem somente como fallback; dessa forma, uma mudança de identificador no site não deve ser interpretada automaticamente como ausência de séries. O parser também limita a descoberta ao seletor de indexadores e ignora seletores de mês, ano e categoria, reduzindo URLs inválidas e tentativas desnecessárias.
+O atualizador consulta a navegação do DrCalc para descobrir os identificadores vigentes das categorias de preços/custos, mercado financeiro e cálculos judiciais. Os IDs mantidos no código servem somente como fallback; dessa forma, uma mudança de identificador no site não deve ser interpretada automaticamente como ausência de séries.
+
+A fonte primária passou a ser o próprio formulário **Séries históricas** do DrCalc. O backend identifica dinamicamente os campos de categoria, período inicial, período final e indexador, preserva os campos ocultos/defaults publicados pelo site e submete o formulário pelo método GET ou POST informado na página. Isso é importante porque o valor de uma opção do seletor não representa necessariamente uma URL histórica independente. A abordagem anterior podia montar `it=<valor>` e receber novamente apenas a tela de consulta, sem dados.
+
+Para o projeto, a consulta histórica parte de 2000 — mesma origem temporal das planilhas locais distribuídas no pacote — e termina no mês corrente disponível no formulário. Respostas em formato `Mês/Ano`, `Ano + Mês`, matriz `Ano x meses` ou datas diárias são aceitas. Quando a resposta expõe simultaneamente **número-índice** e **variação percentual**, as duas grandezas são separadas: colunas locais configuradas como `rate_decimal` recebem variações; colunas `value_index` recebem somente número-índice explícito. Métrica genérica/ambígua não substitui uma coluna de número-índice.
+
+O mecanismo antigo de descoberta por links permanece apenas como fallback para compatibilidade com versões anteriores do site. Falha isolada de um indexador não cancela automaticamente a leitura das demais séries da categoria.
 
 Uma atualização só é marcada como confirmada quando o resultado do atualizador informa sucesso. Em falhas externas, as planilhas anteriores são preservadas e a interface recebe uma mensagem operacional sem expor detalhes internos. O timeout por requisição é configurável por `index_timeout_seconds` e, no pacote padrão, está em 30 segundos.
 

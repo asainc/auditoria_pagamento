@@ -35,7 +35,17 @@
 | Conteúdo documental não entra na telemetria de custo | Mantém observabilidade sem ampliar exposição de dados do processo. |
 | Seções de parâmetros usam cartões independentes e cabeçalho destacado quando abertas | Mantém o bloco ativo identificável durante a rolagem sem alterar a identidade visual da aplicação. |
 | Categorias do DrCalc são descobertas pela navegação da fonte, com IDs apenas como fallback | Evita quebrar a atualização quando o site altera identificadores de categoria. |
+| Séries do DrCalc são obtidas pela submissão do formulário histórico real | O valor do seletor de indexador não é tratado como URL por suposição; período, categoria, defaults e método GET/POST são reproduzidos conforme a página publicada. |
+| Variação percentual e número-índice são tratados como métricas distintas | Evita gravar um percentual mensal em coluna acumulada ou um número-índice como taxa decimal. Quando a unidade não pode ser inferida com segurança, a coluna acumulada é preservada. |
+| Parser histórico aceita formatos longos e matrizes por ano/mês | Aumenta a resiliência a tabelas ASP antigas sem depender de um único layout HTML. |
 | Estado da atualização usa `DrCalcUpdateResult.success` como fonte de verdade | Evita falso negativo causado por inferência baseada em texto de mensagem ou no campo `executed`. |
 
 Regras que expressem interpretação jurídica, sucessão de decisões, política de encargos ou retenção de dados devem ser validadas pelas áreas responsáveis antes de uso institucional.
 
+
+## Dependências npm — 16/09/2026
+
+- **Decisão:** manter Browserslist e fixar sua dependência transitiva `update-browserslist-db` em `1.3.3`, com override, lockfile e integridade verificada por teste local.
+- **Motivo:** a versão anterior retornou HTTP 403 no Nexus corporativo; substituir o pacote por implementação simulada ou desabilitar políticas de segurança não é adequado.
+- **Limitação:** disponibilidade e autorização da nova versão no Nexus, instalação completa e build ainda exigem validação na rede corporativa.
+- **Responsável pela aprovação de dependências:** equipe proprietária do Nexus/segurança corporativa (a confirmar).

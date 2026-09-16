@@ -1113,18 +1113,36 @@ Cliente simples para descobrir e baixar séries do DrCalc.
 
 - `def __init__(self, session: requests.Session | None=None, timeout: int=30) -> None` — Inicializa a instância com as dependências e configurações necessárias ao componente.
 - `def get(self, url: str) -> str` — Executa uma requisição HTTP com timeout e tratamento de falhas do cliente.
+- `def _request_form(self, *, method: str, url: str, payload: dict[str, str]) -> tuple[str, str]` — Submete o formulário histórico do DrCalc preservando o método informado pela página.
 - `def discover_series_urls(self) -> list[tuple[str, str, str]]` — Retorna tuplas ``(categoria, nome, url)`` encontradas nas categorias alvo.
+- `def fetch_historical_series(self) -> list[DrCalcSeries]` — Baixa as séries pela consulta histórica oficial do DrCalc.
+- `def _select_signature(select: Any) -> str` — Produz uma assinatura textual estável para classificar campos do formulário.
+- `def _numeric_option_values(select: Any) -> list[int]` — Retorna valores inteiros das opções quando o campo é predominantemente numérico.
+- `def _select_role(self, select: Any) -> str` — Classifica ``select`` como categoria, mês, ano, série ou outro.
+- `def _field_boundary(signature: str) -> str | None` — Infere se o campo representa o início ou o fim do intervalo pesquisado.
+- `def _option_value_for_number(select: Any, number: int, *, nearest: str) -> str | None` — Escolhe a opção numérica desejada respeitando os valores efetivamente publicados.
+- `def _selected_or_first_value(select: Any) -> str | None` — Lê a opção selecionada do formulário ou usa a primeira opção com valor.
+- `def _find_history_form(self, soup: BeautifulSoup) -> tuple[Any, Any, list[Any], list[Any]] | None` — Localiza o formulário de consulta e seus campos de série, mês e ano.
+- `def _split_interval_selects(self, selects: list[Any]) -> tuple[Any, Any]` — Separa os dois campos equivalentes em início/fim usando nome e ordem do DOM.
+- `def _base_form_payload(self, form: Any) -> dict[str, str]` — Copia campos ocultos e defaults necessários para reproduzir a submissão do formulário.
+- `def _fetch_category_form_series(self, *, category_name: str, category_id: int, category_url: str, html: str) -> list[DrCalcSeries]` — Submete o formulário histórico para todos os indexadores de uma categoria.
+- `def _infer_metric_from_columns(columns: Iterable[str]) -> str` — Infere a natureza da métrica pela semântica dos cabeçalhos.
 - `def _discover_category_ids(self) -> list[tuple[str, int]]` — Descobre os IDs das três categorias relevantes sem depender de posição fixa.
 - `def _is_series_select(select: Any) -> bool` — Identifica o ``select`` de indexadores e ignora mês, ano e categoria.
 - `def _extract_links_from_category(self, html: str, base_url: str) -> list[tuple[str, str]]` — Extrai somente links plausíveis de séries da categoria informada.
 - `def fetch_series(self, category: str, name: str, url: str) -> DrCalcSeries | None` — Baixa e interpreta uma série do DrCalc em registros estruturados.
 - `def _series_title(self, soup: BeautifulSoup, fallback: str) -> str` — Obtém um título estável para identificar a série baixada.
-- `def _extract_records_from_html(self, html: str, soup: BeautifulSoup) -> tuple[list[DrCalcRecord], list[str]]` — Extrai registros temporais do HTML da série.
-- `def _records_from_table(self, df: pd.DataFrame) -> list[DrCalcRecord]` — Converte uma tabela HTML em registros de período e valor.
+- `def _extract_records_from_html(self, html: str, soup: BeautifulSoup, preferred_metric: str | None=None) -> tuple[list[DrCalcRecord], list[str]]` — Extrai registros temporais do HTML da série.
+- `def _records_from_table(self, df: pd.DataFrame, preferred_metric: str | None=None) -> list[DrCalcRecord]` — Converte uma tabela HTML em registros de período e valor.
+- `def _records_from_matrix_table(self, df: pd.DataFrame) -> list[DrCalcRecord]` — Interpreta tabelas históricas no formato ano x meses ou mês x anos.
 
 ### `def _series_score(series_name: str, target_label: str, extra_aliases: Iterable[str]=()) -> int`
 
 Calcula uma pontuação heurística para escolher a série mais compatível com um destino.
+
+### `def _looks_like_rate_percent(series: DrCalcSeries) -> bool`
+
+Avalia de forma conservadora se uma série sem unidade parece percentual.
 
 ### `def _best_series_for_monthly_column(column: str, series_list: list[DrCalcSeries]) -> DrCalcSeries | None`
 
@@ -1134,11 +1152,11 @@ Seleciona a melhor série mensal para alimentar uma coluna da planilha local.
 
 Seleciona a melhor série diária entre as séries descobertas.
 
-### `def _convert_monthly_value(column: str, valor: Decimal) -> Decimal`
+### `def _convert_monthly_value(column: str, valor: Decimal, *, source_metric: str='unknown') -> Decimal`
 
 Converte o valor mensal da fonte para a unidade esperada pela planilha local.
 
-### `def _convert_daily_value(valor: Decimal) -> Decimal`
+### `def _convert_daily_value(valor: Decimal, *, source_metric: str='unknown') -> Decimal`
 
 Converte o valor diário da fonte para a unidade esperada pela planilha local.
 
