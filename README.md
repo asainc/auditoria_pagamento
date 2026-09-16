@@ -5,7 +5,7 @@ Aplicação web para extração assistida, revisão e cálculo de débitos judic
 A arquitetura principal é:
 
 ```text
-Angular 21.2.21
+Angular 21.2.19
       ↓ HTTP/REST
 FastAPI + serviços de aplicação
       ↓
@@ -50,7 +50,7 @@ config/
   app.settings.json             configuração não secreta da aplicação
   extraction_tasks.json         orçamento máximo de saída por tarefa de IA
   model_pricing.json             tarifas verificadas usadas na estimativa de custo
-frontend/                        Angular 21.2.21
+frontend/                        Angular 21.2.19
 prompts/
   _base.md                       regras comuns de extração
   00_...09_*.md                  tarefas especializadas
@@ -96,7 +96,7 @@ memória + resumo + hashes técnicos
 
 A ordem documental é derivada de `<processo>_<sequencia>.pdf`, sendo a maior sequência o anexo mais recente. Recência não é, por si só, reforma: cada evidência recebe `natureza` e `efeito`, e a consolidação determinística só altera o estado quando há suporte estruturado suficiente. Conflitos não resolvidos permanecem para revisão humana.
 
-> **Dependências corporativas do frontend:** o projeto utiliza somente pacotes oficiais publicados no npm, sem forks locais. As versões fixadas no lockfile ainda precisam estar disponíveis e autorizadas no Nexus corporativo; veja [docs/DEPENDENCIAS_NPM_CORPORATIVAS.md](docs/DEPENDENCIAS_NPM_CORPORATIVAS.md) antes de instalar.
+> **Dependências corporativas do frontend:** esta variante usa estratégia **Nexus-first**. O repositório distribuído não traz um `package-lock.json` resolvido no registry público. O lock deve ser criado uma única vez dentro do ambiente corporativo com `npm run nexus:lock`; depois, ele deve ser revisado e versionado para que `npm ci` seja determinístico.
 
 ## Instalação local
 
@@ -122,16 +122,26 @@ python -m uvicorn backend.principal:aplicacao --reload --host 127.0.0.1 --port 8
 
 ### Frontend
 
-O `frontend/package-lock.json` fixa as dependências. Use uma versão de Node compatível com `frontend/package.json`.
+Baseline de reprodução: **Node.js 22.12.0 + npm 10.9.0 + Angular 21.2.19**. O projeto usa apenas dependências diretas oficiais com versões exatas e não possui `overrides`, forks, `file:`, Git ou pacotes vendorizados.
 
-O frontend usa **somente pacotes oficiais do npm**, sem forks ou bibliotecas locais. Para evitar as versões que receberam 403, a árvore fixa `update-browserslist-db@1.3.3`, `negotiator@1.0.0` e `content-type@2.0.0` apenas onde as faixas declaradas permitem. Essas versões ainda dependem de disponibilidade e autorização no Nexus corporativo. Confira [dependências npm corporativas](docs/DEPENDENCIAS_NPM_CORPORATIVAS.md) e execute `npm run verify:lock` antes de instalar.
+O primeiro lockfile deve nascer no próprio Nexus corporativo:
 
-```bash
+```powershell
 cd frontend
-npm run verify:lock
-npm ci
+npm run env:check
+npm run nexus:check
+npm run nexus:lock
+```
+
+Revise e versione o `frontend/package-lock.json` gerado. A partir daí, as instalações reproduzíveis usam:
+
+```powershell
+npm run install:corporate
+npm run build
 npm start
 ```
+
+O script `nexus:lock` executa somente a resolução de metadados (`--package-lock-only --ignore-scripts`), valida a origem dos artefatos e não envia credenciais para logs. A instalação real ocorre depois com `npm ci`.
 
 O proxy de desenvolvimento encaminha `/api` ao FastAPI.
 
@@ -186,4 +196,4 @@ A retenção de documentos, eventos de auditoria, identificadores técnicos e o 
 
 ## Preparação para validação das dependências do frontend no Nexus
 
-A árvore de dependências oficiais foi preservada; não existe confirmação de homologação do banco nesta entrega. O frontend recebeu ferramentas para consultar todas as versões exigidas no Nexus e confrontá-las com o catálogo real de aprovação. Consulte [o procedimento de validação corporativa](docs/VALIDACAO_GOVERNANCA_FRONTEND.md) antes de executar `npm ci` no ambiente corporativo.
+O frontend foi alinhado ao baseline Node.js 22.12.0 + npm 10.9.0 + Angular 21.2.19 e não força dependências transitivas. O primeiro lockfile deve ser resolvido pelo próprio Nexus com `npm run nexus:lock`; depois disso ele é validado, revisado e versionado. Consulte [o procedimento de validação corporativa](docs/VALIDACAO_GOVERNANCA_FRONTEND.md).

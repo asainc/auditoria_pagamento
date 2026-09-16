@@ -3,7 +3,7 @@
  * Entrada: frontend/config/approved-packages.json, fornecido pela governança.
  * Saídas: relatório CSV local e código 1 enquanto houver qualquer pendência.
  */
-import {readFileSync, mkdirSync, writeFileSync} from 'node:fs';
+import {readFileSync, mkdirSync, writeFileSync, existsSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {collectArtifacts, evaluateApprovals, toCsv} from './governance-core.mjs';
@@ -11,7 +11,9 @@ import {collectArtifacts, evaluateApprovals, toCsv} from './governance-core.mjs'
 const base = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const outputDir = resolve(base, 'reports');
 const approvedFile = process.env.NPM_APPROVED_PACKAGES_FILE || resolve(base, 'config/approved-packages.json');
-const lock = JSON.parse(readFileSync(resolve(base, 'package-lock.json'), 'utf8'));
+const lockPath = resolve(base, 'package-lock.json');
+if (!existsSync(lockPath)) throw new Error('package-lock.json ausente. Execute npm run nexus:lock antes da homologação.');
+const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
 const artifacts = collectArtifacts(lock);
 let approvals;
 try {

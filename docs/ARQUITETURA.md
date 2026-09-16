@@ -14,7 +14,7 @@ A regra de projeto é: **LLM extrai e classifica; Python consolida e calcula; hu
 ## 2. Diagrama de componentes
 
 ```text
-┌──────────────────────── Angular 21.2.21 ────────────────────────┐
+┌──────────────────────── Angular 21.2.19 ────────────────────────┐
 │ App shell │ WorkspaceStore │ editores │ PDF │ logs │ resultado │
 └──────────────────────────────┬──────────────────────────────────┘
                                │ /api
@@ -149,7 +149,7 @@ A extração por IA é responsabilidade da camada de aplicação e não faz part
 ## 11. Reprodutibilidade
 
 - dependências Python: `requirements.lock`;
-- dependências Angular: `package-lock.json`;
+- dependências Angular: `package-lock.json` gerado no Nexus corporativo com Node.js 22.12.0/npm 10.9.0 e depois versionado;
 - contratos gerados: `docs/openapi.json` e `contracts.ts`;
 - integridade do motor: `docs/motor_sha256.json`;
 - hash canônico da entrada e hash da política retornados em cada cálculo;

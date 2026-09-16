@@ -88,13 +88,18 @@ Backend:
 python -m uvicorn backend.principal:aplicacao --host 127.0.0.1 --port 8000
 ```
 
-Frontend:
+Frontend — primeira resolução no Nexus:
 
-```bash
+```powershell
 cd frontend
-npm ci
+npm run env:check
+npm run nexus:check
+npm run nexus:lock
+npm run install:corporate
 npm start
 ```
+
+Depois que o `package-lock.json` corporativo estiver revisado e versionado, novas instalações podem começar em `npm run install:corporate`.
 
 Validação:
 

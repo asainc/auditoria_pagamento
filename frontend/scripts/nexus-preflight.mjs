@@ -5,11 +5,12 @@
  * Segurança: nunca registra credenciais, não consulta registry público, não faz bypass do Nexus.
  */
 import {spawnSync} from 'node:child_process';
-import {readFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {readFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {resolve, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {collectArtifacts, toCsv} from './governance-core.mjs';
+import {validateCorporateRegistry} from './validate-nexus-registry.mjs';
 
 const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const mode = process.argv.includes('--artifacts') ? 'artifacts' : 'metadata';
@@ -46,15 +47,9 @@ function classifyError(result) {
   return 'ERRO_NAO_CLASSIFICADO';
 }
 
-/** Garante que o diagnóstico não seja redirecionado ao npm público sem consentimento. */
+/** Garante que o diagnóstico use exatamente o Nexus corporativo esperado. */
 function checkedRegistry(raw) {
-  let url;
-  try { url = new URL(raw.trim()); } catch { throw new Error('Registry npm inválido; configure o Nexus corporativo.'); }
-  if (url.protocol !== 'https:' || url.username || url.password ||
-      ['registry.npmjs.org', 'registry.yarnpkg.com'].includes(url.hostname.toLowerCase())) {
-    throw new Error('Configure o Nexus HTTPS autorizado; registry público ou URL com credenciais recusado.');
-  }
-  return url.href;
+  return validateCorporateRegistry(raw);
 }
 
 /** Impede que um registry específico de escopo redirecione pacotes para fora do Nexus. */
@@ -89,7 +84,9 @@ try {
   const current = runNpm(['config', 'get', 'registry'], 12000);
   if (!current.ok) throw new Error('Não foi possível ler o registry npm configurado.');
   const registry = checkedRegistry(current.stdout);
-  const lock = JSON.parse(readFileSync(resolve(root, 'package-lock.json'), 'utf8'));
+  const lockPath = resolve(root, 'package-lock.json');
+  if (!existsSync(lockPath)) throw new Error('package-lock.json ausente. Execute npm run nexus:lock antes do preflight.');
+  const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
   const all = collectArtifacts(lock, {includeOptional});
   verifyScopeRegistries(all, registry);
   const selected = all.slice(0, max);

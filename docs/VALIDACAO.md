@@ -47,13 +47,19 @@ A taxa de correspondência exata só deve ser reportada quando o gabarito tiver 
 
 ## 3. Frontend
 
-```bash
+Na primeira preparação dentro do ambiente corporativo:
+
+```powershell
 cd frontend
+npm run env:check
+npm run nexus:check
+npm run nexus:lock
+npm run install:corporate
 npm test
 npm run build
 ```
 
-`npm test` compila os módulos usados nos testes e valida contratos/mappers. `npm run build` exige Angular CLI instalado por `npm ci`.
+Depois que o lockfile corporativo estiver versionado, `npm run install:corporate` executa `npm ci` de forma determinística. `npm test` compila os módulos usados nos testes e valida contratos/mappers.
 
 ## 4. Artefatos gerados
 

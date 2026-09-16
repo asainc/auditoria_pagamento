@@ -46,12 +46,12 @@ def architecture_errors(root: Path) -> list[str]:
         manifest = json.loads(manifest_path.read_text())
         packages = {**manifest.get("dependencies", {}), **manifest.get("devDependencies", {})}
         for name, version in packages.items():
-            if name.startswith(("@angular/", "@angular-devkit/")) and version != "21.2.21":
+            if name.startswith(("@angular/", "@angular-devkit/")) and version != "21.2.19":
                 errors.append(f"Angular fora da versão exigida: {name}={version}")
         lock = root / "frontend/package-lock.json"
         if lock.exists():
             for name, value in json.loads(lock.read_text())["packages"].items():
-                if name.startswith("node_modules/@angular/") and value.get("version") != "21.2.21":
+                if name.startswith("node_modules/@angular/") and value.get("version") != "21.2.19":
                     errors.append(f"Lock Angular divergente: {name}")
     return errors
 
@@ -60,4 +60,4 @@ if __name__ == "__main__":
     errors = architecture_errors(ROOT)
     if errors:
         raise SystemExit("\n".join(errors))
-    print("Arquitetura aprovada: interface Angular 21.2.21, rotas sem motor direto e sem dependências de UI Python.")
+    print("Arquitetura aprovada: interface Angular 21.2.19, rotas sem motor direto e sem dependências de UI Python.")
