@@ -1,0 +1,32 @@
+{
+  "00_classificacao": {
+    "max_output_tokens": 10000
+  },
+  "01_parcelas": {
+    "max_output_tokens": 16384
+  },
+  "02_correcao": {
+    "max_output_tokens": 8192
+  },
+  "03_moratorios": {
+    "max_output_tokens": 8192
+  },
+  "04_compensatorios": {
+    "max_output_tokens": 8192
+  },
+  "05_encargos": {
+    "max_output_tokens": 8192
+  },
+  "06_prescricao": {
+    "max_output_tokens": 8192
+  },
+  "07_compensacao": {
+    "max_output_tokens": 8192
+  },
+  "08_duplo_indice": {
+    "max_output_tokens": 8192
+  },
+  "09_eventos": {
+    "max_output_tokens": 16384
+  }
+}

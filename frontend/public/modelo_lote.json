@@ -1,0 +1,25 @@
+{
+  "processos": [
+    {
+      "numero_processo": "1001",
+      "parcelas": [
+        {
+          "data": "2025-01-01",
+          "valor_singelo": "1234.56",
+          "descricao": "Parcela sintética",
+          "verba_tipo": "dano_material"
+        }
+      ],
+      "parametros": {
+        "indice": "sem_correcao",
+        "mes_atualizacao": "março",
+        "ano_atualizacao": 2026,
+        "juros_moratorios_tipo": "sem_juros",
+        "juros_compensatorios_tipo": "sem_juros"
+      },
+      "eventos_financeiros": [],
+      "revisao_humana_confirmada": false,
+      "origem_calculo": "processo"
+    }
+  ]
+}

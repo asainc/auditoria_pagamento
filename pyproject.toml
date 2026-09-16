@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "judicial-calculator-web"
+version = "1.0.0"
+description = "API FastAPI e frontend Angular para o motor de cálculo judicial existente."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pandas==2.2.3",
+    "requests==2.34.2",
+    "beautifulsoup4==4.15.0",
+    "openpyxl==3.1.5",
+    "openai==3.10.0",
+    "reportlab==4.4.9",
+    "pydantic==2.13.5",
+    "fastapi==0.141.1",
+    "starlette==1.6.0",
+    "uvicorn==0.52.4",
+    "python-multipart==0.0.32",
+    "httpx==0.28.1",
+    "pypdf==6.10.0",
+    "filelock==3.32.6",
+    "xlrd==2.0.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src", "."]
+include = ["judicial_calc*", "backend*"]
+
+[tool.setuptools.package-data]
+judicial_calc = ["data/*.xlsx"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+addopts = "-ra"

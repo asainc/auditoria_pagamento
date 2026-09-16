@@ -1,0 +1,15 @@
+{
+  "environment": "local",
+  "cors_origins": [
+    "http://localhost:4200",
+    "http://127.0.0.1:4200"
+  ],
+  "max_upload_bytes": 20971520,
+  "max_upload_files": 20,
+  "extraction_workers": 2,
+  "openai_model": "gpt-5.6-sol",
+  "openai_reasoning_effort": "medium",
+  "openai_timeout_seconds": 180,
+  "openai_max_output_tokens": 32768,
+  "index_timeout_seconds": 30
+}

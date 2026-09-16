@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "description": "Casos sintéticos e anonimizados para regressão determinística da consolidação cronológica. Não representam benchmark jurídico validado.",
+  "cases": [
+    {
+      "id": "sentenca_acordao_majora_honorarios",
+      "evidences": [
+        {"campo":"parametros.honorarios","valor":"10","documento":"1000_2.pdf","pagina":3,"trecho":"Honorários fixados em dez por cento.","escopo":"caso_concreto","natureza":"comando_decisorio","efeito":"informa"},
+        {"campo":"parametros.honorarios","valor":"15","documento":"1000_5.pdf","pagina":7,"trecho":"Majoram-se os honorários para quinze por cento.","escopo":"caso_concreto","natureza":"comando_decisorio","efeito":"majora"}
+      ],
+      "expected_parameters": {"honorarios":"15"},
+      "expected_alert_substrings": []
+    },
+    {
+      "id": "pedido_nao_prevalece_sobre_sentenca",
+      "evidences": [
+        {"campo":"parametros.compensacao_valor","valor":"30","documento":"2000_1.pdf","pagina":2,"trecho":"Requer compensação de trinta por cento.","escopo":"caso_concreto","natureza":"pedido","efeito":"informa"},
+        {"campo":"parametros.compensacao_valor","valor":"10","documento":"2000_3.pdf","pagina":11,"trecho":"A compensação fica limitada a dez por cento.","escopo":"caso_concreto","natureza":"comando_decisorio","efeito":"reduz"}
+      ],
+      "expected_parameters": {"compensacao_valor":"10"},
+      "expected_alert_substrings": []
+    },
+    {
+      "id": "acordao_mantem_sentenca",
+      "evidences": [
+        {"campo":"parametros.multa_percentual","valor":"2","documento":"3000_4.pdf","pagina":9,"trecho":"Fixa-se multa de dois por cento.","escopo":"caso_concreto","natureza":"comando_decisorio","efeito":"informa"},
+        {"campo":"parametros.multa_percentual","valor":null,"documento":"3000_8.pdf","pagina":4,"trecho":"Mantidos os demais termos da sentença.","escopo":"caso_concreto","natureza":"comando_decisorio","efeito":"mantem"}
+      ],
+      "expected_parameters": {"multa_percentual":"2"},
+      "expected_alert_substrings": []
+    },
+    {
+      "id": "conflito_na_mesma_decisao",
+      "evidences": [
+        {"campo":"parametros.honorarios","valor":"10","documento":"4000_6.pdf","pagina":5,"trecho":"Honorários de dez por cento.","escopo":"caso_concreto","natureza":"comando_decisorio","efeito":"altera"},
+        {"campo":"parametros.honorarios","valor":"20","documento":"4000_6.pdf","pagina":12,"trecho":"Honorários de vinte por cento.","escopo":"caso_concreto","natureza":"comando_decisorio","efeito":"altera"}
+      ],
+      "expected_parameters": {},
+      "expected_alert_substrings": ["Conflito decisório"]
+    },
+    {
+      "id": "criterio_afastado_sem_substituto",
+      "evidences": [
+        {"campo":"parametros.compensacao_valor","valor":"10","documento":"5000_2.pdf","pagina":3,"trecho":"Compensação de dez por cento.","escopo":"caso_concreto","natureza":"comando_decisorio","efeito":"informa"},
+        {"campo":"parametros.compensacao_valor","valor":null,"documento":"5000_9.pdf","pagina":8,"trecho":"Afasta-se a compensação anteriormente fixada.","escopo":"caso_concreto","natureza":"comando_decisorio","efeito":"afasta"}
+      ],
+      "expected_parameters": {},
+      "expected_alert_substrings": ["permanece sem preenchimento automático"]
+    }
+  ]
+}

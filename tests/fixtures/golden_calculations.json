@@ -1,0 +1,1022 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "name": "base_sem_juros",
+      "parcelas": [
+        {
+          "item": 1,
+          "data": "2025-01-01",
+          "valor_singelo": "1234.56",
+          "descricao": "Base",
+          "verba_tipo": "dano_material"
+        }
+      ],
+      "params": {
+        "indice": "sem_correcao",
+        "mes_atualizacao": "março",
+        "ano_atualizacao": 2026,
+        "juros_moratorios_tipo": "sem_juros",
+        "juros_compensatorios_tipo": "sem_juros",
+        "auto_atualizar_planilhas_indices": false,
+        "eventos_financeiros": []
+      },
+      "expected": {
+        "memoria": [
+          {
+            "item": 1,
+            "descricao": "Base",
+            "verba_tipo": "dano_material",
+            "data": "2025-01-01",
+            "valor_singelo": "1234.56",
+            "competencia_inicio_correcao": "2025-01",
+            "competencia_final_correcao": "2026-02",
+            "indice_correcao": "sem_correcao",
+            "duplo_indice_flag": 0,
+            "duplo_indice_faixa": null,
+            "duplo_indice_data_inicio": null,
+            "duplo_indice_data_fim": null,
+            "duplo_indice_valor_parcela": null,
+            "prescricao_flag": 0,
+            "data_inicio_prescricao": null,
+            "prescricao_data_referencia_tipo": null,
+            "prescricao_data_referencia": null,
+            "data_inicio_juros_compensatorios_efetiva": "2025-01-01",
+            "data_inicio_juros_moratorios_efetiva": "2025-01-01",
+            "fator_correcao": "1",
+            "valor_atualizado": "1234.56",
+            "base_juros_moratorios": "1234.56",
+            "n_juros_compensatorios": "0",
+            "percentual_juros_compensatorios": "0",
+            "juros_compensatorios": "0.00",
+            "n_juros_moratorios": "0",
+            "percentual_juros_moratorios": "0",
+            "juros_moratorios": "0.00",
+            "base_multa_manual": "1234.56",
+            "multa_manual": "0.00",
+            "multa": "0.00",
+            "total": "1234.56",
+            "incide_multa_manual": true,
+            "incide_art_523": true,
+            "honorarios_informados_linha": "0.00",
+            "base_art_523": "1234.56",
+            "multa_art_523": "0.00",
+            "honorarios_art_523": "0.00",
+            "total_art_523": "0.00",
+            "total_com_honorarios_e_art_523": "1234.56",
+            "compensacao_linha": "0.00",
+            "total_liquido_apos_compensacao": "1234.56",
+            "eventos_financeiros_linha": "0.00",
+            "total_liquido_apos_eventos_financeiros": "1234.56"
+          }
+        ],
+        "resumo": [
+          {
+            "campo": "competencia_atualizacao",
+            "valor": "2026-03"
+          },
+          {
+            "campo": "indice",
+            "valor": "sem_correcao"
+          },
+          {
+            "campo": "duplo_indice_flag",
+            "valor": 0
+          },
+          {
+            "campo": "duplo_indice_primeiro_indice",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_primeiro_data_inicio",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_primeiro_data_fim",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_primeiro_valor_parcela",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_segundo_indice",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_segundo_data_inicio",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_segundo_data_fim",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_segundo_valor_parcela",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_flag",
+            "valor": 0
+          },
+          {
+            "campo": "prescricao_anos",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_data_referencia_tipo",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_data_referencia",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_data_inicio_calculo",
+            "valor": null
+          },
+          {
+            "campo": "total_singelo",
+            "valor": "1234.56"
+          },
+          {
+            "campo": "total_atualizado",
+            "valor": "1234.56"
+          },
+          {
+            "campo": "total_juros_compensatorios",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_juros_moratorios",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_multa",
+            "valor": "0.00"
+          },
+          {
+            "campo": "subtotal",
+            "valor": "1234.56"
+          },
+          {
+            "campo": "base_honorarios",
+            "valor": "1234.56"
+          },
+          {
+            "campo": "honorarios_informados",
+            "valor": "0.00"
+          },
+          {
+            "campo": "subtotal_com_honorarios",
+            "valor": "1234.56"
+          },
+          {
+            "campo": "base_art_523",
+            "valor": "0.00"
+          },
+          {
+            "campo": "multa_art_523",
+            "valor": "0.00"
+          },
+          {
+            "campo": "honorarios_art_523",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_art_523",
+            "valor": "0.00"
+          },
+          {
+            "campo": "honorarios",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_geral_bruto",
+            "valor": "1234.56"
+          },
+          {
+            "campo": "compensacao_flag",
+            "valor": 0
+          },
+          {
+            "campo": "compensacao_tipo_calculo",
+            "valor": "fixo"
+          },
+          {
+            "campo": "compensacao_valor_parametro",
+            "valor": "0"
+          },
+          {
+            "campo": "valor_compensacao",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_geral",
+            "valor": "1234.56"
+          },
+          {
+            "campo": "eventos_financeiros_total_atualizado",
+            "valor": "0.00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "juros_multa_honorarios_art523",
+      "parcelas": [
+        {
+          "item": 1,
+          "data": "2025-01-01",
+          "valor_singelo": "1000.00",
+          "descricao": "Base",
+          "verba_tipo": "dano_material"
+        }
+      ],
+      "params": {
+        "indice": "sem_correcao",
+        "mes_atualizacao": "março",
+        "ano_atualizacao": 2026,
+        "juros_moratorios_tipo": "capitalizacao_simples",
+        "juros_moratorios_taxa": "1",
+        "juros_moratorios_periodicidade": "mensal",
+        "juros_compensatorios_tipo": "sem_juros",
+        "multa_percentual": "2",
+        "honorarios": "10",
+        "honorarios_tipo": "percentual",
+        "art_523": "aplicar_multa_honorarios",
+        "auto_atualizar_planilhas_indices": false,
+        "eventos_financeiros": []
+      },
+      "expected": {
+        "memoria": [
+          {
+            "item": 1,
+            "descricao": "Base",
+            "verba_tipo": "dano_material",
+            "data": "2025-01-01",
+            "valor_singelo": "1000.00",
+            "competencia_inicio_correcao": "2025-01",
+            "competencia_final_correcao": "2026-02",
+            "indice_correcao": "sem_correcao",
+            "duplo_indice_flag": 0,
+            "duplo_indice_faixa": null,
+            "duplo_indice_data_inicio": null,
+            "duplo_indice_data_fim": null,
+            "duplo_indice_valor_parcela": null,
+            "prescricao_flag": 0,
+            "data_inicio_prescricao": null,
+            "prescricao_data_referencia_tipo": null,
+            "prescricao_data_referencia": null,
+            "data_inicio_juros_compensatorios_efetiva": "2025-01-01",
+            "data_inicio_juros_moratorios_efetiva": "2025-01-01",
+            "fator_correcao": "1",
+            "valor_atualizado": "1000.00",
+            "base_juros_moratorios": "1000.00",
+            "n_juros_compensatorios": "0",
+            "percentual_juros_compensatorios": "0",
+            "juros_compensatorios": "0.00",
+            "n_juros_moratorios": "14",
+            "percentual_juros_moratorios": "14.00",
+            "juros_moratorios": "140.00",
+            "base_multa_manual": "1000.00",
+            "multa_manual": "20.00",
+            "multa": "20.00",
+            "total": "1160.00",
+            "incide_multa_manual": true,
+            "incide_art_523": true,
+            "honorarios_informados_linha": "114.00",
+            "base_art_523": "1274.00",
+            "multa_art_523": "127.40",
+            "honorarios_art_523": "127.40",
+            "total_art_523": "254.80",
+            "total_com_honorarios_e_art_523": "1528.80",
+            "compensacao_linha": "0.00",
+            "total_liquido_apos_compensacao": "1528.80",
+            "eventos_financeiros_linha": "0.00",
+            "total_liquido_apos_eventos_financeiros": "1528.80"
+          }
+        ],
+        "resumo": [
+          {
+            "campo": "competencia_atualizacao",
+            "valor": "2026-03"
+          },
+          {
+            "campo": "indice",
+            "valor": "sem_correcao"
+          },
+          {
+            "campo": "duplo_indice_flag",
+            "valor": 0
+          },
+          {
+            "campo": "duplo_indice_primeiro_indice",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_primeiro_data_inicio",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_primeiro_data_fim",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_primeiro_valor_parcela",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_segundo_indice",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_segundo_data_inicio",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_segundo_data_fim",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_segundo_valor_parcela",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_flag",
+            "valor": 0
+          },
+          {
+            "campo": "prescricao_anos",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_data_referencia_tipo",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_data_referencia",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_data_inicio_calculo",
+            "valor": null
+          },
+          {
+            "campo": "total_singelo",
+            "valor": "1000.00"
+          },
+          {
+            "campo": "total_atualizado",
+            "valor": "1000.00"
+          },
+          {
+            "campo": "total_juros_compensatorios",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_juros_moratorios",
+            "valor": "140.00"
+          },
+          {
+            "campo": "total_multa",
+            "valor": "20.00"
+          },
+          {
+            "campo": "subtotal",
+            "valor": "1160.00"
+          },
+          {
+            "campo": "base_honorarios",
+            "valor": "1140.00"
+          },
+          {
+            "campo": "honorarios_informados",
+            "valor": "114.00"
+          },
+          {
+            "campo": "subtotal_com_honorarios",
+            "valor": "1274.00"
+          },
+          {
+            "campo": "base_art_523",
+            "valor": "1274.00"
+          },
+          {
+            "campo": "multa_art_523",
+            "valor": "127.40"
+          },
+          {
+            "campo": "honorarios_art_523",
+            "valor": "127.40"
+          },
+          {
+            "campo": "total_art_523",
+            "valor": "254.80"
+          },
+          {
+            "campo": "honorarios",
+            "valor": "241.40"
+          },
+          {
+            "campo": "total_geral_bruto",
+            "valor": "1528.80"
+          },
+          {
+            "campo": "compensacao_flag",
+            "valor": 0
+          },
+          {
+            "campo": "compensacao_tipo_calculo",
+            "valor": "fixo"
+          },
+          {
+            "campo": "compensacao_valor_parametro",
+            "valor": "0"
+          },
+          {
+            "campo": "valor_compensacao",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_geral",
+            "valor": "1528.80"
+          },
+          {
+            "campo": "eventos_financeiros_total_atualizado",
+            "valor": "0.00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "compensacao_evento",
+      "parcelas": [
+        {
+          "item": 1,
+          "data": "2025-01-01",
+          "valor_singelo": "1200.00",
+          "descricao": "A",
+          "verba_tipo": "dano_material"
+        },
+        {
+          "item": 2,
+          "data": "2025-02-01",
+          "valor_singelo": "300.00",
+          "descricao": "B",
+          "verba_tipo": "dano_moral"
+        }
+      ],
+      "params": {
+        "indice": "sem_correcao",
+        "mes_atualizacao": "março",
+        "ano_atualizacao": 2026,
+        "juros_moratorios_tipo": "sem_juros",
+        "juros_compensatorios_tipo": "sem_juros",
+        "compensacao_flag": true,
+        "compensacao_tipo_calculo": "percentual",
+        "compensacao_valor": "10",
+        "auto_atualizar_planilhas_indices": false,
+        "eventos_financeiros": [
+          {
+            "tipo": "pagamento_parcial",
+            "data": "2025-04-01",
+            "valor": "100",
+            "criterio": "descontar_no_final"
+          }
+        ]
+      },
+      "expected": {
+        "memoria": [
+          {
+            "item": 1,
+            "descricao": "A",
+            "verba_tipo": "dano_material",
+            "data": "2025-01-01",
+            "valor_singelo": "1200.00",
+            "competencia_inicio_correcao": "2025-01",
+            "competencia_final_correcao": "2026-02",
+            "indice_correcao": "sem_correcao",
+            "duplo_indice_flag": 0,
+            "duplo_indice_faixa": null,
+            "duplo_indice_data_inicio": null,
+            "duplo_indice_data_fim": null,
+            "duplo_indice_valor_parcela": null,
+            "prescricao_flag": 0,
+            "data_inicio_prescricao": null,
+            "prescricao_data_referencia_tipo": null,
+            "prescricao_data_referencia": null,
+            "data_inicio_juros_compensatorios_efetiva": "2025-01-01",
+            "data_inicio_juros_moratorios_efetiva": "2025-01-01",
+            "fator_correcao": "1",
+            "valor_atualizado": "1200.00",
+            "base_juros_moratorios": "1200.00",
+            "n_juros_compensatorios": "0",
+            "percentual_juros_compensatorios": "0",
+            "juros_compensatorios": "0.00",
+            "n_juros_moratorios": "0",
+            "percentual_juros_moratorios": "0",
+            "juros_moratorios": "0.00",
+            "base_multa_manual": "1200.00",
+            "multa_manual": "0.00",
+            "multa": "0.00",
+            "total": "1200.00",
+            "incide_multa_manual": true,
+            "incide_art_523": true,
+            "honorarios_informados_linha": "0.00",
+            "base_art_523": "1200.00",
+            "multa_art_523": "0.00",
+            "honorarios_art_523": "0.00",
+            "total_art_523": "0.00",
+            "total_com_honorarios_e_art_523": "1200.00",
+            "compensacao_linha": "120.00",
+            "total_liquido_apos_compensacao": "1080.00",
+            "eventos_financeiros_linha": "80.00",
+            "total_liquido_apos_eventos_financeiros": "1000.00"
+          },
+          {
+            "item": 2,
+            "descricao": "B",
+            "verba_tipo": "dano_moral",
+            "data": "2025-02-01",
+            "valor_singelo": "300.00",
+            "competencia_inicio_correcao": "2025-02",
+            "competencia_final_correcao": "2026-02",
+            "indice_correcao": "sem_correcao",
+            "duplo_indice_flag": 0,
+            "duplo_indice_faixa": null,
+            "duplo_indice_data_inicio": null,
+            "duplo_indice_data_fim": null,
+            "duplo_indice_valor_parcela": null,
+            "prescricao_flag": 0,
+            "data_inicio_prescricao": null,
+            "prescricao_data_referencia_tipo": null,
+            "prescricao_data_referencia": null,
+            "data_inicio_juros_compensatorios_efetiva": "2025-02-01",
+            "data_inicio_juros_moratorios_efetiva": "2025-02-01",
+            "fator_correcao": "1",
+            "valor_atualizado": "300.00",
+            "base_juros_moratorios": "300.00",
+            "n_juros_compensatorios": "0",
+            "percentual_juros_compensatorios": "0",
+            "juros_compensatorios": "0.00",
+            "n_juros_moratorios": "0",
+            "percentual_juros_moratorios": "0",
+            "juros_moratorios": "0.00",
+            "base_multa_manual": "300.00",
+            "multa_manual": "0.00",
+            "multa": "0.00",
+            "total": "300.00",
+            "incide_multa_manual": true,
+            "incide_art_523": true,
+            "honorarios_informados_linha": "0.00",
+            "base_art_523": "300.00",
+            "multa_art_523": "0.00",
+            "honorarios_art_523": "0.00",
+            "total_art_523": "0.00",
+            "total_com_honorarios_e_art_523": "300.00",
+            "compensacao_linha": "30.00",
+            "total_liquido_apos_compensacao": "270.00",
+            "eventos_financeiros_linha": "20.00",
+            "total_liquido_apos_eventos_financeiros": "250.00"
+          }
+        ],
+        "resumo": [
+          {
+            "campo": "competencia_atualizacao",
+            "valor": "2026-03"
+          },
+          {
+            "campo": "indice",
+            "valor": "sem_correcao"
+          },
+          {
+            "campo": "duplo_indice_flag",
+            "valor": 0
+          },
+          {
+            "campo": "duplo_indice_primeiro_indice",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_primeiro_data_inicio",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_primeiro_data_fim",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_primeiro_valor_parcela",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_segundo_indice",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_segundo_data_inicio",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_segundo_data_fim",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_segundo_valor_parcela",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_flag",
+            "valor": 0
+          },
+          {
+            "campo": "prescricao_anos",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_data_referencia_tipo",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_data_referencia",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_data_inicio_calculo",
+            "valor": null
+          },
+          {
+            "campo": "total_singelo",
+            "valor": "1500.00"
+          },
+          {
+            "campo": "total_atualizado",
+            "valor": "1500.00"
+          },
+          {
+            "campo": "total_juros_compensatorios",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_juros_moratorios",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_multa",
+            "valor": "0.00"
+          },
+          {
+            "campo": "subtotal",
+            "valor": "1500.00"
+          },
+          {
+            "campo": "base_honorarios",
+            "valor": "1500.00"
+          },
+          {
+            "campo": "honorarios_informados",
+            "valor": "0.00"
+          },
+          {
+            "campo": "subtotal_com_honorarios",
+            "valor": "1500.00"
+          },
+          {
+            "campo": "base_art_523",
+            "valor": "0.00"
+          },
+          {
+            "campo": "multa_art_523",
+            "valor": "0.00"
+          },
+          {
+            "campo": "honorarios_art_523",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_art_523",
+            "valor": "0.00"
+          },
+          {
+            "campo": "honorarios",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_geral_bruto",
+            "valor": "1500.00"
+          },
+          {
+            "campo": "compensacao_flag",
+            "valor": 1
+          },
+          {
+            "campo": "compensacao_tipo_calculo",
+            "valor": "percentual"
+          },
+          {
+            "campo": "compensacao_valor_parametro",
+            "valor": "10"
+          },
+          {
+            "campo": "valor_compensacao",
+            "valor": "150.00"
+          },
+          {
+            "campo": "total_geral",
+            "valor": "1250.00"
+          },
+          {
+            "campo": "eventos_financeiros_total_atualizado",
+            "valor": "100.00"
+          },
+          {
+            "campo": "total_apos_eventos_financeiros",
+            "valor": "1250.00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "duplo_indice",
+      "parcelas": [
+        {
+          "item": 1,
+          "data": "2024-06-01",
+          "valor_singelo": "100",
+          "descricao": "A",
+          "verba_tipo": "dano_material"
+        },
+        {
+          "item": 2,
+          "data": "2025-06-01",
+          "valor_singelo": "200",
+          "descricao": "B",
+          "verba_tipo": "dano_material"
+        }
+      ],
+      "params": {
+        "indice": "sem_correcao",
+        "mes_atualizacao": "março",
+        "ano_atualizacao": 2026,
+        "juros_moratorios_tipo": "sem_juros",
+        "juros_compensatorios_tipo": "sem_juros",
+        "duplo_indice_flag": true,
+        "duplo_indice_primeiro_indice": "sem_correcao",
+        "duplo_indice_primeiro_data_inicio": "2024-01-01",
+        "duplo_indice_primeiro_data_fim": "2024-12-31",
+        "duplo_indice_segundo_indice": "sem_correcao",
+        "duplo_indice_segundo_data_inicio": "2025-01-01",
+        "duplo_indice_segundo_data_fim": "2026-03-31",
+        "auto_atualizar_planilhas_indices": false,
+        "eventos_financeiros": []
+      },
+      "expected": {
+        "memoria": [
+          {
+            "item": 1,
+            "descricao": "A",
+            "verba_tipo": "dano_material",
+            "data": "2024-06-01",
+            "valor_singelo": "100.00",
+            "competencia_inicio_correcao": "2024-06",
+            "competencia_final_correcao": "2026-02",
+            "indice_correcao": "sem_correcao",
+            "duplo_indice_flag": 1,
+            "duplo_indice_faixa": 1,
+            "duplo_indice_data_inicio": "2024-01-01",
+            "duplo_indice_data_fim": "2024-12-31",
+            "duplo_indice_valor_parcela": null,
+            "prescricao_flag": 0,
+            "data_inicio_prescricao": null,
+            "prescricao_data_referencia_tipo": null,
+            "prescricao_data_referencia": null,
+            "data_inicio_juros_compensatorios_efetiva": "2024-06-01",
+            "data_inicio_juros_moratorios_efetiva": "2024-06-01",
+            "fator_correcao": "1",
+            "valor_atualizado": "100.00",
+            "base_juros_moratorios": "100.00",
+            "n_juros_compensatorios": "0",
+            "percentual_juros_compensatorios": "0",
+            "juros_compensatorios": "0.00",
+            "n_juros_moratorios": "0",
+            "percentual_juros_moratorios": "0",
+            "juros_moratorios": "0.00",
+            "base_multa_manual": "100.00",
+            "multa_manual": "0.00",
+            "multa": "0.00",
+            "total": "100.00",
+            "incide_multa_manual": true,
+            "incide_art_523": true,
+            "honorarios_informados_linha": "0.00",
+            "base_art_523": "100.00",
+            "multa_art_523": "0.00",
+            "honorarios_art_523": "0.00",
+            "total_art_523": "0.00",
+            "total_com_honorarios_e_art_523": "100.00",
+            "compensacao_linha": "0.00",
+            "total_liquido_apos_compensacao": "100.00",
+            "eventos_financeiros_linha": "0.00",
+            "total_liquido_apos_eventos_financeiros": "100.00"
+          },
+          {
+            "item": 2,
+            "descricao": "B",
+            "verba_tipo": "dano_material",
+            "data": "2025-06-01",
+            "valor_singelo": "200.00",
+            "competencia_inicio_correcao": "2025-06",
+            "competencia_final_correcao": "2026-02",
+            "indice_correcao": "sem_correcao",
+            "duplo_indice_flag": 1,
+            "duplo_indice_faixa": 2,
+            "duplo_indice_data_inicio": "2025-01-01",
+            "duplo_indice_data_fim": "2026-03-31",
+            "duplo_indice_valor_parcela": null,
+            "prescricao_flag": 0,
+            "data_inicio_prescricao": null,
+            "prescricao_data_referencia_tipo": null,
+            "prescricao_data_referencia": null,
+            "data_inicio_juros_compensatorios_efetiva": "2025-06-01",
+            "data_inicio_juros_moratorios_efetiva": "2025-06-01",
+            "fator_correcao": "1",
+            "valor_atualizado": "200.00",
+            "base_juros_moratorios": "200.00",
+            "n_juros_compensatorios": "0",
+            "percentual_juros_compensatorios": "0",
+            "juros_compensatorios": "0.00",
+            "n_juros_moratorios": "0",
+            "percentual_juros_moratorios": "0",
+            "juros_moratorios": "0.00",
+            "base_multa_manual": "200.00",
+            "multa_manual": "0.00",
+            "multa": "0.00",
+            "total": "200.00",
+            "incide_multa_manual": true,
+            "incide_art_523": true,
+            "honorarios_informados_linha": "0.00",
+            "base_art_523": "200.00",
+            "multa_art_523": "0.00",
+            "honorarios_art_523": "0.00",
+            "total_art_523": "0.00",
+            "total_com_honorarios_e_art_523": "200.00",
+            "compensacao_linha": "0.00",
+            "total_liquido_apos_compensacao": "200.00",
+            "eventos_financeiros_linha": "0.00",
+            "total_liquido_apos_eventos_financeiros": "200.00"
+          }
+        ],
+        "resumo": [
+          {
+            "campo": "competencia_atualizacao",
+            "valor": "2026-03"
+          },
+          {
+            "campo": "indice",
+            "valor": "sem_correcao"
+          },
+          {
+            "campo": "duplo_indice_flag",
+            "valor": 1
+          },
+          {
+            "campo": "duplo_indice_primeiro_indice",
+            "valor": "sem_correcao"
+          },
+          {
+            "campo": "duplo_indice_primeiro_data_inicio",
+            "valor": "2024-01-01"
+          },
+          {
+            "campo": "duplo_indice_primeiro_data_fim",
+            "valor": "2024-12-31"
+          },
+          {
+            "campo": "duplo_indice_primeiro_valor_parcela",
+            "valor": null
+          },
+          {
+            "campo": "duplo_indice_segundo_indice",
+            "valor": "sem_correcao"
+          },
+          {
+            "campo": "duplo_indice_segundo_data_inicio",
+            "valor": "2025-01-01"
+          },
+          {
+            "campo": "duplo_indice_segundo_data_fim",
+            "valor": "2026-03-31"
+          },
+          {
+            "campo": "duplo_indice_segundo_valor_parcela",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_flag",
+            "valor": 0
+          },
+          {
+            "campo": "prescricao_anos",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_data_referencia_tipo",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_data_referencia",
+            "valor": null
+          },
+          {
+            "campo": "prescricao_data_inicio_calculo",
+            "valor": null
+          },
+          {
+            "campo": "total_singelo",
+            "valor": "300.00"
+          },
+          {
+            "campo": "total_atualizado",
+            "valor": "300.00"
+          },
+          {
+            "campo": "total_juros_compensatorios",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_juros_moratorios",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_multa",
+            "valor": "0.00"
+          },
+          {
+            "campo": "subtotal",
+            "valor": "300.00"
+          },
+          {
+            "campo": "base_honorarios",
+            "valor": "300.00"
+          },
+          {
+            "campo": "honorarios_informados",
+            "valor": "0.00"
+          },
+          {
+            "campo": "subtotal_com_honorarios",
+            "valor": "300.00"
+          },
+          {
+            "campo": "base_art_523",
+            "valor": "0.00"
+          },
+          {
+            "campo": "multa_art_523",
+            "valor": "0.00"
+          },
+          {
+            "campo": "honorarios_art_523",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_art_523",
+            "valor": "0.00"
+          },
+          {
+            "campo": "honorarios",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_geral_bruto",
+            "valor": "300.00"
+          },
+          {
+            "campo": "compensacao_flag",
+            "valor": 0
+          },
+          {
+            "campo": "compensacao_tipo_calculo",
+            "valor": "fixo"
+          },
+          {
+            "campo": "compensacao_valor_parametro",
+            "valor": "0"
+          },
+          {
+            "campo": "valor_compensacao",
+            "valor": "0.00"
+          },
+          {
+            "campo": "total_geral",
+            "valor": "300.00"
+          },
+          {
+            "campo": "eventos_financeiros_total_atualizado",
+            "valor": "0.00"
+          }
+        ]
+      }
+    }
+  ]
+}

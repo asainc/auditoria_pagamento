@@ -1,0 +1,45 @@
+/* A leitura ocupa toda a altura disponível; dados, parâmetros e logs compartilham a bandeja lateral. */
+.workspace{grid-template-columns:190px minmax(0,1fr)}
+.workspace.sidebar-collapsed{grid-template-columns:minmax(0,1fr)}
+.document-workspace{grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr);min-height:0}
+.document-panel,.work-tray{height:100%;min-height:0}
+.viewer-heading{align-items:end;flex-wrap:wrap}
+.viewer-heading .field{flex:1;min-width:180px}
+.installment-header{flex-wrap:wrap;gap:10px}
+.installment-header .actions{flex-wrap:wrap}
+.tray-tabs{flex-shrink:0;overflow-x:auto}
+.tray-tabs button{white-space:nowrap}
+.evidence-row>div{flex-wrap:wrap;gap:8px}
+.evidence-row span,.evidence-row blockquote{overflow-wrap:anywhere}
+.operational-rule{background:var(--accent-soft);border-left:3px solid var(--accent);padding:14px;margin-bottom:12px}
+.operational-rule p{font-size:.85rem;margin-top:8px}
+@media(max-width:1279px){
+  /* Em telas menores, a página cresce em vez de comprimir o PDF e as tabelas. */
+  .application-shell{height:auto;min-height:100dvh}
+  .route-content>app-calculation-page{height:auto}
+  .workspace{grid-template-columns:190px minmax(0,1fr);align-items:start}
+  .document-workspace{display:flex;flex-direction:column;min-height:0}
+  .document-panel{height:78dvh;min-height:560px}
+  .work-tray{height:72dvh;min-height:520px}
+  .process-sidebar{max-height:calc(100dvh - 180px);position:sticky;top:12px}
+}
+@media(max-width:800px){
+  .workspace,.workspace.sidebar-collapsed{display:flex;flex-direction:column}
+  .process-sidebar{position:static;max-height:440px;width:100%}
+  .document-workspace{width:100%}
+  .document-panel{min-height:500px}
+  .work-tray{min-height:500px}
+}
+/* Parâmetros e logs passam a ocupar a mesma bandeja dos demais dados; não há controles de ampliação. */
+.parameters-tab{display:flex;flex-direction:column;min-height:0;width:100%;overflow:auto}
+.tray-content>app-extraction-log{display:flex;flex-direction:column;min-height:0;width:100%;min-width:0}
+.log-list{display:flex;flex-direction:column}
+.log-table-scroll{overflow:auto;min-height:0}
+.log-table{min-width:900px}
+.log-table th:nth-child(1){min-width:190px}.log-table th:nth-child(2){min-width:230px}.log-table th:nth-child(3){min-width:170px}.log-table th:nth-child(4),.log-table th:nth-child(5){min-width:160px}
+.log-table tr.human-changed td{background:#fff7f8}
+.log-table tr.human-changed td:first-child{border-left:3px solid var(--accent)}
+.log-value{font-family:var(--numbers);overflow-wrap:anywhere}
+.log-note{padding:10px 14px;border-top:1px solid var(--line);font-size:.75rem;color:var(--muted)}
+.log-history-heading{margin-top:12px;border-top:1px solid var(--line)}
+.review-log-table{min-width:1180px}

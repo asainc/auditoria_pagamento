@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": ".test-build",
+    "rootDir": "src/app",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "isolatedModules": false,
+    "types": []
+  },
+  "include": [
+    "src/app/core/calculation-mapper.ts",
+    "src/app/core/api-errors.ts",
+    "src/app/calculation/installment-dates.ts"
+  ]
+}
