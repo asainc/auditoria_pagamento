@@ -214,7 +214,13 @@ class ExtractionProvider:
 
     @staticmethod
     def _json_object(text: str) -> dict:
-        """Aceita JSON puro ou bloco cercado; qualquer outra saída é rejeitada."""
+        """Aceita JSON puro, bloco cercado ou um objeto embrulhado por chave técnica.
+
+        Alguns deployments corporativos acrescentam uma chave de transporte como
+        ``result`` ou ``response`` mesmo quando o prompt pede um objeto JSON puro.
+        O backend remove somente esse invólucro estrutural; nenhum valor factual é
+        criado ou alterado nesta etapa.
+        """
         value = text.strip()
         fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", value, re.IGNORECASE | re.DOTALL)
         if fenced:
@@ -224,14 +230,111 @@ class ExtractionProvider:
         except ValueError as exc:
             raise ExtractionProviderError(
                 "bradesco_saida_nao_json",
-                "O gerador corporativo não retornou JSON válido para a extração. Nenhuma sugestão parcial foi aplicada.",
+                "O gerador corporativo não retornou JSON válido para a extração.",
             ) from exc
         if not isinstance(decoded, dict):
             raise ExtractionProviderError(
                 "bradesco_saida_nao_json",
                 "O gerador corporativo retornou um tipo de JSON incompatível com a extração.",
             )
+
+        expected = {"campos", "parcelas", "eventos_financeiros", "alertas"}
+        if not expected.intersection(decoded):
+            for key in ("result", "resultado", "response", "output", "data"):
+                nested = decoded.get(key)
+                if isinstance(nested, dict) and expected.intersection(nested):
+                    decoded = nested
+                    break
+                if isinstance(nested, str):
+                    try:
+                        candidate = json.loads(nested)
+                    except ValueError:
+                        continue
+                    if isinstance(candidate, dict) and expected.intersection(candidate):
+                        decoded = candidate
+                        break
+
+        # Listas ausentes significam apenas que a tarefa não encontrou itens desse tipo.
+        # Isso é semanticamente diferente de inventar um valor de cálculo.
+        for key in expected:
+            decoded.setdefault(key, [])
         return decoded
+
+    @staticmethod
+    def _validation_summary(exc: ValidationError) -> str:
+        """Resume somente localização e tipo dos erros, sem registrar dados do processo."""
+        rows: list[str] = []
+        for error in exc.errors(include_input=False, include_url=False):
+            location = ".".join(str(item) for item in error.get("loc", ())) or "raiz"
+            rows.append(f"- {location}: {error.get('msg', error.get('type', 'inválido'))}")
+        return "\n".join(rows[:30])
+
+    def _validate_or_repair(
+        self,
+        response: str,
+        *,
+        stage: str,
+        max_output_tokens: int,
+    ) -> tuple[WireExtractionFragment, AiUsage | None]:
+        """Valida a saída e faz uma única correção estrutural pelo ``text_generator``.
+
+        A segunda chamada é acionada somente quando o conteúdo já retornado contém
+        JSON/estrutura incompatível. O prompt de correção proíbe explicitamente a
+        criação de fatos novos e serve apenas para adequar chaves, tipos e enums.
+        """
+        first_error: Exception | None = None
+        validation_details = "Saída não era JSON válido."
+        try:
+            return WireExtractionFragment.model_validate(self._json_object(response)), None
+        except ValidationError as exc:
+            first_error = exc
+            validation_details = self._validation_summary(exc)
+        except ExtractionProviderError as exc:
+            first_error = exc
+
+        repair_prompt = "\n\n".join(
+            [
+                "# Correção estrutural obrigatória",
+                "A resposta anterior não aderiu ao contrato JSON da calculadora.",
+                "Não releia o caso, não acrescente fatos, não altere valores e não crie evidências novas.",
+                "Corrija SOMENTE estrutura, nomes de chaves, tipos simples, enums permitidos e listas ausentes.",
+                "Quando um metadado classificatório estiver ausente, use natureza=indeterminado e efeito=informa.",
+                "Quando descricao de parcela estiver ausente, use string vazia.",
+                "Campos opcionais ausentes de evento financeiro podem ser null/false conforme o contrato.",
+                "Retorne exatamente um objeto com as quatro chaves: campos, parcelas, eventos_financeiros, alertas.",
+                "Não use markdown nem texto fora do JSON.",
+                "## Erros detectados pelo backend",
+                validation_details,
+                "## Contrato JSON",
+                self.output_schema,
+                "## Resposta anterior a ser apenas reformatada",
+                response,
+            ]
+        )
+        timer = RequestTimer()
+        repaired = self.bridge.generate_text(repair_prompt, max_tokens=max_output_tokens)
+        usage = self.usage_meter.from_call(
+            model=self.settings.bradesco_text_model,
+            stage=f"{stage}_correcao_estrutura",
+            duration_ms=timer.elapsed_ms(),
+        )
+        try:
+            return WireExtractionFragment.model_validate(self._json_object(repaired)), usage
+        except (ValidationError, ExtractionProviderError) as exc:
+            logger.warning(
+                "bradesco_structured_output_invalid",
+                extra={
+                    "stage": stage,
+                    "first_error_type": type(first_error).__name__ if first_error else None,
+                    "repair_error_type": type(exc).__name__,
+                },
+            )
+            if isinstance(exc, ValidationError):
+                raise ExtractionProviderError(
+                    "bradesco_saida_invalida",
+                    "O gerador corporativo não conseguiu adequar a saída ao contrato de extração após uma tentativa automática de correção.",
+                ) from None
+            raise exc
 
     @staticmethod
     def _shift_evidence(field: FieldEvidence, parcel_offset: int, event_offset: int) -> FieldEvidence:
@@ -291,7 +394,13 @@ class ExtractionProvider:
                         duration_ms=timer.elapsed_ms(),
                     )
                 )
-                wire = WireExtractionFragment.model_validate(self._json_object(response))
+                wire, repair_usage = self._validate_or_repair(
+                    response,
+                    stage=f"{stage}_parte_{chunk_index}",
+                    max_output_tokens=max_output_tokens,
+                )
+                if repair_usage is not None:
+                    usages.append(repair_usage)
                 fragment = ExtractionFragment.model_validate(wire.model_dump())
                 parcel_offset = len(accumulator.parcelas)
                 event_offset = len(accumulator.eventos_financeiros)

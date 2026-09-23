@@ -1,36 +1,56 @@
-"""Contrato externo simples; limites financeiros continuam no contrato interno."""
+"""Contrato externo tolerante a omissões seguras; limites permanecem no contrato interno."""
 from typing import Literal
-from backend.models import Contract, DamageType, EvidenceEffect, EvidenceNature, FieldEvidence
+
+from backend.models import (
+    Contract,
+    DamageType,
+    EvidenceEffect,
+    EvidenceNature,
+    FieldEvidence,
+)
 
 
 class WireEvidence(FieldEvidence):
-    """Mantém o schema externo simples e torna papel/efeito explicitamente obrigatórios."""
+    """Evidência recebida do gerador com defaults somente para metadados de classificação.
+
+    ``natureza`` e ``efeito`` não alteram o valor factual extraído. Quando o
+    gerador os omite, o backend assume explicitamente os estados conservadores
+    ``indeterminado`` e ``informa`` e mantém a evidência sujeita à revisão humana.
+    """
+
     pagina: int
-    natureza: EvidenceNature
-    efeito: EvidenceEffect
+    natureza: EvidenceNature = "indeterminado"
+    efeito: EvidenceEffect = "informa"
 
 
 class WireInstallment(Contract):
-    """Dinheiro como texto evita regex Decimal e conversão por ponto flutuante."""
+    """Parcela no transporte; descrição é opcional e não participa do cálculo."""
+
     data: str
     valor_singelo: str
-    descricao: str
+    descricao: str = ""
     verba_tipo: DamageType
 
 
 class WireFinancialEvent(Contract):
-    """Todos os campos são obrigatórios no transporte, sem defaults no schema."""
+    """Evento financeiro com defaults equivalentes ao contrato interno.
+
+    A validação interna continua exigindo data quando o critério escolhido torna
+    o evento calculável. Portanto, estes defaults não relaxam regras do motor.
+    """
+
     tipo: Literal["deposito_judicial", "pagamento_parcial", "compensacao", "levantamento"]
-    data: str | None
+    data: str | None = None
     valor: str
     criterio: Literal["abater_na_data_do_pagamento", "descontar_no_final", "informativo"]
-    indice_atualizacao: str | None
-    aplicar_juros_apos_evento: bool
+    indice_atualizacao: str | None = None
+    aplicar_juros_apos_evento: bool = False
 
 
 class WireExtractionFragment(Contract):
-    """Somente tipos básicos e enums são enviados ao gerador estruturado."""
-    campos: list[WireEvidence]
-    parcelas: list[WireInstallment]
-    eventos_financeiros: list[WireFinancialEvent]
-    alertas: list[str]
+    """Estrutura mínima retornada por cada prompt especializado."""
+
+    campos: list[WireEvidence] = []
+    parcelas: list[WireInstallment] = []
+    eventos_financeiros: list[WireFinancialEvent] = []
+    alertas: list[str] = []

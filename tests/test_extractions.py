@@ -148,3 +148,100 @@ def test_provider_failure_becomes_explicit_status(tmp_path, pdf_bytes):
             time.sleep(0.01)
         assert status["estado"] == "falha"
         assert client.get("/api/extracoes/1001/resultado").status_code == 409
+
+
+
+def test_wire_contract_accepts_safe_omissions_from_text_generator():
+    """Omissões sem efeito financeiro não devem derrubar toda a extração."""
+    from backend.services.extraction_wire import WireExtractionFragment
+
+    fragment = WireExtractionFragment.model_validate(
+        {
+            "campos": [
+                {
+                    "campo": "parametros.multa_percentual",
+                    "valor": "2",
+                    "documento": "1001_1.pdf",
+                    "pagina": 1,
+                    "trecho": "multa de 2%",
+                    "escopo": "caso_concreto",
+                }
+            ],
+            "parcelas": [
+                {
+                    "data": "2025-01-01",
+                    "valor_singelo": "100.00",
+                    "verba_tipo": "dano_material",
+                }
+            ],
+            "eventos_financeiros": [
+                {
+                    "tipo": "deposito_judicial",
+                    "valor": "50.00",
+                    "criterio": "informativo",
+                }
+            ],
+        }
+    )
+    assert fragment.campos[0].natureza == "indeterminado"
+    assert fragment.campos[0].efeito == "informa"
+    assert fragment.parcelas[0].descricao == ""
+    assert fragment.eventos_financeiros[0].data is None
+    assert fragment.eventos_financeiros[0].aplicar_juros_apos_evento is False
+    assert fragment.alertas == []
+
+
+def test_provider_repairs_structurally_invalid_generator_response():
+    """Uma falha de formato recebe uma única correção via text_generator."""
+    class RepairBridge:
+        configured = True
+
+        def __init__(self):
+            self.calls: list[str] = []
+
+        def generate_text(self, payload: str, *, max_tokens: int) -> str:
+            self.calls.append(payload)
+            if len(self.calls) == 1:
+                return '{"campos":"formato_incorreto","parcelas":[],"eventos_financeiros":[],"alertas":[]}'
+            return (
+                '{"campos":[],"parcelas":[],"eventos_financeiros":[], '
+                '"alertas":["Nenhuma evidência encontrada nesta tarefa."]}'
+            )
+
+    bridge = RepairBridge()
+    provider = ExtractionProvider(Settings(bradesco_text_model="gpt-5.1"), bridge=bridge)  # type: ignore[arg-type]
+    result = provider.extract(
+        "Prompt sintético",
+        [PdfTextDocument(nome="1001_1.pdf", paginas=(PdfTextPage(1, "Texto sintético."),))],
+        stage="teste",
+        max_output_tokens=1024,
+    )
+    assert result.fragmento.campos == []
+    assert result.fragmento.alertas == ["Nenhuma evidência encontrada nesta tarefa."]
+    assert len(bridge.calls) == 2
+    assert "Correção estrutural obrigatória" in bridge.calls[1]
+    assert len(result.usos) == 2
+
+
+def test_provider_unwraps_common_corporate_json_wrapper_without_repair():
+    """Wrappers técnicos não devem ser tratados como falha de conteúdo."""
+    class WrappedBridge:
+        configured = True
+
+        def __init__(self):
+            self.calls = 0
+
+        def generate_text(self, payload: str, *, max_tokens: int) -> str:
+            self.calls += 1
+            return '{"resultado":{"campos":[],"parcelas":[],"eventos_financeiros":[],"alertas":[]}}'
+
+    bridge = WrappedBridge()
+    provider = ExtractionProvider(Settings(bradesco_text_model="gpt-5.1"), bridge=bridge)  # type: ignore[arg-type]
+    result = provider.extract(
+        "Prompt sintético",
+        [PdfTextDocument(nome="1001_1.pdf", paginas=(PdfTextPage(1, "Texto sintético."),))],
+        stage="teste_wrapper",
+        max_output_tokens=1024,
+    )
+    assert result.fragmento.campos == []
+    assert bridge.calls == 1
