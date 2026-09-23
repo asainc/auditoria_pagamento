@@ -16,7 +16,6 @@
     "juros_moratorios_tipo": "sem_juros",
     "juros_compensatorios_tipo": "sem_juros"
   },
-  "eventos_financeiros": [],
   "revisao_humana_confirmada": true,
   "honorarios_sobre_danos_morais": false,
   "competencia_automatica": false

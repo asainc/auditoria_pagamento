@@ -39,7 +39,7 @@ test('recorrência mensal não desloca o dia após fevereiro', () => {
 test('sugestões não sobrescrevem edição humana nem escolhem entre critérios conflitantes', () => {
   const value = draft();
   const source = {documento:'1001_1.pdf',pagina:1,trecho:'Sintético',escopo:'caso_concreto'};
-  const result = {numero_processo:'1001',campos:[{...source,campo:'parametros.indice',valor:'ipca_ibge'},{...source,campo:'parametros.multa_percentual',valor:'2'},{...source,campo:'parametros.multa_percentual',valor:'3'}],parcelas:[],eventos_financeiros:[],alertas:[],versao_prompts:'teste'};
+  const result = {numero_processo:'1001',campos:[{...source,campo:'parametros.indice',valor:'ipca_ibge'},{...source,campo:'parametros.multa_percentual',valor:'2'},{...source,campo:'parametros.multa_percentual',valor:'3'}],parcelas:[],alertas:[],versao_prompts:'teste'};
   const applied = applyExtraction(value,result,'job');
   assert.equal(applied.parameters.indice,'sem_correcao');
   assert.equal(applied.parameters.multa_percentual,undefined);
@@ -82,7 +82,7 @@ test('processo real mostra padrões operacionais apenas quando o documento não 
     numero_processo:'1001',
     campos:[{...source,campo:'parametros.juros_moratorios_tipo',valor:'capitalizacao_simples'}],
     parcelas:[],
-    eventos_financeiros:[],
+    
     alertas:[],
     versao_prompts:'teste',
     ajustes_operacionais:[
@@ -116,7 +116,7 @@ test('todos os tipos de juros do contrato estão disponíveis para edição manu
 
 test('padrões do backend preenchem lacunas e honorários gerados são identificados', () => {
   const empty = blankDraft('1001');
-  const result = {numero_processo:'1001',campos:[],parcelas:[{data:'2025-01-01',valor_singelo:'100',verba_tipo:'honorarios',origem:'honorarios_dano_moral'}],eventos_financeiros:[],alertas:[],versao_prompts:'teste',honorarios_sobre_danos_morais:true,competencia_automatica:true,ajustes_operacionais:[{campo:'parametros.indice',valor:'tjsp_inpc_ipca15_lei_14905',motivo:'Padrão'},{campo:'parametros.art_523',valor:'nao_aplicar',motivo:'Padrão'}]};
+  const result = {numero_processo:'1001',campos:[],parcelas:[{data:'2025-01-01',valor_singelo:'100',verba_tipo:'honorarios',origem:'honorarios_dano_moral'}],alertas:[],versao_prompts:'teste',honorarios_sobre_danos_morais:true,competencia_automatica:true,ajustes_operacionais:[{campo:'parametros.indice',valor:'tjsp_inpc_ipca15_lei_14905',motivo:'Padrão'},{campo:'parametros.art_523',valor:'nao_aplicar',motivo:'Padrão'}]};
   const applied = applyExtraction(empty,result,'job');
   assert.equal(applied.parameters.indice,'tjsp_inpc_ipca15_lei_14905');
   assert.equal(applied.feesOnMoralDamages,true);
@@ -133,7 +133,7 @@ test('decisão cronológica que afasta critério impede reaproveitar valor antig
   const result = {
     numero_processo:'1001',
     campos:[{...source,campo:'parametros.compensacao_valor',valor:'10'}],
-    parcelas:[],eventos_financeiros:[],alertas:[],versao_prompts:'teste',
+    parcelas:[],alertas:[],versao_prompts:'teste',
     parametros_consolidados:{},
     decisoes_cronologicas:[{
       campo:'parametros.compensacao_valor',valor:null,documento:'1001_7.pdf',pagina:8,sequencia:7,

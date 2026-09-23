@@ -22,7 +22,7 @@ TASK_FIELDS: dict[str, tuple[str, ...]] = {
     "06_prescricao": ("prescricao_flag", "prescricao_anos", "prescricao_data_referencia_tipo", "prescricao_data_referencia"),
     "07_compensacao": ("compensacao_flag", "compensacao_tipo_calculo", "compensacao_valor"),
     "08_duplo_indice": tuple(field for field in CalculationParameters.model_fields if field.startswith("duplo_indice_")),
-    "09_eventos": (),
+    "09_valor_dobrado": ("valor_dobrado_flag",),
 }
 
 

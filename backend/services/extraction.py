@@ -24,7 +24,6 @@ from backend.models import (
     ExtractionResult,
     ExtractionStatus,
     FieldEvidence,
-    FinancialEvent,
     Installment,
 )
 from backend.repository import Repository, timestamp
@@ -44,7 +43,6 @@ class ExtractionFragment(Contract):
 
     campos: list[FieldEvidence]
     parcelas: list[Installment]
-    eventos_financeiros: list[FinancialEvent]
     alertas: list[str]
 
 
@@ -238,7 +236,7 @@ class ExtractionProvider:
                 "O gerador corporativo retornou um tipo de JSON incompatível com a extração.",
             )
 
-        expected = {"campos", "parcelas", "eventos_financeiros", "alertas"}
+        expected = {"campos", "parcelas", "alertas"}
         if not expected.intersection(decoded):
             for key in ("result", "resultado", "response", "output", "data"):
                 nested = decoded.get(key)
@@ -300,8 +298,7 @@ class ExtractionProvider:
                 "Corrija SOMENTE estrutura, nomes de chaves, tipos simples, enums permitidos e listas ausentes.",
                 "Quando um metadado classificatório estiver ausente, use natureza=indeterminado e efeito=informa.",
                 "Quando descricao de parcela estiver ausente, use string vazia.",
-                "Campos opcionais ausentes de evento financeiro podem ser null/false conforme o contrato.",
-                "Retorne exatamente um objeto com as quatro chaves: campos, parcelas, eventos_financeiros, alertas.",
+                "Retorne exatamente um objeto com as três chaves: campos, parcelas, alertas.",
                 "Não use markdown nem texto fora do JSON.",
                 "## Erros detectados pelo backend",
                 validation_details,
@@ -337,15 +334,12 @@ class ExtractionProvider:
             raise exc
 
     @staticmethod
-    def _shift_evidence(field: FieldEvidence, parcel_offset: int, event_offset: int) -> FieldEvidence:
+    def _shift_evidence(field: FieldEvidence, parcel_offset: int) -> FieldEvidence:
         """Reindexa referências ao combinar respostas de múltiplos chunks."""
         path = field.campo
         parcel = re.fullmatch(r"parcelas\.(\d+)\.(.+)", path)
-        event = re.fullmatch(r"eventos_financeiros\.(\d+)\.(.+)", path)
         if parcel:
             path = f"parcelas.{int(parcel.group(1)) + parcel_offset}.{parcel.group(2)}"
-        elif event:
-            path = f"eventos_financeiros.{int(event.group(1)) + event_offset}.{event.group(2)}"
         return field.model_copy(update={"campo": path})
 
     @staticmethod
@@ -369,7 +363,7 @@ class ExtractionProvider:
         max_output_tokens: int,
     ) -> ProviderResult:
         """Executa o prompt especializado por ``text_generator`` sobre texto extraído do PDF."""
-        accumulator = ExtractionFragment(campos=[], parcelas=[], eventos_financeiros=[], alertas=[])
+        accumulator = ExtractionFragment(campos=[], parcelas=[], alertas=[])
         usages: list[AiUsage] = []
         chunks = self._pack_text(documents)
         try:
@@ -403,12 +397,10 @@ class ExtractionProvider:
                     usages.append(repair_usage)
                 fragment = ExtractionFragment.model_validate(wire.model_dump())
                 parcel_offset = len(accumulator.parcelas)
-                event_offset = len(accumulator.eventos_financeiros)
                 accumulator.campos.extend(
-                    self._shift_evidence(field, parcel_offset, event_offset) for field in fragment.campos
+                    self._shift_evidence(field, parcel_offset) for field in fragment.campos
                 )
                 accumulator.parcelas.extend(fragment.parcelas)
-                accumulator.eventos_financeiros.extend(fragment.eventos_financeiros)
                 accumulator.alertas.extend(fragment.alertas)
             accumulator.campos = self._deduplicate_fields(accumulator.campos)
             accumulator.alertas = list(dict.fromkeys(accumulator.alertas))
@@ -506,7 +498,6 @@ class ExtractionService:
                 numero_processo=status.numero_processo,
                 campos=[],
                 parcelas=[],
-                eventos_financeiros=[],
                 alertas=[alert for document in pdf_documents for alert in document.alertas],
                 versao_prompts=self.version,
             )
@@ -535,7 +526,6 @@ class ExtractionService:
                 self.repository.update_job(status)
                 result.campos.extend(fragment.campos)
                 result.parcelas.extend(fragment.parcelas)
-                result.eventos_financeiros.extend(fragment.eventos_financeiros)
                 result.alertas.extend(fragment.alertas)
 
             status.etapa = "Consolidando informações"
@@ -655,26 +645,20 @@ class ExtractionService:
         result.decisoes_cronologicas = decisions
         result.alertas.extend(chronology_alerts)
 
-        for collection in ("parcelas", "eventos_financeiros"):
-            items = getattr(result, collection)
-            required = ("data", "valor_singelo", "verba_tipo") if collection == "parcelas" else ("valor", "criterio", "tipo")
-            accepted = []
-            for index, item in enumerate(items):
-                needed = list(required)
-                if collection == "eventos_financeiros" and item.criterio != "informativo":
-                    needed.append("data")
-                if all(
-                    any(
-                        field.campo == f"{collection}.{index}.{key}"
-                        and str(field.valor) == str(getattr(item, key))
-                        for field in valid
-                    )
-                    for key in needed
-                ):
-                    accepted.append(item)
-            if len(accepted) != len(items):
-                result.alertas.append(f"Itens de {collection} sem evidência foram descartados.")
-            setattr(result, collection, accepted)
+        accepted_installments: list[Installment] = []
+        for index, item in enumerate(result.parcelas):
+            if all(
+                any(
+                    field.campo == f"parcelas.{index}.{key}"
+                    and str(field.valor) == str(getattr(item, key))
+                    for field in valid
+                )
+                for key in ("data", "valor_singelo", "verba_tipo")
+            ):
+                accepted_installments.append(item)
+        if len(accepted_installments) != len(result.parcelas):
+            result.alertas.append("Parcelas sem evidência foram descartadas.")
+        result.parcelas = accepted_installments
 
         values: dict[str, set[str]] = {}
         for field in valid:

@@ -31,7 +31,7 @@
 | Schema de parâmetros reduzido por tarefa de extração | Evita repetir o contrato inteiro em dez chamadas e reduz tokens sem remover os campos relevantes da especialidade. |
 | Limites de saída por tarefa em `config/extraction_tasks.json` | Evita reservar saída excessiva e deixa o tuning auditável sem alterar código. |
 | Telemetria da integração corporativa registra chamadas e duração | O contrato atual do gerador corporativo não expõe contagem de tokens nem faturamento; esses campos permanecem indisponíveis em vez de serem estimados. |
-| OCR precede qualquer prompt de extração | PDFs são enviados ao OCR corporativo e somente o texto OCR, com documento e página, entra nos prompts especializados. |
+| PyMuPDF precede qualquer prompt de extração | PDFs textuais são lidos localmente por página e somente o texto extraído, com documento e página, entra nos prompts especializados. PDFs sem camada textual são sinalizados para revisão em vez de gerar conteúdo por inferência. |
 | `text_generator` é o único executor de prompts | Centraliza parâmetros, autenticação, tratamento de erro e auditoria da geração de texto. |
 | Seções de parâmetros usam cartões independentes e cabeçalho destacado quando abertas | Mantém o bloco ativo identificável durante a rolagem sem alterar a identidade visual da aplicação. |
 | Categorias do DrCalc são descobertas pela navegação da fonte, com IDs apenas como fallback | Evita quebrar a atualização quando o site altera identificadores de categoria. |
@@ -39,6 +39,9 @@
 | Variação percentual e número-índice são tratados como métricas distintas | Evita gravar um percentual mensal em coluna acumulada ou um número-índice como taxa decimal. Quando a unidade não pode ser inferida com segurança, a coluna acumulada é preservada. |
 | Parser histórico aceita formatos longos e matrizes por ano/mês | Aumenta a resiliência a tabelas ASP antigas sem depender de um único layout HTML. |
 | Estado da atualização usa `DrCalcUpdateResult.success` como fonte de verdade | Evita falso negativo causado por inferência baseada em texto de mensagem ou no campo `executed`. |
+| Eventos financeiros deixam de integrar o contrato de cálculo | O fluxo específico de depósitos/pagamentos/levantamentos foi removido da aplicação e do motor para reduzir ambiguidade e manter apenas os ajustes explicitamente suportados. |
+| Valor em dobro é uma flag explícita e restrita a dano material | Quando o título determinar restituição/devolução em dobro, o motor duplica somente o valor nominal das parcelas de dano material antes dos demais encargos; dano moral, honorários e custas não são duplicados. |
+| Tabelas de log têm viewport mínimo com rolagem nos dois eixos | Mantém pelo menos cinco linhas visíveis e permite inspecionar colunas largas sem comprimir o conteúdo. |
 
 Regras que expressem interpretação jurídica, sucessão de decisões, política de encargos ou retenção de dados devem ser validadas pelas áreas responsáveis antes de uso institucional.
 

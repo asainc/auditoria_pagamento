@@ -26,7 +26,7 @@ Não confunda data de assinatura, publicação, upload, precedente citado ou doc
 Considere número do processo, partes, relatório, dispositivo e contexto. Um acórdão integral transcrito em uma petição como jurisprudência continua sendo precedente, não `acordao` do caso analisado.
 
 ## Saída
-Não extraia parcelas, eventos ou parâmetros de cálculo nesta tarefa. Retorne `parcelas=[]` e `eventos_financeiros=[]`. Use `null` quando a informação não for verificável.
+Não extraia parcelas nem parâmetros de cálculo nesta tarefa. Retorne `parcelas=[]`. Use `null` quando a informação não for verificável.
 
 ## Cobertura adicional
 Não confie no título do PDF. Diferencie capa, certidão, decisão, sentença e acórdão pelo conteúdo efetivo. Em arquivos compostos, classifique pelo documento processual predominante e gere alerta quando houver múltiplas peças autônomas no mesmo PDF. Procure datas em carimbos de protocolo e certidões, mas só as use como marco processual quando o texto indicar claramente sua natureza.

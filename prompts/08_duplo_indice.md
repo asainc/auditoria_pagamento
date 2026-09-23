@@ -21,7 +21,7 @@ Campos: `duplo_indice_flag`, primeiro/segundo índice, datas inicial/final e val
 Mudança posterior de índice ou data de corte usa `comando_decisorio` com efeito apropriado. Manutenção expressa usa `mantem`.
 
 ## Saída
-Use `campo=parametros.<nome_exato>`. Retorne `parcelas=[]` e `eventos_financeiros=[]`.
+Use `campo=parametros.<nome_exato>`. Retorne `parcelas=[]`.
 
 ## Cobertura adicional
 Procure expressões de transição como “até”, “a partir de”, “antes/depois de”, “desde a vigência”, “no período”, “posteriormente” e datas de corte. Valide continuidade temporal e ordem das faixas. Se houver mais de dois regimes, faixas por verba diferentes ou condição não representável, gere alerta e não reduza a regra arbitrariamente a duas faixas.

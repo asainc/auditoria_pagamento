@@ -25,7 +25,7 @@ Campos como incidência de multa/honorários sobre juros ou parcelas a vencer ex
 Majoração recursal de honorários deve usar `efeito=majora`; redução, `reduz`; afastamento, `afasta`; substituição integral, `substitui`. Não some automaticamente percentuais de decisões distintas sem comando expresso de acumulação.
 
 ## Saída
-Use `campo=parametros.<nome_exato>`. Retorne `parcelas=[]` e `eventos_financeiros=[]`.
+Use `campo=parametros.<nome_exato>`. Retorne `parcelas=[]`.
 
 ## Cobertura adicional
 Procure multa, cláusula penal, astreintes quando representáveis, honorários advocatícios/sucumbenciais, percentual sobre condenação/proveito econômico/valor da causa e referências ao art. 523. Identifique a base de incidência somente para contextualizar a evidência; não invente campo que o contrato não possua. Honorários recursais devem ser tratados conforme o comando de majoração, sem soma automática.

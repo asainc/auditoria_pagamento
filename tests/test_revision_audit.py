@@ -44,7 +44,6 @@ def test_process_change_is_enriched_with_consolidated_document_source(client):
         numero_processo="1001",
         campos=[],
         parcelas=[],
-        eventos_financeiros=[],
         alertas=[],
         versao_prompts="synthetic",
         parametros_consolidados={"art_523": "nao_aplicar"},

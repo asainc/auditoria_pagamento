@@ -24,7 +24,7 @@ Exemplos sintéticos que devem ser reconhecidos:
 Diferencie valor pedido de valor efetivamente arbitrado. Prefira o comando decisório vigente para o montante. Se houver valor individual por beneficiário, crie parcelas distintas apenas quando a individualização estiver clara.
 
 ## Não transformar em parcela
-Não inclua saldo de conta, limite, valor total de contrato, taxa percentual, depósito judicial, pagamento parcial, levantamento, estorno ou compensação. Eventos financeiros pertencem ao prompt específico.
+Não inclua saldo de conta, limite, valor total de contrato, taxa percentual, depósito judicial, pagamento parcial, levantamento, estorno ou compensação como parcelas calculáveis, salvo quando o próprio título condenatório os definir como valor principal a restituir.
 
 ## Contrato de saída
 Para cada item de `parcelas`:

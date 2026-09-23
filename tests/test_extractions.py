@@ -59,12 +59,11 @@ class SyntheticProvider(ExtractionProvider):
                             "verba_tipo": "dano_material",
                         }
                     ],
-                    "eventos_financeiros": [],
                     "alertas": [],
                 }
             )
         else:
-            fragment = ExtractionFragment(campos=[], parcelas=[], eventos_financeiros=[], alertas=[])
+            fragment = ExtractionFragment(campos=[], parcelas=[], alertas=[])
         usage = AiUsage(etapa=stage, modelo=self.settings.bradesco_text_model, duracao_ms=1)
         return ProviderResult(fragmento=fragment, usos=[usage])
 
@@ -124,7 +123,7 @@ def test_jurisprudence_wrong_source_and_fabricated_quote_are_rejected(client, pd
         {**valid, "trecho": "Trecho inexistente no documento"},
         {**valid, "valor": "-1"},
     ]
-    result = ExtractionResult(numero_processo="1001", campos=[FieldEvidence.model_validate(row) for row in fields], parcelas=[], eventos_financeiros=[], alertas=[], versao_prompts="teste")
+    result = ExtractionResult(numero_processo="1001", campos=[FieldEvidence.model_validate(row) for row in fields], parcelas=[], alertas=[], versao_prompts="teste")
     pdf_text = [PdfTextDocument(nome="1001_1.pdf", paginas=(PdfTextPage(1, "Multa: 2%."),))]
     consolidated = client.app.state.services.extractions.consolidate(result, documents, pdf_text)
     assert len(consolidated.campos) == 1
@@ -174,20 +173,11 @@ def test_wire_contract_accepts_safe_omissions_from_text_generator():
                     "verba_tipo": "dano_material",
                 }
             ],
-            "eventos_financeiros": [
-                {
-                    "tipo": "deposito_judicial",
-                    "valor": "50.00",
-                    "criterio": "informativo",
-                }
-            ],
         }
     )
     assert fragment.campos[0].natureza == "indeterminado"
     assert fragment.campos[0].efeito == "informa"
     assert fragment.parcelas[0].descricao == ""
-    assert fragment.eventos_financeiros[0].data is None
-    assert fragment.eventos_financeiros[0].aplicar_juros_apos_evento is False
     assert fragment.alertas == []
 
 
@@ -202,9 +192,9 @@ def test_provider_repairs_structurally_invalid_generator_response():
         def generate_text(self, payload: str, *, max_tokens: int) -> str:
             self.calls.append(payload)
             if len(self.calls) == 1:
-                return '{"campos":"formato_incorreto","parcelas":[],"eventos_financeiros":[],"alertas":[]}'
+                return '{"campos":"formato_incorreto","parcelas":[],"alertas":[]}'
             return (
-                '{"campos":[],"parcelas":[],"eventos_financeiros":[], '
+                '{"campos":[],"parcelas":[], '
                 '"alertas":["Nenhuma evidência encontrada nesta tarefa."]}'
             )
 
@@ -233,7 +223,7 @@ def test_provider_unwraps_common_corporate_json_wrapper_without_repair():
 
         def generate_text(self, payload: str, *, max_tokens: int) -> str:
             self.calls += 1
-            return '{"resultado":{"campos":[],"parcelas":[],"eventos_financeiros":[],"alertas":[]}}'
+            return '{"resultado":{"campos":[],"parcelas":[],"alertas":[]}}'
 
     bridge = WrappedBridge()
     provider = ExtractionProvider(Settings(bradesco_text_model="gpt-5.1"), bridge=bridge)  # type: ignore[arg-type]
@@ -245,3 +235,32 @@ def test_provider_unwraps_common_corporate_json_wrapper_without_repair():
     )
     assert result.fragmento.campos == []
     assert bridge.calls == 1
+
+
+def test_double_value_flag_is_consolidated_from_document_evidence(client, pdf_bytes):
+    """Comando expresso de restituição em dobro vira flag sem alterar a parcela extraída."""
+    uploaded = client.post("/api/documentos/upload", files=[("files", ("1001_1.pdf", pdf_bytes, "application/pdf"))]).json()["documentos"]
+    from backend.models import DocumentMetadata
+
+    documents = [DocumentMetadata.model_validate(row) for row in uploaded]
+    result = ExtractionResult(
+        numero_processo="1001",
+        campos=[
+            FieldEvidence(
+                campo="parametros.valor_dobrado_flag",
+                valor=True,
+                documento="1001_1.pdf",
+                pagina=1,
+                trecho="Parcela: 100.00.",
+                escopo="caso_concreto",
+                natureza="comando_decisorio",
+                efeito="informa",
+            )
+        ],
+        parcelas=[],
+        alertas=[],
+        versao_prompts="teste",
+    )
+    pdf_text = [PdfTextDocument(nome="1001_1.pdf", paginas=(PdfTextPage(1, "Parcela: 100.00."),))]
+    consolidated = client.app.state.services.extractions.consolidate(result, documents, pdf_text)
+    assert consolidated.parametros_consolidados["valor_dobrado_flag"] is True

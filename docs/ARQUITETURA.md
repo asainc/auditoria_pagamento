@@ -58,7 +58,7 @@ Responsável pelo shell da plataforma e navegação entre Auditoria de Pagamento
 
 ### `calculation-page.component.ts`
 
-Compõe a tela de conferência. Alterna Parcelas, Eventos, Evidências, Parâmetros, Logs e Resultado.
+Compõe a tela de conferência. Alterna Parcelas, Evidências, Parâmetros, Logs e Resultado.
 
 ### `workspace.store.ts`
 
@@ -128,10 +128,10 @@ Em ambiente não local, o backend não grava o subject recebido em claro; deriva
 
 Dentro do motor:
 
-- `services/calculation_parameters.py` normaliza e valida parâmetros, inclusive prescrição, compensação, duplo índice e Art. 523;
+- `services/calculation_parameters.py` normaliza e valida parâmetros, inclusive prescrição, compensação, valor em dobro, duplo índice e Art. 523;
 - `services/calculation_prescription.py` aplica o corte temporal das parcelas;
 - `services/calculation_penalties.py` concentra multa, rateio monetário e Art. 523;
-- `services/calculation_adjustments.py` aplica compensação e eventos financeiros;
+- `services/calculation_adjustments.py` aplica compensação;
 - `services/calculation_summary.py` agrega honorários e totais do resumo;
 - `services/calculation_service.py` permanece como orquestrador de tabelas, correção, juros e composição das etapas;
 - módulos `indices/`, `interest/` e `data_sources/` implementam estratégias especializadas.

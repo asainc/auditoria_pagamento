@@ -8,7 +8,7 @@ from backend.services.operational_policy import OperationalPolicy, fee_installme
 
 def result(fields=None, rows=None):
     """Somente conteúdo fictício para a regra posterior à verificação de fontes."""
-    return ExtractionResult(numero_processo="1001",campos=[FieldEvidence(campo=key,valor=value,documento="1001_1.pdf",pagina=1,trecho="Trecho sintético",escopo="caso_concreto") for key,value in (fields or [])],parcelas=rows or [],eventos_financeiros=[],alertas=[],versao_prompts="synthetic")
+    return ExtractionResult(numero_processo="1001",campos=[FieldEvidence(campo=key,valor=value,documento="1001_1.pdf",pagina=1,trecho="Trecho sintético",escopo="caso_concreto") for key,value in (fields or [])],parcelas=rows or [],alertas=[],versao_prompts="synthetic")
 
 
 def adjustments(output):

@@ -123,12 +123,6 @@ Base fechada para impedir erros de digitação silenciosos nos contratos.
 Parcela informada ou revisada; sem identificadores pessoais.
 
 
-### `class FinancialEvent(Contract)`
-
-Evento segue os critérios já aceitos pelo motor, sem inferência jurídica.
-
-- `def require_date(self) -> FinancialEvent` — Evita encaminhar eventos calculáveis sem data ao motor.
-
 ### `class CalculationParameters(Contract)`
 
 Parâmetros normalizados que chegam ao motor de cálculo.
@@ -428,11 +422,11 @@ Consulta e repetição da extração não dependem de estado do navegador.
 
 ### `def configuration(service: Dependency)`
 
-Expõe somente disponibilidade operacional da integração corporativa.
+Expõe somente disponibilidade operacional da leitura local + geração corporativa.
 
 ### `def start(payload: ExtractionRequest, service: Dependency)`
 
-Retentativa manual é útil após configurar o provedor ou reiniciar o serviço.
+Retentativa manual é útil após configurar o deployment ou reiniciar o serviço.
 
 ### `def status(numero_processo: str, service: Dependency)`
 
@@ -494,46 +488,26 @@ Execução sequencial limita memória e mantém erros separados por processo.
 
 ## `backend/services/bradesco_bridge.py`
 
-Integração única com os serviços corporativos de IA e OCR.
+Integração mínima com ``gpt_bradesco.py`` para geração de texto.
 
 ### `class BradescoBridgeError(ServiceError)`
 
-Erro sanitizado da integração corporativa, com código operacional estável.
+Erro sanitizado da integração corporativa, sem conteúdo documental.
 
 - `def __init__(self, code: str, message: str, status_code: int=502)` — Sem descrição específica no código.
 
-### `class OcrPage`
-
-Texto OCR de uma página, sem persistência adicional no serviço remoto.
-
-
-### `class OcrDocument`
-
-Documento OCR normalizado para consumo pelos prompts especializados.
-
-- `def texto_prompt(self) -> str` — Expõe nome e página de forma explícita para manter evidência rastreável.
-
 ### `class BradescoBridgeClient`
 
-Facade de baixo acoplamento sobre ``gpt_bradesco.py``.
+Facade restrita ao ``text_generator`` do módulo corporativo.
 
 - `def __init__(self, settings: Settings)` — Sem descrição específica no código.
-- `def configured(self) -> bool` — Valida somente presença de configuração; não faz chamada de rede.
-- `def _load(self) -> Any` — Importa e configura o módulo corporativo no primeiro uso.
-- `def _safe_request_id(value: Any) -> str | None` — Aceita somente IDs técnicos curtos antes de incluí-los em mensagem.
-- `def _classify_error(self, exc: Exception, operation: str) -> BradescoBridgeError` — Traduz falhas externas sem ecoar corpo, documento ou segredo.
-- `def _call(self, operation: str, function_name: str, *args: Any, **kwargs: Any) -> Any` — Executa uma função corporativa e centraliza tratamento de erro.
-- `def _walk(value: Any) -> Iterable[tuple[str | None, Any]]` — Percorre respostas JSON sem pressupor um único envelope do gateway.
-- `def _find_first_text(self, payload: Any, keys: tuple[str, ...]) -> str | None` — Sem descrição específica no código.
-- `def _extract_identifier(self, payload: Any, keys: tuple[str, ...]) -> str | None` — Sem descrição específica no código.
-- `def _resolve_file_id(self, upload_result: Any, remote_name: str) -> str` — Obtém o ID do upload; consulta a listagem somente se a resposta não o trouxer.
-- `def _upload_pdf(self, name: str, content: bytes) -> str` — Envia PDF em base64 apenas durante a chamada e retorna o ID remoto.
-- `def _ocr_payload(self, file_id: str) -> dict[str, Any]` — Monta o OCR híbrido seguindo o contrato exemplificado para a plataforma.
-- `def _wait_if_needed(self, result: Any) -> Any` — Aguarda workflow assíncrono somente quando a resposta fornece seu ID.
-- `def _page_number(mapping: Mapping[str, Any], page_keys: tuple[str, ...]) -> int | None` — Converte identificadores de página sem aceitar booleanos ou negativos.
-- `def _pages_from_payload(self, payload: Any) -> list[OcrPage]` — Normaliza diferentes envelopes detalhados de OCR preservando a página.
-- `def ocr_pdf(self, name: str, content: bytes, expected_pages: int) -> OcrDocument` — Envia um PDF ao OCR e remove o objeto remoto após obter o texto.
-- `def generate_text(self, payload: str, *, max_tokens: int) -> str` — Executa qualquer prompt exclusivamente por ``text_generator``.
+- `def configured(self) -> bool` — A configuração local exige apenas um deployment de geração de texto.
+- `def _load(self) -> Any` — Importa o módulo corporativo somente na primeira chamada de prompt.
+- `def _safe_request_id(value: Any) -> str | None` — Aceita somente identificadores técnicos curtos em mensagens de erro.
+- `def _classify_error(self, exc: Exception, operation: str) -> BradescoBridgeError` — Traduz falhas externas sem ecoar prompt, documento ou credencial.
+- `def _binds(function: Any, args: Sequence[Any]) -> bool` — Confere a assinatura antes da chamada para evitar tentativa por exceção.
+- `def _invoke_callable(self, operation: str, function: Any, variants: Sequence[Sequence[Any]]) -> Any` — Executa a primeira assinatura conhecida compatível com a função.
+- `def generate_text(self, payload: str, *, max_tokens: int) -> str` — Executa qualquer prompt da calculadora exclusivamente por ``text_generator``.
 
 ## `backend/services/calculation.py`
 
@@ -635,6 +609,17 @@ Fragmento especializado já validado pelo contrato interno.
 Fragmento estruturado e telemetria observável das chamadas corporativas.
 
 
+### `class PdfTextPage`
+
+Texto de uma página extraído localmente pelo PyMuPDF.
+
+
+### `class PdfTextDocument`
+
+Texto paginado do PDF e alertas de qualidade da camada textual.
+
+- `def texto_prompt(self) -> str` — Converte todas as páginas em uma única string rastreável pelo prompt.
+
 ### `class ExtractionProviderError(ServiceError)`
 
 Erro público estável; nunca inclui corpo da resposta, prompt ou credencial.
@@ -643,53 +628,50 @@ Erro público estável; nunca inclui corpo da resposta, prompt ou credencial.
 
 ### `class ExtractionProvider`
 
-Executa OCR e prompts somente pelo módulo ``gpt_bradesco.py``.
+Lê PDFs com PyMuPDF e executa prompts pelo ``text_generator`` corporativo.
 
 - `def __init__(self, settings: Settings, bridge: BradescoBridgeClient | None=None)` — Sem descrição específica no código.
-- `def configured(self) -> bool` — Indica se há autenticação, deployment de texto e container de OCR configurados.
+- `def configured(self) -> bool` — Indica se o deployment de geração de texto foi configurado.
 - `def _translate_error(exc: Exception) -> ExtractionProviderError` — Sem descrição específica no código.
-- `def ocr_documents(self, files: list[tuple[str, bytes, int]]) -> tuple[list[OcrDocument], list[AiUsage]]` — Extrai texto de cada PDF por OCR corporativo antes de qualquer prompt.
+- `def read_documents(self, files: list[tuple[str, bytes, int]]) -> list[PdfTextDocument]` — Lê PDFs localmente com PyMuPDF e devolve texto paginado em memória.
 - `def _split_large_block(header: str, text: str, max_chars: int) -> list[str]` — Divide uma página muito grande por parágrafos sem perder referência de página.
-- `def _pack_ocr(self, documents: list[OcrDocument]) -> list[str]` — Agrupa páginas para limitar payload sem descartar texto OCR.
-- `def _json_object(text: str) -> dict` — Aceita JSON puro ou bloco cercado; qualquer outra saída é rejeitada.
-- `def _shift_evidence(field: FieldEvidence, parcel_offset: int, event_offset: int) -> FieldEvidence` — Reindexa referências ao combinar respostas de múltiplos chunks.
+- `def _pack_text(self, documents: list[PdfTextDocument]) -> list[str]` — Agrupa o texto paginado em strings limitadas, sem descartar conteúdo.
+- `def _json_object(text: str) -> dict` — Aceita JSON puro, bloco cercado ou um objeto embrulhado por chave técnica.
+- `def _validation_summary(exc: ValidationError) -> str` — Resume somente localização e tipo dos erros, sem registrar dados do processo.
+- `def _validate_or_repair(self, response: str, *, stage: str, max_output_tokens: int) -> tuple[WireExtractionFragment, AiUsage | None]` — Valida a saída e faz uma única correção estrutural pelo ``text_generator``.
+- `def _shift_evidence(field: FieldEvidence, parcel_offset: int) -> FieldEvidence` — Reindexa referências ao combinar respostas de múltiplos chunks.
 - `def _deduplicate_fields(fields: list[FieldEvidence]) -> list[FieldEvidence]` — Remove duplicatas exatas sem resolver conflitos materiais.
-- `def extract(self, prompt: str, documents: list[OcrDocument], *, stage: str, max_output_tokens: int) -> ProviderResult` — Executa o prompt especializado por ``text_generator`` sobre texto OCR.
+- `def extract(self, prompt: str, documents: list[PdfTextDocument], *, stage: str, max_output_tokens: int) -> ProviderResult` — Executa o prompt especializado por ``text_generator`` sobre texto extraído do PDF.
 
 ### `class ExtractionService`
 
-Orquestra OCR, prompts, cronologia, consolidação e persistência da extração.
+Orquestra leitura local do PDF, prompts, consolidação e persistência.
 
 - `def __init__(self, settings: Settings, repository: Repository, documents: DocumentService, provider: ExtractionProvider)` — Sem descrição específica no código.
 - `def start(self, process: str, new_upload: bool=False) -> ExtractionStatus` — Retentativa explícita compartilha trabalho ativo; novo upload cria revisão nova.
-- `def run(self, status: ExtractionStatus, documents: list[DocumentMetadata]) -> None` — Executa OCR antes de qualquer prompt e mantém cada estágio consultável.
+- `def run(self, status: ExtractionStatus, documents: list[DocumentMetadata]) -> None` — Lê cada PDF com PyMuPDF antes de executar os prompts especializados.
 - `def _sum_optional(values: list[int | None]) -> int | None` — Soma somente quando todas as chamadas realmente forneceram a métrica.
 - `def _summarize_usage(cls, usages: list[AiUsage]) -> AiUsageSummary` — Não estima tokens ou custo quando o contrato corporativo não os retorna.
-- `def consolidate(self, result: ExtractionResult, documents: list[DocumentMetadata], ocr_documents: list[OcrDocument] | None=None) -> ExtractionResult` — Valida evidências contra OCR, resolve cronologia inequívoca e mantém conflitos.
+- `def consolidate(self, result: ExtractionResult, documents: list[DocumentMetadata], pdf_documents: list[PdfTextDocument] | None=None) -> ExtractionResult` — Valida evidências contra o texto do PDF e mantém conflitos rastreáveis.
 - `def close(self) -> None` — Desliga a fila sem perder o status persistido dos trabalhos pendentes.
 
 ## `backend/services/extraction_wire.py`
 
-Contrato externo simples; limites financeiros continuam no contrato interno.
+Contrato externo tolerante a omissões seguras; limites permanecem no contrato interno.
 
 ### `class WireEvidence(FieldEvidence)`
 
-Mantém o schema externo simples e torna papel/efeito explicitamente obrigatórios.
+Evidência recebida do gerador com defaults somente para metadados de classificação.
 
 
 ### `class WireInstallment(Contract)`
 
-Dinheiro como texto evita regex Decimal e conversão por ponto flutuante.
-
-
-### `class WireFinancialEvent(Contract)`
-
-Todos os campos são obrigatórios no transporte, sem defaults no schema.
+Parcela no transporte; descrição é opcional e não participa do cálculo.
 
 
 ### `class WireExtractionFragment(Contract)`
 
-Somente tipos básicos e enums são enviados ao gerador estruturado.
+Estrutura mínima retornada por cada prompt especializado.
 
 
 ## `backend/services/imports.py`
@@ -983,12 +965,6 @@ Parcela individual calculável.
 Verba consolidada por natureza jurídica.
 
 
-### `class EventoFinanceiro(StrictBaseModel)`
-
-Evento financeiro cronológico que pode abater ou documentar valores.
-
-- `def validate_data_for_abating_event(self) -> 'EventoFinanceiro'` — Eventos que afetam cálculo precisam de data.
-
 ### `class PrescricaoParams(StrictBaseModel)`
 
 Agrupa os parâmetros estruturados de prescrição usados no contrato interno.
@@ -1009,7 +985,7 @@ Agrupa os parâmetros das duas faixas de correção do modo de duplo índice.
 Payload versionado completo para cálculo judicial auditável.
 
 - `def params_must_be_dict(cls, value: dict[str, Any]) -> dict[str, Any]` — Garante que o bloco de parâmetros seja recebido como dicionário antes das demais validações.
-- `def calculation_params(self) -> dict[str, Any]` — Retorna ``params`` enriquecido com eventos financeiros para o motor.
+- `def calculation_params(self) -> dict[str, Any]` — Retorna uma cópia isolada dos parâmetros destinados ao motor.
 
 ## `src/judicial_calc/core/numbers.py`
 
@@ -1818,7 +1794,7 @@ Este módulo não expõe classes ou funções de nível superior.
 
 ## `src/judicial_calc/services/calculation_adjustments.py`
 
-Compensação e abatimentos de eventos financeiros aplicados ao resultado.
+Compensação aplicada ao resultado final do cálculo.
 
 ### `def _calcular_valor_compensacao(cfg: CalculoParams, total_geral_bruto: Decimal) -> Decimal`
 
@@ -1827,18 +1803,6 @@ Calcula o valor a descontar por compensação sobre o total final bruto.
 ### `def _aplicar_compensacao_na_memoria(memoria: pd.DataFrame, valor_compensacao: Decimal) -> pd.DataFrame`
 
 Rateia a compensação final entre parcelas para manter memória auditável.
-
-### `def _total_eventos_financeiros(eventos_df: pd.DataFrame) -> Decimal`
-
-Soma eventos financeiros que impactam o total.
-
-### `def _aplicar_eventos_financeiros_na_memoria(memoria: pd.DataFrame, total_eventos: Decimal) -> pd.DataFrame`
-
-Rateia abatimentos cronológicos finais na memória.
-
-### `def _ajustar_resumo_por_eventos(resumo: pd.DataFrame, eventos_df: pd.DataFrame) -> pd.DataFrame`
-
-Inclui abatimentos por eventos financeiros no resumo final.
 
 ## `src/judicial_calc/services/calculation_parameters.py`
 
@@ -2047,14 +2011,6 @@ Monta os ajustes de transição do modo critério de referência/STJ 1368.
 
 Calcula juros compensatórios ou moratórios de uma linha.
 
-### `def _eventos_financeiros_param(params: dict[str, Any]) -> list[dict[str, Any]]`
-
-Lê eventos financeiros do payload/parâmetros aceitando aliases.
-
-### `def _montar_eventos_financeiros(params: dict[str, Any], cfg: CalculoParams, tabelas: TabelasCalculo) -> pd.DataFrame`
-
-Atualiza e ordena eventos financeiros cronológicos para abatimento.
-
 ### `def _linha_memoria(row: dict[str, Any], cfg: CalculoParams, params: dict[str, Any], tabelas: TabelasCalculo) -> dict[str, Any]`
 
 Calcula uma parcela e devolve uma linha da memória de cálculo.
@@ -2123,12 +2079,6 @@ Símbolos exportados: `BatchPageComponent`.
 Página compõe componentes coesos e concentra apenas a organização visual.
 
 Símbolos exportados: `CalculationPageComponent`.
-
-## `frontend/src/app/calculation/events-editor.component.ts`
-
-Eventos são enviados ao motor somente com valores e critérios revisados.
-
-Símbolos exportados: `EventsEditorComponent`.
 
 ## `frontend/src/app/calculation/evidence-panel.component.ts`
 
@@ -2230,7 +2180,7 @@ Símbolos exportados: `ConnectionApiService`.
 
 Gerado de docs/openapi.json. Atualize por scripts/generate_contracts.py.
 
-Símbolos exportados: `AiUsage`, `AiUsageSummary`, `BatchImport`, `BatchItem`, `BatchRequest`, `BatchResponse`, `Body_import_batch_api_lotes_importar_post`, `Body_import_installments_api_documentos_parcelas_importar_post`, `Body_upload_api_documentos_upload_post`, `CalculationDefaults`, `CalculationDraft`, `CalculationMetadata`, `CalculationParameters_Input`, `CalculationParameters_Output`, `CalculationPolicyView`, `CalculationRequest`, `CalculationResponse`, `ChronologyDecision`, `DataTable`, `DocumentMetadata`, `ExtractionConfiguration`, `ExtractionRequest`, `ExtractionResult`, `ExtractionStatus`, `FeePreparation`, `FieldEvidence`, `FinancialEvent_Input`, `FinancialEvent_Output`, `HTTPValidationError`, `Health`, `IndexOption`, `IndexStatus`, `Installment_Input`, `Installment_Output`, `OperationalAdjustment`, `ParameterCatalogItem`, `ParameterChangeInput`, `ParameterChangeRecord`, `ParameterOption`, `ProcessSummary`, `SummaryEntry`, `UploadResponse`, `ValidationError`.
+Símbolos exportados: `AiUsage`, `AiUsageSummary`, `BatchImport`, `BatchItem`, `BatchRequest`, `BatchResponse`, `Body_import_batch_api_lotes_importar_post`, `Body_import_installments_api_documentos_parcelas_importar_post`, `Body_upload_api_documentos_upload_post`, `CalculationDefaults`, `CalculationDraft`, `CalculationMetadata`, `CalculationParameters_Input`, `CalculationParameters_Output`, `CalculationPolicyView`, `CalculationRequest`, `CalculationResponse`, `ChronologyDecision`, `DataTable`, `DocumentMetadata`, `ExtractionConfiguration`, `ExtractionRequest`, `ExtractionResult`, `ExtractionStatus`, `FeePreparation`, `FieldEvidence`, `HTTPValidationError`, `Health`, `IndexOption`, `IndexStatus`, `Installment_Input`, `Installment_Output`, `OperationalAdjustment`, `ParameterCatalogItem`, `ParameterChangeInput`, `ParameterChangeRecord`, `ParameterOption`, `ProcessSummary`, `SummaryEntry`, `UploadResponse`, `ValidationError`.
 
 ## `frontend/src/app/core/document-api.service.ts`
 

@@ -44,7 +44,7 @@ def salvar_resultado_excel(resultado: ResultadoCalculo, caminho: str | Path) -> 
     """Salva a memória, resumo e trilha auditável do cálculo em Excel.
 
     Além das abas históricas ``memoria`` e ``resumo``, o export agora inclui
-    evidências, documentos, conflitos, eventos financeiros, verbas, validações
+    evidências, documentos, conflitos, verbas, validações
     e itens de revisão humana quando essas estruturas estiverem em
     ``resultado.parametros``.
     """
@@ -64,8 +64,6 @@ def salvar_resultado_excel(resultado: ResultadoCalculo, caminho: str | Path) -> 
             "ignored_jurisprudence_audit",
             "validation_issues",
             "verbas",
-            "eventos_financeiros",
-            "financial_events",
             "human_review_checklist",
         }
     }
@@ -80,6 +78,5 @@ def salvar_resultado_excel(resultado: ResultadoCalculo, caminho: str | Path) -> 
         _write_if_not_empty(writer, "Alertas_auditoria", parametros.get("validation_issues"))
         _write_if_not_empty(writer, "Jurisprudencia_ignorada", parametros.get("ignored_jurisprudence_audit"))
         _write_if_not_empty(writer, "Conflitos_documentos", parametros.get("document_conflicts"))
-        _write_if_not_empty(writer, "Eventos_financeiros", parametros.get("eventos_financeiros") or parametros.get("financial_events"))
         _write_if_not_empty(writer, "Verbas", parametros.get("verbas"))
         _write_if_not_empty(writer, "Checklist_revisao", parametros.get("human_review_checklist"))

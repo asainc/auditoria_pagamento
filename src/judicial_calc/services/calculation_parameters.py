@@ -371,6 +371,7 @@ class CalculoParams:
     duplo_indice_flag: int
     duplo_indice_primeiro: FaixaDuploIndice | None
     duplo_indice_segundo: FaixaDuploIndice | None
+    valor_dobrado_flag: bool
 
     @classmethod
     def from_raw(cls, params: dict[str, Any]) -> "CalculoParams":
@@ -416,6 +417,7 @@ class CalculoParams:
             duplo_indice_flag=duplo_indice_flag,
             duplo_indice_primeiro=duplo_indice_primeiro,
             duplo_indice_segundo=duplo_indice_segundo,
+            valor_dobrado_flag=bool(params.get("valor_dobrado_flag", False)),
         )
 
     @property

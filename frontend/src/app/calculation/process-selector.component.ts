@@ -21,7 +21,7 @@ import { WorkspaceStore } from '../core/workspace.store';
       >
       <span>
         <strong>Cálculo manual com dados de teste</strong>
-        <small>@if (store.selectedProcess()) { Desmarque o processo para habilitar. } @else { Habilita parcelas, eventos e parâmetros para preenchimento manual, sem carregar dados automaticamente. }</small>
+        <small>@if (store.selectedProcess()) { Desmarque o processo para habilitar. } @else { Habilita parcelas e parâmetros para preenchimento manual, sem carregar dados automaticamente. }</small>
       </span>
     </label>
   </section>
@@ -54,7 +54,7 @@ import { WorkspaceStore } from '../core/workspace.store';
       </div>
     }
   } @else if (store.mockMode()) {
-    <div class="sidebar-note"><strong>Cálculo manual habilitado.</strong><br>Preencha parcelas, eventos e parâmetros diretamente. Nenhum dado de exemplo é carregado automaticamente.</div>
+    <div class="sidebar-note"><strong>Cálculo manual habilitado.</strong><br>Preencha parcelas e parâmetros diretamente. Nenhum dado de exemplo é carregado automaticamente.</div>
   } @else { <div class="sidebar-note">Envie os PDFs e selecione o processo para começar a conferência.</div> }
 `})
 export class ProcessSelectorComponent {

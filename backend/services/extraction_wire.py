@@ -1,6 +1,4 @@
 """Contrato externo tolerante a omissões seguras; limites permanecem no contrato interno."""
-from typing import Literal
-
 from backend.models import (
     Contract,
     DamageType,
@@ -32,25 +30,9 @@ class WireInstallment(Contract):
     verba_tipo: DamageType
 
 
-class WireFinancialEvent(Contract):
-    """Evento financeiro com defaults equivalentes ao contrato interno.
-
-    A validação interna continua exigindo data quando o critério escolhido torna
-    o evento calculável. Portanto, estes defaults não relaxam regras do motor.
-    """
-
-    tipo: Literal["deposito_judicial", "pagamento_parcial", "compensacao", "levantamento"]
-    data: str | None = None
-    valor: str
-    criterio: Literal["abater_na_data_do_pagamento", "descontar_no_final", "informativo"]
-    indice_atualizacao: str | None = None
-    aplicar_juros_apos_evento: bool = False
-
-
 class WireExtractionFragment(Contract):
     """Estrutura mínima retornada por cada prompt especializado."""
 
     campos: list[WireEvidence] = []
     parcelas: list[WireInstallment] = []
-    eventos_financeiros: list[WireFinancialEvent] = []
     alertas: list[str] = []

@@ -11,7 +11,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 SCHEMA_VERSION = "2026-05-26.v1-auditavel"
 
@@ -26,10 +26,6 @@ StatusEvidencia = Literal[
     "jurisprudencia_ignorada",
     "revisado_manual",
 ]
-TipoEventoFinanceiro = Literal["deposito_judicial", "pagamento_parcial", "compensacao", "levantamento"]
-CriterioEventoFinanceiro = Literal["abater_na_data_do_pagamento", "descontar_no_final", "informativo"]
-
-
 class StrictBaseModel(BaseModel):
     """Base comum que aceita campos extras para compatibilidade evolutiva."""
 
@@ -81,28 +77,6 @@ class VerbaJudicial(StrictBaseModel):
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
-class EventoFinanceiro(StrictBaseModel):
-    """Evento financeiro cronológico que pode abater ou documentar valores."""
-
-    tipo: TipoEventoFinanceiro
-    data: date | None = None
-    valor: Decimal = Field(ge=Decimal("0"))
-    criterio: CriterioEventoFinanceiro = "abater_na_data_do_pagamento"
-    indice_atualizacao: str | None = None
-    aplicar_juros_apos_evento: bool = False
-    source_file: str | None = None
-    source_page: int | None = None
-    evidence: str = ""
-    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
-
-    @model_validator(mode="after")
-    def validate_data_for_abating_event(self) -> "EventoFinanceiro":
-        """Eventos que afetam cálculo precisam de data."""
-        if self.criterio != "informativo" and self.data is None:
-            raise ValueError("Eventos financeiros que afetam o cálculo precisam de data.")
-        return self
-
-
 class PrescricaoParams(StrictBaseModel):
     """Agrupa os parâmetros estruturados de prescrição usados no contrato interno."""
     flag: int = Field(default=0, ge=0, le=1)
@@ -139,7 +113,6 @@ class CalculoJudicialInput(StrictBaseModel):
     parcelas: list[ParcelaInput] = Field(default_factory=list)
     params: dict[str, Any] = Field(default_factory=dict)
     verbas: list[VerbaJudicial] = Field(default_factory=list)
-    financial_events: list[EventoFinanceiro] = Field(default_factory=list)
     evidence_map: dict[str, list[EvidenceSource]] = Field(default_factory=dict)
     raw_extractions: list[dict[str, Any]] = Field(default_factory=list)
     validation_issues: list[dict[str, Any]] = Field(default_factory=list)
@@ -152,7 +125,5 @@ class CalculoJudicialInput(StrictBaseModel):
         return dict(value or {})
 
     def calculation_params(self) -> dict[str, Any]:
-        """Retorna ``params`` enriquecido com eventos financeiros para o motor."""
-        params = dict(self.params)
-        params.setdefault("eventos_financeiros", [event.model_dump(mode="json") for event in self.financial_events])
-        return params
+        """Retorna uma cópia isolada dos parâmetros destinados ao motor."""
+        return dict(self.params)

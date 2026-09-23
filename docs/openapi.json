@@ -252,7 +252,7 @@
           "Extrações"
         ],
         "summary": "Configuration",
-        "description": "Expõe somente disponibilidade operacional da integração corporativa.",
+        "description": "Expõe somente disponibilidade operacional da leitura local + geração corporativa.",
         "operationId": "configuration_api_extracoes_configuracao_get",
         "responses": {
           "200": {
@@ -274,7 +274,7 @@
           "Extrações"
         ],
         "summary": "Start",
-        "description": "Retentativa manual é útil após configurar o provedor ou reiniciar o serviço.",
+        "description": "Retentativa manual é útil após configurar o deployment ou reiniciar o serviço.",
         "operationId": "start_api_extracoes_post",
         "requestBody": {
           "content": {
@@ -1278,14 +1278,6 @@
           "parametros": {
             "$ref": "#/components/schemas/CalculationParameters-Output"
           },
-          "eventos_financeiros": {
-            "items": {
-              "$ref": "#/components/schemas/FinancialEvent-Output"
-            },
-            "type": "array",
-            "maxItems": 1000,
-            "title": "Eventos Financeiros"
-          },
           "revisao_humana_confirmada": {
             "type": "boolean",
             "title": "Revisao Humana Confirmada",
@@ -1869,6 +1861,17 @@
               }
             ],
             "title": "Duplo Indice Segundo Valor Parcela"
+          },
+          "valor_dobrado_flag": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valor Dobrado Flag"
           }
         },
         "additionalProperties": false,
@@ -2372,6 +2375,17 @@
               }
             ],
             "title": "Duplo Indice Segundo Valor Parcela"
+          },
+          "valor_dobrado_flag": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valor Dobrado Flag"
           }
         },
         "additionalProperties": false,
@@ -2478,14 +2492,6 @@
           },
           "parametros": {
             "$ref": "#/components/schemas/CalculationParameters-Input"
-          },
-          "eventos_financeiros": {
-            "items": {
-              "$ref": "#/components/schemas/FinancialEvent-Input"
-            },
-            "type": "array",
-            "maxItems": 1000,
-            "title": "Eventos Financeiros"
           },
           "revisao_humana_confirmada": {
             "type": "boolean",
@@ -2611,7 +2617,6 @@
               "comando_decisorio",
               "fundamentacao",
               "classificacao_documental",
-              "evento_comprovado",
               "indeterminado"
             ],
             "title": "Natureza"
@@ -2822,13 +2827,6 @@
             "type": "array",
             "title": "Parcelas"
           },
-          "eventos_financeiros": {
-            "items": {
-              "$ref": "#/components/schemas/FinancialEvent-Output"
-            },
-            "type": "array",
-            "title": "Eventos Financeiros"
-          },
           "alertas": {
             "items": {
               "type": "string"
@@ -2904,7 +2902,6 @@
           "numero_processo",
           "campos",
           "parcelas",
-          "eventos_financeiros",
           "alertas",
           "versao_prompts"
         ],
@@ -3069,7 +3066,6 @@
               "comando_decisorio",
               "fundamentacao",
               "classificacao_documental",
-              "evento_comprovado",
               "indeterminado"
             ],
             "title": "Natureza",
@@ -3103,144 +3099,6 @@
         ],
         "title": "FieldEvidence",
         "description": "Trecho rastreável enriquecido com papel processual e efeito cronológico."
-      },
-      "FinancialEvent-Input": {
-        "properties": {
-          "tipo": {
-            "type": "string",
-            "enum": [
-              "deposito_judicial",
-              "pagamento_parcial",
-              "compensacao",
-              "levantamento"
-            ],
-            "title": "Tipo"
-          },
-          "data": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data"
-          },
-          "valor": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,16}|(?=[\\d.]{1,19}0*$)\\d{0,16}\\.\\d{0,2}0*$)"
-              }
-            ],
-            "title": "Valor"
-          },
-          "criterio": {
-            "type": "string",
-            "enum": [
-              "abater_na_data_do_pagamento",
-              "descontar_no_final",
-              "informativo"
-            ],
-            "title": "Criterio"
-          },
-          "indice_atualizacao": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Indice Atualizacao"
-          },
-          "aplicar_juros_apos_evento": {
-            "type": "boolean",
-            "title": "Aplicar Juros Apos Evento",
-            "default": false
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "tipo",
-          "valor",
-          "criterio"
-        ],
-        "title": "FinancialEvent",
-        "description": "Evento segue os critérios já aceitos pelo motor, sem inferência jurídica."
-      },
-      "FinancialEvent-Output": {
-        "properties": {
-          "tipo": {
-            "type": "string",
-            "enum": [
-              "deposito_judicial",
-              "pagamento_parcial",
-              "compensacao",
-              "levantamento"
-            ],
-            "title": "Tipo"
-          },
-          "data": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data"
-          },
-          "valor": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,16}|(?=[\\d.]{1,19}0*$)\\d{0,16}\\.\\d{0,2}0*$)",
-            "title": "Valor"
-          },
-          "criterio": {
-            "type": "string",
-            "enum": [
-              "abater_na_data_do_pagamento",
-              "descontar_no_final",
-              "informativo"
-            ],
-            "title": "Criterio"
-          },
-          "indice_atualizacao": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Indice Atualizacao"
-          },
-          "aplicar_juros_apos_evento": {
-            "type": "boolean",
-            "title": "Aplicar Juros Apos Evento",
-            "default": false
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "tipo",
-          "valor",
-          "criterio"
-        ],
-        "title": "FinancialEvent",
-        "description": "Evento segue os critérios já aceitos pelo motor, sem inferência jurídica."
       },
       "HTTPValidationError": {
         "properties": {

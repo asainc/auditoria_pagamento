@@ -16,7 +16,7 @@ def test_angular_payload_runs_real_engine(client, payload):
     response = client.post("/api/calculos", json=payload)
     assert response.status_code == 200
     body = response.json()
-    expected = calcular_debitos([dict(item=index, **row) for index, row in enumerate(payload["parcelas"], 1)], **payload["parametros"], eventos_financeiros=[], auto_atualizar_planilhas_indices=False)
+    expected = calcular_debitos([dict(item=index, **row) for index, row in enumerate(payload["parcelas"], 1)], **payload["parametros"], auto_atualizar_planilhas_indices=False)
     assert body["memoria"] == dataframe_table(expected.memoria).model_dump()
     assert {row["campo"]: row["valor"] for row in body["resumo"]}["total_geral"] == "1234.56"
     assert body["metadata"]["revisao_humana_confirmada"] is True
@@ -41,17 +41,42 @@ def test_facade_matches_direct_engine_calculation(client, payload, changes):
     payload["parcelas"].append({"data": "2025-03-01", "valor_singelo": "350.00", "descricao": "Parcela sintética moral", "verba_tipo": "dano_moral"})
     response = client.post("/api/calculos", json=payload)
     assert response.status_code == 200, response.text
-    expected = calcular_debitos([dict(item=index, **row) for index, row in enumerate(payload["parcelas"], 1)], **payload["parametros"], auto_atualizar_planilhas_indices=False, eventos_financeiros=[])
+    expected = calcular_debitos([dict(item=index, **row) for index, row in enumerate(payload["parcelas"], 1)], **payload["parametros"], auto_atualizar_planilhas_indices=False)
     assert response.json()["memoria"] == dataframe_table(expected.memoria).model_dump()
     assert response.json()["resumo"] == [{"campo": str(row["campo"]), "valor": str(row["valor"])} for row in expected.resumo.to_dict("records")]
 
 
-def test_financial_event_reaches_engine(client, payload):
-    payload["eventos_financeiros"] = [{"tipo": "pagamento_parcial", "data": "2025-04-01", "valor": "234.56", "criterio": "descontar_no_final"}]
+def test_double_value_flag_doubles_principal_before_charges(client, payload):
+    payload["parametros"]["valor_dobrado_flag"] = True
     response = client.post("/api/calculos", json=payload)
     assert response.status_code == 200
     totals = {row["campo"]: row["valor"] for row in response.json()["resumo"]}
-    assert totals["total_apos_eventos_financeiros"] == "1000.00"
+    assert totals["total_singelo"] == "2469.12"
+    assert totals["total_geral"] == "2469.12"
+    memory = response.json()["memoria"]
+    assert "valor_original" in memory["colunas"]
+    assert "valor_dobrado_flag" in memory["colunas"]
+
+
+def test_double_value_flag_does_not_double_moral_damage(client, payload):
+    """A repetição em dobro incide somente sobre restituição material, não sobre dano moral."""
+    payload["parametros"]["valor_dobrado_flag"] = True
+    payload["parcelas"].append({
+        "data": "2025-01-01",
+        "valor_singelo": "100.00",
+        "descricao": "Dano moral sintético",
+        "verba_tipo": "dano_moral",
+    })
+    response = client.post("/api/calculos", json=payload)
+    assert response.status_code == 200
+    totals = {row["campo"]: row["valor"] for row in response.json()["resumo"]}
+    assert totals["total_singelo"] == "2569.12"
+    memory = response.json()["memoria"]
+    doubled_index = memory["colunas"].index("valor_dobrado_flag")
+    value_index = memory["colunas"].index("valor_singelo")
+    assert memory["linhas"][0][doubled_index] is True
+    assert memory["linhas"][1][doubled_index] is False
+    assert memory["linhas"][1][value_index] == "100.00"
 
 
 @pytest.mark.parametrize("audit", [False, True])

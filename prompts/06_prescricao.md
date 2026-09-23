@@ -14,7 +14,7 @@ Extraia `prescricao_flag`, `prescricao_anos`, `prescricao_data_referencia_tipo` 
 Se decisão posterior reconhecer, afastar ou modificar a prescrição, use `efeito=altera`, `afasta`, `mantem` ou `substitui` conforme o comando.
 
 ## Saída
-Use `campo=parametros.<nome_exato>`. Não calcule a data de corte manualmente; o motor fará isso com os parâmetros. Retorne `parcelas=[]` e `eventos_financeiros=[]`.
+Use `campo=parametros.<nome_exato>`. Não calcule a data de corte manualmente; o motor fará isso com os parâmetros. Retorne `parcelas=[]`.
 
 ## Cobertura adicional
 Procure prescrição, prazo prescricional, parcelas prescritas, limitação temporal, quinquênio, triênio, decênio e expressões equivalentes. Diferencie prescrição de decadência e de simples discussão teórica. Só ative o corte quando houver comando aplicável ao caso concreto e os campos necessários puderem ser representados sem aproximação.

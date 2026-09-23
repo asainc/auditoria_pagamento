@@ -19,7 +19,7 @@ Extraia `juros_moratorios_data_inicio` quando existir data objetiva representáv
 Comando posterior que muda taxa, termo inicial ou regime deve usar `natureza=comando_decisorio` e o `efeito` aplicável. Menção histórica sem mudança usa `informa`; manutenção expressa usa `mantem`.
 
 ## Saída
-Use `campo=parametros.<nome_exato>`. Não aplique valor padrão quando os documentos forem omissos. Retorne `parcelas=[]` e `eventos_financeiros=[]`.
+Use `campo=parametros.<nome_exato>`. Não aplique valor padrão quando os documentos forem omissos. Retorne `parcelas=[]`.
 
 ## Cobertura adicional
 Procure variações como juros de mora, juros moratórios, mora legal, juros legais, percentual ao mês/ano, desde a citação, evento danoso, vencimento, inadimplemento ou arbitramento. Termo inicial relativo só vira data quando o marco correspondente estiver objetivamente identificado nos documentos. Não derive taxa implícita nem converta periodicidade.

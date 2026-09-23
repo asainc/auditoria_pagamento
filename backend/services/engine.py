@@ -59,7 +59,6 @@ class EngineFacade:
         validate_prepared_request(payload)
         if payload.honorarios_sobre_danos_morais:
             params["honorarios"] = "0"
-        params["eventos_financeiros"] = [event.model_dump(mode="json", exclude_none=True) for event in payload.eventos_financeiros]
         # Atualização de arquivos tem endpoint próprio e usa a mesma exclusão mútua.
         params["auto_atualizar_planilhas_indices"] = False
         installments = [dict(item=index, **row.model_dump(mode="json", exclude={"origem"})) for index, row in enumerate(payload.parcelas, 1)]

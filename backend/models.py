@@ -13,7 +13,7 @@ ProcessId = Annotated[str, Field(pattern=r"^[0-9][0-9.\-]{0,39}$")]
 Money = Annotated[Decimal, Field(ge=0, max_digits=18, decimal_places=2, allow_inf_nan=False)]
 Rate = Annotated[Decimal, Field(ge=0, max_digits=18, decimal_places=8, allow_inf_nan=False)]
 DamageType = Literal["dano_material", "dano_moral", "honorarios", "custas"]
-EvidenceNature = Literal["pedido", "fato", "comando_decisorio", "fundamentacao", "classificacao_documental", "evento_comprovado", "indeterminado"]
+EvidenceNature = Literal["pedido", "fato", "comando_decisorio", "fundamentacao", "classificacao_documental", "indeterminado"]
 EvidenceEffect = Literal["informa", "mantem", "altera", "afasta", "majora", "reduz", "substitui", "nao_se_aplica"]
 InterestType = Literal["sem_juros", "capitalizacao_simples", "capitalizacao_composta", "juros_moratorios_stj1368_lei_14905", "taxa_legal_12_aa_6_aa", "taxa_legal_diaria_selic_ipcae", "taxa_legal", "juros_moratorios_ctn_lei_14905"]
 Periodicity = Literal["diaria", "mensal", "anual"]
@@ -33,23 +33,6 @@ class Installment(Contract):
     descricao: str = Field(default="", max_length=500)
     verba_tipo: DamageType
     origem: Literal["informada", "honorarios_dano_moral"] = "informada"
-
-
-class FinancialEvent(Contract):
-    """Evento segue os critérios já aceitos pelo motor, sem inferência jurídica."""
-    tipo: Literal["deposito_judicial", "pagamento_parcial", "compensacao", "levantamento"]
-    data: date | None = None
-    valor: Money
-    criterio: Literal["abater_na_data_do_pagamento", "descontar_no_final", "informativo"]
-    indice_atualizacao: str | None = None
-    aplicar_juros_apos_evento: bool = False
-
-    @model_validator(mode="after")
-    def require_date(self) -> FinancialEvent:
-        """Evita encaminhar eventos calculáveis sem data ao motor."""
-        if self.criterio != "informativo" and self.data is None:
-            raise ValueError("Informe a data do evento financeiro.")
-        return self
 
 
 class CalculationParameters(Contract):
@@ -99,6 +82,7 @@ class CalculationParameters(Contract):
     duplo_indice_segundo_data_inicio: date | None = None
     duplo_indice_segundo_data_fim: date | None = None
     duplo_indice_segundo_valor_parcela: Money | None = None
+    valor_dobrado_flag: bool | None = None
 
     @model_validator(mode="after")
     def require_active_fields(self) -> CalculationParameters:
@@ -135,7 +119,6 @@ class CalculationDraft(Contract):
     numero_processo: ProcessId | None = None
     parcelas: list[Installment] = Field(min_length=1, max_length=10000)
     parametros: CalculationParameters
-    eventos_financeiros: list[FinancialEvent] = Field(default_factory=list, max_length=1000)
     revisao_humana_confirmada: bool = False
     honorarios_sobre_danos_morais: bool = False
     competencia_automatica: bool = False
@@ -324,7 +307,6 @@ class ExtractionResult(Contract):
     numero_processo: str
     campos: list[FieldEvidence]
     parcelas: list[Installment]
-    eventos_financeiros: list[FinancialEvent]
     alertas: list[str]
     versao_prompts: str
     parametros_consolidados: dict[str, Scalar] = Field(default_factory=dict)

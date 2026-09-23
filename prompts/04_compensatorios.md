@@ -15,7 +15,7 @@ Exija indicação clara de juros compensatórios, remuneratórios ou equivalente
 Se decisão posterior afastar, reduzir, majorar ou substituir os juros compensatórios, classifique como `comando_decisorio` e use o `efeito` correspondente. Silêncio do documento mais recente não elimina regra anterior.
 
 ## Saída
-Use `campo=parametros.<nome_exato>`. Não aplique defaults documentais. Retorne `parcelas=[]` e `eventos_financeiros=[]`.
+Use `campo=parametros.<nome_exato>`. Não aplique defaults documentais. Retorne `parcelas=[]`.
 
 ## Cobertura adicional
 Considere as expressões juros compensatórios, remuneratórios, remuneratórios do capital, remuneração contratual e juros contratuais apenas quando o contexto mostrar que são componente autônomo do débito. Não confunda com encargos de mora, correção, comissão de permanência ou percentual meramente citado em contrato sem comando aplicável.

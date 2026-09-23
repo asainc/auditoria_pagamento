@@ -16,7 +16,6 @@ import { PARAM_FIELDS } from '../calculation/parameter-fields';
         <details class="management-card batch-process"><summary><strong>Processo {{ draft.numero_processo }}</strong><span>{{ draft.parcelas.length }} parcela(s)</span></summary>
           <div class="batch-process-body"><h2>Parâmetros</h2><dl class="parameter-review">@for (entry of parameters(draft); track entry.label) {<div><dt>{{ entry.label }}</dt><dd>{{ entry.value }}</dd></div>}</dl>
             <div class="table-scroll"><table><thead><tr><th>Data</th><th>Valor original</th><th>Verba</th><th>Descrição</th></tr></thead><tbody>@for (row of draft.parcelas; track $index) {<tr><td>{{ row.data }}</td><td>{{ row.valor_singelo }}</td><td>{{ label(row.verba_tipo) }}</td><td>{{ row.descricao }}</td></tr>}</tbody></table></div>
-            @if (draft.eventos_financeiros?.length) {<h2>Eventos financeiros</h2><div class="table-scroll"><table><thead><tr><th>Tipo</th><th>Data</th><th>Valor</th><th>Critério</th></tr></thead><tbody>@for (event of draft.eventos_financeiros; track $index) {<tr><td>{{ label(event.tipo) }}</td><td>{{ event.data }}</td><td>{{ event.valor }}</td><td>{{ label(event.criterio) }}</td></tr>}</tbody></table></div>}
           </div>
         </details>
       }

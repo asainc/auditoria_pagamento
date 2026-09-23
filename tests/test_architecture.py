@@ -64,3 +64,14 @@ def test_legacy_ai_package_was_removed():
 def test_legacy_engine_batch_service_was_removed():
     """O lote web possui uma única implementação na camada de aplicação."""
     assert not (ROOT / "src/judicial_calc/services/batch.py").exists()
+
+def test_financial_events_feature_was_removed_from_public_contracts():
+    """Evita reintroduzir o antigo fluxo de eventos financeiros na API e no frontend."""
+    specification = json.loads((ROOT / "docs/openapi.json").read_text(encoding="utf-8"))
+    serialized = json.dumps(specification, ensure_ascii=False)
+    assert "eventos_financeiros" not in serialized
+    assert "FinancialEvent" not in serialized
+    assert not (ROOT / "frontend/src/app/calculation/events-editor.component.ts").exists()
+    assert not (ROOT / "prompts/09_eventos.md").exists()
+    assert (ROOT / "prompts/09_valor_dobrado.md").is_file()
+

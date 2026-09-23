@@ -22,7 +22,7 @@ def test_only_text_generator_is_required(monkeypatch):
         calls.append((payload, parameters))
         assert parameters["deployment_name"] == "gpt-5.1"
         assert parameters["message_format"] == {"type": "json_object"}
-        return json.dumps({"campos": [], "parcelas": [], "eventos_financeiros": [], "alertas": []})
+        return json.dumps({"campos": [], "parcelas": [], "alertas": []})
 
     module.text_generator = text_generator
     monkeypatch.setitem(sys.modules, "gpt_bradesco", module)

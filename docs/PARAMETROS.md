@@ -14,6 +14,7 @@
 | `indice` | sem padrão | `tjsp_inpc_ipca15_lei_14905` |
 | `juros_compensatorios_tipo` | `sem_juros` | `taxa_legal_12_aa_6_aa` |
 | `juros_moratorios_tipo` | `sem_juros` | `taxa_legal_12_aa_6_aa` |
+| `valor_dobrado_flag` | `false` | `false` |
 
 Os padrões completam somente campos ausentes. Um valor explicitamente informado pelo operador ou consolidado a partir dos documentos não é sobrescrito. Para processo real, a `OperationalPolicy` registra o uso de padrão em `ajustes_operacionais`, mantendo separado o que veio de documento e o que veio de política.
 
@@ -85,6 +86,12 @@ Os padrões completam somente campos ausentes. Um valor explicitamente informado
 | `compensacao_flag` | Processo com compensação | `checkbox` | não | — |
 | `compensacao_tipo_calculo` | Tipo de compensação | `select` | não | fixo, percentual |
 | `compensacao_valor` | Valor ou percentual da compensação | `text` | não | — |
+
+## Valor em dobro
+
+| Chave | Rótulo | Tipo visual | Obrigatório base | Opções/observações |
+| --- | --- | --- | --- | --- |
+| `valor_dobrado_flag` | Aplicar valor em dobro | `checkbox` | não | Marque somente quando o título ou decisão determinar restituição/devolução em dobro. O motor duplica apenas as parcelas de dano material antes da correção, juros, multa e honorários; dano moral e demais verbas não são duplicados. |
 
 ## Duplo índice
 

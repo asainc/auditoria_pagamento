@@ -12,7 +12,8 @@
       "defaults": {
         "juros_moratorios_tipo": "sem_juros",
         "juros_compensatorios_tipo": "sem_juros",
-        "art_523": "nao_aplicar"
+        "art_523": "nao_aplicar",
+        "valor_dobrado_flag": false
       }
     },
     "processo": {
@@ -20,7 +21,8 @@
         "indice": "tjsp_inpc_ipca15_lei_14905",
         "juros_moratorios_tipo": "taxa_legal_12_aa_6_aa",
         "juros_compensatorios_tipo": "taxa_legal_12_aa_6_aa",
-        "art_523": "nao_aplicar"
+        "art_523": "nao_aplicar",
+        "valor_dobrado_flag": false
       }
     }
   },
@@ -490,6 +492,13 @@
       "label": "Valor ou percentual da compensação",
       "type": "text",
       "section": "Compensação"
+    },
+    {
+      "key": "valor_dobrado_flag",
+      "label": "Aplicar valor em dobro",
+      "type": "checkbox",
+      "section": "Valor em dobro",
+      "help": "Marque somente quando o título ou decisão determinar restituição/devolução em dobro. O motor duplica apenas as parcelas de dano material antes da correção, juros, multa e honorários; dano moral e demais verbas não são duplicados."
     },
     {
       "key": "duplo_indice_flag",

@@ -89,7 +89,7 @@ valor bruto único e válido
 ajuste_operacional
 ```
 
-Valores já editados pelo humano não são substituídos. Parcelas/eventos previamente digitados também são preservados.
+Valores já editados pelo humano não são substituídos. Parcelas previamente digitadas também são preservadas.
 
 ## 5. Edição e auditoria
 
@@ -146,7 +146,6 @@ Valida localmente campos mínimos, parcelas completas e confirmação humana.
     "juros_compensatorios_tipo": "sem_juros",
     "art_523": "nao_aplicar"
   },
-  "eventos_financeiros": [],
   "revisao_humana_confirmada": true,
   "honorarios_sobre_danos_morais": false,
   "competencia_automatica": false
@@ -199,6 +198,7 @@ Normaliza:
 - tipos de juros;
 - prescrição;
 - compensação;
+- valor em dobro para restituição material, quando expressamente determinado;
 - duplo índice;
 - Art. 523.
 
@@ -218,7 +218,7 @@ O orquestrador delega regras coesas para `calculation_prescription.py`, `calcula
 8. aplica Art. 523 e rateios monetários;
 9. monta resumo bruto;
 10. aplica compensação;
-11. processa eventos financeiros;
+11. mantém rastreabilidade da aplicação de valor em dobro nas parcelas materiais quando a flag estiver ativa;
 12. monta `ResultadoCalculo` com memória, resumo e parâmetros efetivos.
 
 As estratégias de índice e juros ficam em módulos próprios e são escolhidas por configuração; não há fórmula jurídica no Angular.

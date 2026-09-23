@@ -8,7 +8,6 @@ import { ProcessSelectorComponent } from './process-selector.component';
 import { PdfViewerComponent } from './pdf-viewer.component';
 import { ParameterPanelComponent } from './parameter-panel.component';
 import { InstallmentEditorComponent } from './installment-editor.component';
-import { EventsEditorComponent } from './events-editor.component';
 import { EvidencePanelComponent } from './evidence-panel.component';
 import { ResultPanelComponent } from './result-panel.component';
 import { ExtractionLogComponent } from './extraction-log.component';
@@ -22,7 +21,6 @@ import { ExtractionLogComponent } from './extraction-log.component';
     PdfViewerComponent,
     ParameterPanelComponent,
     InstallmentEditorComponent,
-    EventsEditorComponent,
     EvidencePanelComponent,
     ResultPanelComponent,
     ExtractionLogComponent,
@@ -47,7 +45,6 @@ import { ExtractionLogComponent } from './extraction-log.component';
 
         <nav class="section-navigation compact-section-navigation" aria-label="Navegação da conferência">
           <button type="button" [class.active]="tab() === 'parcelas'" (click)="tab.set('parcelas')">Parcelas <span>{{ store.active().installments.length }}</span></button>
-          <button type="button" [class.active]="tab() === 'eventos'" (click)="tab.set('eventos')">Eventos</button>
           <button type="button" [class.active]="tab() === 'evidencias'" (click)="tab.set('evidencias')">Evidências</button>
           <button type="button" [class.active]="tab() === 'parametros'" (click)="tab.set('parametros')">Parâmetros @if (missing().length) { <span>{{ missing().length }}</span> }</button>
           <button type="button" [class.active]="tab() === 'logs'" (click)="tab.set('logs')">Logs</button>
@@ -64,7 +61,7 @@ import { ExtractionLogComponent } from './extraction-log.component';
             >
             <span>
               Confirmo a revisão dos dados<br>
-              <small>Parcelas, critérios e eventos financeiros</small>
+              <small>Parcelas e critérios do cálculo</small>
             </span>
           </label>
 
@@ -90,7 +87,6 @@ import { ExtractionLogComponent } from './extraction-log.component';
           <div class="tray-content no-tab-strip">
             @switch (tab()) {
               @case ('parcelas') {<app-installment-editor [(damageType)]="damageType" />}
-              @case ('eventos') {<app-events-editor />}
               @case ('evidencias') {<app-evidence-panel />}
               @case ('parametros') {
                 <div class="parameters-tab">
@@ -120,7 +116,7 @@ export class CalculationPageComponent {
   readonly store = inject(WorkspaceStore);
   readonly collapsed = signal(false);
   readonly damageType = signal<DamageType>('dano_material');
-  readonly tab = signal<'parcelas' | 'eventos' | 'evidencias' | 'parametros' | 'logs' | 'resultado'>('parcelas');
+  readonly tab = signal<'parcelas' | 'evidencias' | 'parametros' | 'logs' | 'resultado'>('parcelas');
   readonly missing = computed(() => missingFields(this.store.active()));
 
   constructor() {

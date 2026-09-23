@@ -40,3 +40,10 @@ Cada `FieldEvidence` continua contendo `documento`, `pagina` e `trecho`. Antes d
 ## Privacidade e logs
 
 Os logs técnicos registram etapa, modelo, duração e identificadores operacionais. PDF, texto extraído, prompt, resposta completa, credenciais e tokens não devem ser registrados. Qualquer uso com dados reais deve seguir os controles aprovados por Segurança, Jurídico/Compliance e DPO.
+
+
+## Correção automática de estrutura da resposta
+
+A integração usa `message_format={"type": "json_object"}`, mas esse modo garante apenas um objeto JSON; ele não garante sozinho aderência completa ao contrato da calculadora. O backend valida cada resposta com Pydantic. Se houver apenas incompatibilidade estrutural ou de tipos, executa **uma única chamada adicional ao `text_generator`** para reformatar a resposta anterior, sem reler o caso e sem permitir inclusão de fatos novos. Se a segunda validação também falhar, nenhuma sugestão parcial é aplicada e a extração termina com erro explícito.
+
+O contrato de transporte aceita omissões que possuem defaults conservadores equivalentes aos contratos internos (por exemplo, `natureza=indeterminado`, `efeito=informa` e descrição vazia de parcela). Valores financeiros, datas calculáveis e evidências continuam sujeitos às validações rígidas do backend e à revisão humana.

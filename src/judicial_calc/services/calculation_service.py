@@ -41,10 +41,7 @@ from judicial_calc.interest.taxa_legal import (
 
 from judicial_calc.services.calculation_parameters import CalculoParams, FaixaDuploIndice, _normalizar_inteiro_flexivel
 from judicial_calc.services.calculation_adjustments import (
-    _ajustar_resumo_por_eventos,
     _aplicar_compensacao_na_memoria,
-    _aplicar_eventos_financeiros_na_memoria,
-    _total_eventos_financeiros,
 )
 from judicial_calc.services.calculation_penalties import _aplicar_art_523_na_memoria, _calcular_multa_linha, _multa_pode_incidir
 from judicial_calc.services.calculation_prescription import _aplicar_prescricao
@@ -380,87 +377,14 @@ def _calcular_juros_da_linha(
 
 
 
-def _eventos_financeiros_param(params: dict[str, Any]) -> list[dict[str, Any]]:
-    """Lê eventos financeiros do payload/parâmetros aceitando aliases."""
-    eventos = params.get("eventos_financeiros", params.get("financial_events", []))
-    if isinstance(eventos, str):
-        import json
-
-        try:
-            eventos = json.loads(eventos)
-        except json.JSONDecodeError:
-            eventos = []
-    return [dict(evento) for evento in eventos if isinstance(evento, dict)] if isinstance(eventos, list) else []
-
-
-def _montar_eventos_financeiros(params: dict[str, Any], cfg: CalculoParams, tabelas: TabelasCalculo) -> pd.DataFrame:
-    """Atualiza e ordena eventos financeiros cronológicos para abatimento.
-
-    Eventos com ``criterio='informativo'`` ficam no Excel/auditoria, mas não
-    alteram o total. Eventos com ``abater_na_data_do_pagamento`` são corrigidos
-    monetariamente da data do evento até a data-base do cálculo usando o índice
-    do próprio evento ou o índice geral. ``descontar_no_final`` usa valor nominal.
-    """
-    linhas: list[dict[str, Any]] = []
-    for idx, evento in enumerate(_eventos_financeiros_param(params), start=1):
-        tipo = str(evento.get("tipo") or evento.get("type") or "pagamento_parcial")
-        criterio = str(evento.get("criterio") or "abater_na_data_do_pagamento")
-        valor_original = moeda(D(evento.get("valor", "0")))
-        data_raw = evento.get("data")
-        data_evento = parse_data(data_raw) if data_raw else None
-        indice_evento = str(evento.get("indice_atualizacao") or cfg.indice)
-        if criterio == "informativo" or valor_original <= 0:
-            fator = Decimal("1")
-            valor_atualizado = Decimal("0.00")
-            afeta_total = False
-        elif criterio == "descontar_no_final" or data_evento is None:
-            fator = Decimal("1")
-            valor_atualizado = valor_original
-            afeta_total = True
-        else:
-            fator = obter_fator_correcao(
-                indice=indice_evento,
-                data_parcela=data_evento,
-                competencia_atualizacao=cfg.competencia_atualizacao,
-                tabela_indices=_tabela_indices_para(indice_evento, tabelas),
-                deflacionar_valor_nominal=False,
-            )
-            valor_atualizado = moeda(valor_original * fator)
-            afeta_total = True
-        linhas.append(
-            {
-                "item": _normalizar_inteiro_flexivel(evento.get("item") or idx, "financial_events.item", permitir_vazio=True, default=idx),
-                "tipo": tipo,
-                "data": data_evento.isoformat() if data_evento else None,
-                "criterio": criterio,
-                "valor_original": valor_original,
-                "indice_atualizacao": indice_evento,
-                "fator_correcao": fator,
-                "valor_atualizado_para_abatimento": valor_atualizado,
-                "afeta_total": afeta_total,
-                "source_file": evento.get("source_file", ""),
-                "source_page": evento.get("source_page"),
-                "evidence": evento.get("evidence", ""),
-                "confidence": evento.get("confidence", 0),
-            }
-        )
-    df = pd.DataFrame(linhas)
-    if not df.empty:
-        df = df.sort_values(["data", "item"], na_position="last").reset_index(drop=True)
-    return df
-
-
-
-
-
-
-
-
 def _linha_memoria(row: dict[str, Any], cfg: CalculoParams, params: dict[str, Any], tabelas: TabelasCalculo) -> dict[str, Any]:
     """Calcula uma parcela e devolve uma linha da memória de cálculo."""
     data_parcela = row["_data_parcela"]
     indice_linha, valor_duplo_indice, faixa_duplo_indice = _indice_correcao_linha(data_parcela, cfg)
-    valor_singelo = moeda(valor_duplo_indice if valor_duplo_indice is not None else row["valor_singelo"])
+    valor_original = moeda(valor_duplo_indice if valor_duplo_indice is not None else row["valor_singelo"])
+    verba_tipo = str(row.get("verba_tipo", "dano_material"))
+    aplica_valor_dobrado = cfg.valor_dobrado_flag and verba_tipo == "dano_material"
+    valor_singelo = moeda(valor_original * Decimal("2")) if aplica_valor_dobrado else valor_original
 
     fator = obter_fator_correcao(
         indice=indice_linha,
@@ -507,10 +431,10 @@ def _linha_memoria(row: dict[str, Any], cfg: CalculoParams, params: dict[str, An
     )
     total = moeda(valor_atualizado + juros_comp + juros_mora + multa_detalhe.total)
 
-    return {
+    linha = {
         "item": _normalizar_inteiro_flexivel(row["item"], "parcelas.item"),
         "descricao": row.get("descricao", ""),
-        "verba_tipo": row.get("verba_tipo", "dano_material"),
+        "verba_tipo": verba_tipo,
         "data": data_parcela.isoformat(),
         "valor_singelo": valor_singelo,
         "competencia_inicio_correcao": competencia_data(data_parcela),
@@ -553,6 +477,12 @@ def _linha_memoria(row: dict[str, Any], cfg: CalculoParams, params: dict[str, An
         "compensacao_linha": Decimal("0.00"),
         "total_liquido_apos_compensacao": total,
     }
+    if cfg.valor_dobrado_flag:
+        # A repetição em dobro incide apenas sobre parcelas de dano material.
+        # Dano moral, custas e honorários permanecem com o valor nominal próprio.
+        linha["valor_original"] = valor_original
+        linha["valor_dobrado_flag"] = aplica_valor_dobrado
+    return linha
 
 
 
@@ -683,12 +613,8 @@ def calcular_debitos(parcelas: pd.DataFrame | list[dict[str, Any]], **params: An
     )
 
     resumo = _montar_resumo(memoria, params, cfg)
-    eventos_financeiros_df = _montar_eventos_financeiros(params, cfg, tabelas)
     valor_compensacao_resumo = D(resumo.loc[resumo["campo"] == "valor_compensacao", "valor"].iloc[0])
     memoria = _aplicar_compensacao_na_memoria(memoria, valor_compensacao_resumo)
-    total_eventos_financeiros = _total_eventos_financeiros(eventos_financeiros_df)
-    memoria = _aplicar_eventos_financeiros_na_memoria(memoria, total_eventos_financeiros)
-    resumo = _ajustar_resumo_por_eventos(resumo, eventos_financeiros_df)
     parametros_resultado = {
         **params,
         "competencia_atualizacao": cfg.competencia_atualizacao,
@@ -709,8 +635,7 @@ def calcular_debitos(parcelas: pd.DataFrame | list[dict[str, Any]], **params: An
         "duplo_indice_segundo_data_inicio": cfg.duplo_indice_segundo.data_inicio.isoformat() if cfg.duplo_indice_segundo else None,
         "duplo_indice_segundo_data_fim": cfg.duplo_indice_segundo.data_fim.isoformat() if cfg.duplo_indice_segundo else None,
         "duplo_indice_segundo_valor_parcela": cfg.duplo_indice_segundo.valor_parcela if cfg.duplo_indice_segundo else None,
-        "eventos_financeiros": eventos_financeiros_df.to_dict("records") if not eventos_financeiros_df.empty else [],
-        "eventos_financeiros_total_atualizado": total_eventos_financeiros,
+        "valor_dobrado_flag": cfg.valor_dobrado_flag,
         "evidence_map": params.get("evidence_map", {}),
         "extraction_audit": params.get("extraction_audit", []),
         "document_roles": params.get("document_roles", []),

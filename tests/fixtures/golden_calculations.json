@@ -18,8 +18,7 @@
         "ano_atualizacao": 2026,
         "juros_moratorios_tipo": "sem_juros",
         "juros_compensatorios_tipo": "sem_juros",
-        "auto_atualizar_planilhas_indices": false,
-        "eventos_financeiros": []
+        "auto_atualizar_planilhas_indices": false
       },
       "expected": {
         "memoria": [
@@ -65,9 +64,7 @@
             "total_art_523": "0.00",
             "total_com_honorarios_e_art_523": "1234.56",
             "compensacao_linha": "0.00",
-            "total_liquido_apos_compensacao": "1234.56",
-            "eventos_financeiros_linha": "0.00",
-            "total_liquido_apos_eventos_financeiros": "1234.56"
+            "total_liquido_apos_compensacao": "1234.56"
           }
         ],
         "resumo": [
@@ -214,10 +211,6 @@
           {
             "campo": "total_geral",
             "valor": "1234.56"
-          },
-          {
-            "campo": "eventos_financeiros_total_atualizado",
-            "valor": "0.00"
           }
         ]
       }
@@ -245,8 +238,7 @@
         "honorarios": "10",
         "honorarios_tipo": "percentual",
         "art_523": "aplicar_multa_honorarios",
-        "auto_atualizar_planilhas_indices": false,
-        "eventos_financeiros": []
+        "auto_atualizar_planilhas_indices": false
       },
       "expected": {
         "memoria": [
@@ -292,9 +284,7 @@
             "total_art_523": "254.80",
             "total_com_honorarios_e_art_523": "1528.80",
             "compensacao_linha": "0.00",
-            "total_liquido_apos_compensacao": "1528.80",
-            "eventos_financeiros_linha": "0.00",
-            "total_liquido_apos_eventos_financeiros": "1528.80"
+            "total_liquido_apos_compensacao": "1528.80"
           }
         ],
         "resumo": [
@@ -441,16 +431,12 @@
           {
             "campo": "total_geral",
             "valor": "1528.80"
-          },
-          {
-            "campo": "eventos_financeiros_total_atualizado",
-            "valor": "0.00"
           }
         ]
       }
     },
     {
-      "name": "compensacao_evento",
+      "name": "compensacao_percentual",
       "parcelas": [
         {
           "item": 1,
@@ -476,15 +462,7 @@
         "compensacao_flag": true,
         "compensacao_tipo_calculo": "percentual",
         "compensacao_valor": "10",
-        "auto_atualizar_planilhas_indices": false,
-        "eventos_financeiros": [
-          {
-            "tipo": "pagamento_parcial",
-            "data": "2025-04-01",
-            "valor": "100",
-            "criterio": "descontar_no_final"
-          }
-        ]
+        "auto_atualizar_planilhas_indices": false
       },
       "expected": {
         "memoria": [
@@ -530,9 +508,7 @@
             "total_art_523": "0.00",
             "total_com_honorarios_e_art_523": "1200.00",
             "compensacao_linha": "120.00",
-            "total_liquido_apos_compensacao": "1080.00",
-            "eventos_financeiros_linha": "80.00",
-            "total_liquido_apos_eventos_financeiros": "1000.00"
+            "total_liquido_apos_compensacao": "1080.00"
           },
           {
             "item": 2,
@@ -576,9 +552,7 @@
             "total_art_523": "0.00",
             "total_com_honorarios_e_art_523": "300.00",
             "compensacao_linha": "30.00",
-            "total_liquido_apos_compensacao": "270.00",
-            "eventos_financeiros_linha": "20.00",
-            "total_liquido_apos_eventos_financeiros": "250.00"
+            "total_liquido_apos_compensacao": "270.00"
           }
         ],
         "resumo": [
@@ -724,15 +698,7 @@
           },
           {
             "campo": "total_geral",
-            "valor": "1250.00"
-          },
-          {
-            "campo": "eventos_financeiros_total_atualizado",
-            "valor": "100.00"
-          },
-          {
-            "campo": "total_apos_eventos_financeiros",
-            "valor": "1250.00"
+            "valor": "1350.00"
           }
         ]
       }
@@ -768,8 +734,7 @@
         "duplo_indice_segundo_indice": "sem_correcao",
         "duplo_indice_segundo_data_inicio": "2025-01-01",
         "duplo_indice_segundo_data_fim": "2026-03-31",
-        "auto_atualizar_planilhas_indices": false,
-        "eventos_financeiros": []
+        "auto_atualizar_planilhas_indices": false
       },
       "expected": {
         "memoria": [
@@ -815,9 +780,7 @@
             "total_art_523": "0.00",
             "total_com_honorarios_e_art_523": "100.00",
             "compensacao_linha": "0.00",
-            "total_liquido_apos_compensacao": "100.00",
-            "eventos_financeiros_linha": "0.00",
-            "total_liquido_apos_eventos_financeiros": "100.00"
+            "total_liquido_apos_compensacao": "100.00"
           },
           {
             "item": 2,
@@ -861,9 +824,7 @@
             "total_art_523": "0.00",
             "total_com_honorarios_e_art_523": "200.00",
             "compensacao_linha": "0.00",
-            "total_liquido_apos_compensacao": "200.00",
-            "eventos_financeiros_linha": "0.00",
-            "total_liquido_apos_eventos_financeiros": "200.00"
+            "total_liquido_apos_compensacao": "200.00"
           }
         ],
         "resumo": [
@@ -1010,10 +971,6 @@
           {
             "campo": "total_geral",
             "valor": "300.00"
-          },
-          {
-            "campo": "eventos_financeiros_total_atualizado",
-            "valor": "0.00"
           }
         ]
       }

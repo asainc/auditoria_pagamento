@@ -126,8 +126,16 @@
 /* Parâmetros e logs compartilham a mesma bandeja lateral; não há ampliação global. */
 .parameters-tab{display:flex;flex-direction:column;min-height:0;width:100%;overflow:auto}
 .tray-content>app-extraction-log{display:flex;flex-direction:column;min-height:0;width:100%;min-width:0}
-.log-list{display:flex;flex-direction:column}
-.log-table-scroll{overflow:auto;min-height:0}
+.log-list{display:block;min-height:0;overflow-y:auto;overflow-x:hidden;padding-bottom:14px}
+.log-table-scroll{
+  height:340px;
+  min-height:340px;
+  max-height:340px;
+  overflow:scroll;
+  scrollbar-gutter:stable both-edges;
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+}
 .log-table{min-width:900px}
 .log-table th:nth-child(1){min-width:190px}.log-table th:nth-child(2){min-width:230px}.log-table th:nth-child(3){min-width:170px}.log-table th:nth-child(4),.log-table th:nth-child(5){min-width:160px}
 .log-table tr.human-changed td{background:#fff7f8}
@@ -136,3 +144,7 @@
 .log-note{padding:10px 14px;border-top:1px solid var(--line);font-size:.75rem;color:var(--muted)}
 .log-history-heading{margin-top:12px;border-top:1px solid var(--line)}
 .review-log-table{min-width:1180px}
+
+@media (max-height:720px) and (pointer:fine){
+  .log-table-scroll{height:300px;min-height:300px;max-height:300px}
+}

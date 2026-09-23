@@ -367,8 +367,6 @@ def _summary_rows(resumo: dict[str, Any], parametros: dict[str, Any]) -> list[tu
     if _nonzero(resumo.get("valor_compensacao", "0")):
         tipo = parametros.get("compensacao_tipo_calculo") or resumo.get("compensacao_tipo_calculo") or "fixo"
         rows.append((f"Compensação ({tipo}) (-)", _format_currency_br(resumo.get("valor_compensacao"))))
-    if _nonzero(resumo.get("eventos_financeiros_total_atualizado", "0")):
-        rows.append(("Pagamentos/depósitos abatidos (-)", _format_currency_br(resumo.get("eventos_financeiros_total_atualizado"))))
     if subtotal is not None and rows:
         interim = resumo.get("subtotal_com_honorarios") or resumo.get("total_geral_bruto")
         if interim is not None and _as_decimal(interim) != _as_decimal(subtotal):
@@ -489,8 +487,8 @@ def salvar_resultado_pdf_auditavel(resultado: ResultadoCalculo, caminho: str | P
     """Salva PDF auditável com memória sintética + evidências e alertas.
 
     Esta versão é mais longa que a planilha judicial: inclui metadados da versão
-    do cálculo, mapa de evidências, conflitos, jurisprudência ignorada e eventos
-    financeiros. Use para revisão interna/auditoria, não necessariamente para
+    do cálculo, mapa de evidências, conflitos e jurisprudência ignorada.
+    Use para revisão interna/auditoria, não necessariamente para
     anexar ao processo.
     """
     caminho = Path(caminho)
@@ -535,7 +533,6 @@ def salvar_resultado_pdf_auditavel(resultado: ResultadoCalculo, caminho: str | P
     story.extend(_records_table("MAPA DE EVIDÊNCIAS POR PARÂMETRO", _flatten_evidence_map(parametros.get("evidence_map")), styles, available_width))
     story.extend(_records_table("DIVERGÊNCIAS ENTRE DOCUMENTOS", parametros.get("document_conflicts") or [], styles, available_width))
     story.extend(_records_table("JURISPRUDÊNCIA IGNORADA", parametros.get("ignored_jurisprudence_audit") or [], styles, available_width))
-    story.extend(_records_table("EVENTOS FINANCEIROS", parametros.get("eventos_financeiros") or [], styles, available_width))
     story.extend(_records_table("DOCUMENTOS LIDOS", parametros.get("document_roles") or [], styles, available_width))
 
     doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)

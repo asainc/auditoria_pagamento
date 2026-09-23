@@ -1,5 +1,5 @@
 /** Único adaptador de formulário camelCase para os contratos snake_case. */
-import { CalculationParameters_Input, CalculationRequest, CalculationResponse, ExtractionResult, FinancialEvent_Input, Installment_Input } from './contracts';
+import { CalculationParameters_Input, CalculationRequest, CalculationResponse, ExtractionResult, Installment_Input } from './contracts';
 import { MANUAL_DEFAULT_PARAMETERS, PARAM_FIELDS, ParameterKey, REQUIRED_PARAMETER_KEYS } from '../calculation/parameter-fields';
 
 export type CalculationOrigin = 'manual' | 'processo';
@@ -12,7 +12,6 @@ export interface WorkspaceDraft {
   numeroProcesso: string;
   installments: InstallmentForm[];
   parameters: ParameterForm;
-  financialEvents: FinancialEvent_Input[];
   humanReviewed: boolean;
   revision: number;
   result: CalculationResponse | null;
@@ -45,7 +44,6 @@ export function blankDraft(process: string, origin: CalculationOrigin = 'process
     numeroProcesso: origin === 'processo' ? process : '',
     installments: [],
     parameters: origin === 'manual' ? {...MANUAL_DEFAULT_PARAMETERS} as ParameterForm : {},
-    financialEvents: [],
     humanReviewed: false,
     revision: 0,
     result: null,
@@ -93,7 +91,6 @@ export function toCalculationRequest(draft: WorkspaceDraft): CalculationRequest 
     numero_processo: draft.calculationOrigin === 'processo' ? draft.numeroProcesso : null,
     parcelas: draft.installments.filter(row => row.data || row.valor_singelo || row.descricao).map(row => ({...row, valor_singelo:decimalText(row.valor_singelo)})),
     parametros: params as CalculationParameters_Input,
-    eventos_financeiros: draft.financialEvents.map(event => ({...event, valor:decimalText(event.valor)})),
     revisao_humana_confirmada:true,
     honorarios_sobre_danos_morais:draft.feesOnMoralDamages,
     competencia_automatica:draft.automaticCompetence,
@@ -135,7 +132,6 @@ export function applyExtraction(draft: WorkspaceDraft, result: ExtractionResult,
     installments:hasRows ? draft.installments : result.parcelas,
     feesOnMoralDamages:hasRows ? draft.feesOnMoralDamages : Boolean(result.honorarios_sobre_danos_morais),
     automaticCompetence:!draft.parameters.mes_atualizacao && !draft.parameters.ano_atualizacao ? Boolean(result.competencia_automatica) : draft.automaticCompetence,
-    financialEvents:draft.financialEvents.length ? draft.financialEvents : result.eventos_financeiros,
     humanReviewed:false,
     result:null,
     confirmedRequest:null,

@@ -19,7 +19,7 @@ Preencha `competencia_final_taxa_legal` apenas quando houver competência final 
 Se comando posterior trocar índice ou regime, use `comando_decisorio` com `efeito=altera` ou `substitui`. Se mantiver expressamente, use `efeito=mantem`. Não transforme pedido inicial em regra vigente contra decisão incompatível.
 
 ## Saída
-Use `campo=parametros.<nome_exato>`. Não aplique padrões operacionais. Retorne `parcelas=[]` e `eventos_financeiros=[]`.
+Use `campo=parametros.<nome_exato>`. Não aplique padrões operacionais. Retorne `parcelas=[]`.
 
 ## Cobertura adicional
 Reconheça referências como correção monetária, atualização, recomposição, índice oficial, tabela prática, IPCA, IPCA-E, INPC, IGP-M, SELIC e taxa legal, sempre confrontando com as chaves aceitas pelo motor. Diferencie índice de correção de juros e de mero índice citado em precedente. Se o documento definir mudança de regime por data, avalie se pertence ao prompt de duplo índice em vez de simplificar aqui.
