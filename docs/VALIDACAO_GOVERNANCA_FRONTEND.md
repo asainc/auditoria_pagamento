@@ -7,7 +7,7 @@
 ## Controles implementados
 
 1. Dependências diretas com versões exatas.
-2. Ausência de `overrides` no `package.json`.
+2. Overrides limitados a versões oficiais explicitamente documentadas (Rollup, readdirp sob Chokidar e PostCSS).
 3. Ausência de dependências `file:`, Git e forks locais.
 4. Verificação explícita de Node.js e npm antes da resolução.
 5. Verificação do registry corporativo antes da resolução.
@@ -40,3 +40,7 @@ O `nexus:lock` é a etapa que precisa ocorrer dentro da rede corporativa. Se hou
 - regras adicionais do Nexus não visíveis no projeto.
 
 Sem acesso ao catálogo de aprovação ou ao Nexus real, não é tecnicamente possível declarar o frontend como homologado.
+
+## Instalação com arquivos `.tgz` locais
+
+Veja `docs/INSTALACAO_FRONTEND_NEXUS_TARBALLS.md`. A verificação de SHA-512 usa o lock corporativo, não a confiança no nome do arquivo. Pacotes ausentes no Nexus, como o caso relatado de `ajv`, exigem disponibilidade de metadados oficiais ou um lock corporativo completo validado. A presença de arquivos no cache não equivale à homologação.

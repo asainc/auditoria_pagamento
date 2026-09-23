@@ -82,7 +82,7 @@ Parâmetros operacionais centralizados; segredos vêm do ambiente.
 
 ### `def load_settings() -> Settings`
 
-Prioridade: ambiente > .env > JSON > padrões; API_TOKEN é a chave principal.
+Prioridade: ambiente > .env > JSON > padrões; segredos corporativos não são persistidos.
 
 ## `backend/container.py`
 
@@ -179,12 +179,12 @@ Processo e contagem obtidos dos documentos persistidos.
 
 ### `class AiUsage(Contract)`
 
-Consumo técnico de uma chamada de IA, sem conteúdo dos documentos.
+Telemetria técnica de uma chamada corporativa, sem conteúdo documental.
 
 
 ### `class AiUsageSummary(Contract)`
 
-Resumo acumulado da extração para transparência operacional de custo.
+Resumo de chamadas; tokens/custo ficam nulos quando o serviço não os informa.
 
 
 ### `class ExtractionRequest(Contract)`
@@ -199,7 +199,7 @@ Estado de negócio persistido para acompanhamento e recuperação.
 
 ### `class ExtractionConfiguration(Contract)`
 
-Presença da configuração, sem chave nem chamada cobrada ao provedor.
+Presença da configuração corporativa sem expor segredos ou testar credenciais.
 
 
 ### `class UploadResponse(Contract)`
@@ -428,7 +428,7 @@ Consulta e repetição da extração não dependem de estado do navegador.
 
 ### `def configuration(service: Dependency)`
 
-Permite orientar a operação sem expor ou testar a credencial da OpenAI.
+Expõe somente disponibilidade operacional da integração corporativa.
 
 ### `def start(payload: ExtractionRequest, service: Dependency)`
 
@@ -464,6 +464,23 @@ Serviços de aplicação independentes dos componentes Angular.
 
 Este módulo não expõe classes ou funções de nível superior.
 
+## `backend/services/ai_usage.py`
+
+Telemetria de chamadas corporativas sem estimar consumo não informado.
+
+### `class UsageMeter`
+
+Cria telemetria conservadora a partir dos dados realmente observáveis.
+
+- `def from_call(*, model: str, stage: str, duration_ms: float) -> AiUsage` — Sem descrição específica no código.
+
+### `class RequestTimer`
+
+Cronômetro monotônico para medir somente latência técnica.
+
+- `def __init__(self) -> None` — Sem descrição específica no código.
+- `def elapsed_ms(self) -> float` — Sem descrição específica no código.
+
 ## `backend/services/batches.py`
 
 Orquestração de lotes reaproveita o cálculo unitário, sem duplicar o motor.
@@ -474,6 +491,49 @@ Execução sequencial limita memória e mantém erros separados por processo.
 
 - `def __init__(self, calculation: CalculationService)` — Recebe dependências explicitamente para manter configuração e testes isolados.
 - `def execute(self, payload: BatchRequest) -> BatchResponse` — Preserva os sucessos e informa explicitamente cada falha de domínio.
+
+## `backend/services/bradesco_bridge.py`
+
+Integração única com os serviços corporativos de IA e OCR.
+
+### `class BradescoBridgeError(ServiceError)`
+
+Erro sanitizado da integração corporativa, com código operacional estável.
+
+- `def __init__(self, code: str, message: str, status_code: int=502)` — Sem descrição específica no código.
+
+### `class OcrPage`
+
+Texto OCR de uma página, sem persistência adicional no serviço remoto.
+
+
+### `class OcrDocument`
+
+Documento OCR normalizado para consumo pelos prompts especializados.
+
+- `def texto_prompt(self) -> str` — Expõe nome e página de forma explícita para manter evidência rastreável.
+
+### `class BradescoBridgeClient`
+
+Facade de baixo acoplamento sobre ``gpt_bradesco.py``.
+
+- `def __init__(self, settings: Settings)` — Sem descrição específica no código.
+- `def configured(self) -> bool` — Valida somente presença de configuração; não faz chamada de rede.
+- `def _load(self) -> Any` — Importa e configura o módulo corporativo no primeiro uso.
+- `def _safe_request_id(value: Any) -> str | None` — Aceita somente IDs técnicos curtos antes de incluí-los em mensagem.
+- `def _classify_error(self, exc: Exception, operation: str) -> BradescoBridgeError` — Traduz falhas externas sem ecoar corpo, documento ou segredo.
+- `def _call(self, operation: str, function_name: str, *args: Any, **kwargs: Any) -> Any` — Executa uma função corporativa e centraliza tratamento de erro.
+- `def _walk(value: Any) -> Iterable[tuple[str | None, Any]]` — Percorre respostas JSON sem pressupor um único envelope do gateway.
+- `def _find_first_text(self, payload: Any, keys: tuple[str, ...]) -> str | None` — Sem descrição específica no código.
+- `def _extract_identifier(self, payload: Any, keys: tuple[str, ...]) -> str | None` — Sem descrição específica no código.
+- `def _resolve_file_id(self, upload_result: Any, remote_name: str) -> str` — Obtém o ID do upload; consulta a listagem somente se a resposta não o trouxer.
+- `def _upload_pdf(self, name: str, content: bytes) -> str` — Envia PDF em base64 apenas durante a chamada e retorna o ID remoto.
+- `def _ocr_payload(self, file_id: str) -> dict[str, Any]` — Monta o OCR híbrido seguindo o contrato exemplificado para a plataforma.
+- `def _wait_if_needed(self, result: Any) -> Any` — Aguarda workflow assíncrono somente quando a resposta fornece seu ID.
+- `def _page_number(mapping: Mapping[str, Any], page_keys: tuple[str, ...]) -> int | None` — Converte identificadores de página sem aceitar booleanos ou negativos.
+- `def _pages_from_payload(self, payload: Any) -> list[OcrPage]` — Normaliza diferentes envelopes detalhados de OCR preservando a página.
+- `def ocr_pdf(self, name: str, content: bytes, expected_pages: int) -> OcrDocument` — Envia um PDF ao OCR e remove o objeto remoto após obter o texto.
+- `def generate_text(self, payload: str, *, max_tokens: int) -> str` — Executa qualquer prompt exclusivamente por ``text_generator``.
 
 ## `backend/services/calculation.py`
 
@@ -563,49 +623,49 @@ Retorna orientação para correção sem analisar nem devolver o texto da exceç
 
 ## `backend/services/extraction.py`
 
-Extração especializada por campo, sem padrões jurídicos inventados.
+Extração documental usando exclusivamente os serviços corporativos configurados.
 
 ### `class ExtractionFragment(Contract)`
 
-O fornecedor deve retornar somente o assunto do prompt especializado.
+Fragmento especializado já validado pelo contrato interno.
 
 
 ### `class ProviderResult(Contract)`
 
-Fragmento estruturado acompanhado apenas por telemetria técnica da chamada.
+Fragmento estruturado e telemetria observável das chamadas corporativas.
 
 
 ### `class ExtractionProviderError(ServiceError)`
 
-Erro público estável; nunca inclui corpo da resposta ou credencial.
+Erro público estável; nunca inclui corpo da resposta, prompt ou credencial.
 
-- `def __init__(self, code: str, message: str)` — Cria uma falha HTTP 502 com código operacional estável e mensagem sanitizada.
-
-### `def classify_provider_error(error: Exception) -> ExtractionProviderError`
-
-Distingue a OpenAI da API local sem ecoar mensagens externas.
-
-### `def provider_error(error: Exception) -> ExtractionProviderError`
-
-Registra apenas categoria interna e identificador técnico com formato conhecido.
+- `def __init__(self, code: str, message: str, status_code: int=502)` — Sem descrição específica no código.
 
 ### `class ExtractionProvider`
 
-Encapsula a comunicação com a OpenAI para as etapas especializadas de extração.
+Executa OCR e prompts somente pelo módulo ``gpt_bradesco.py``.
 
-- `def __init__(self, settings: Settings)` — Centraliza cliente, modelo e medição de uso sem expor a credencial.
-- `def configured(self) -> bool` — Indica se existem modelo e chave configurados sem realizar chamada de rede.
-- `def extract(self, prompt: str, files: list[tuple[str, bytes]], *, stage: str, max_output_tokens: int) -> ProviderResult` — Envia PDFs nativos e valida a resposta; a chave permanece no servidor.
+- `def __init__(self, settings: Settings, bridge: BradescoBridgeClient | None=None)` — Sem descrição específica no código.
+- `def configured(self) -> bool` — Indica se há autenticação, deployment de texto e container de OCR configurados.
+- `def _translate_error(exc: Exception) -> ExtractionProviderError` — Sem descrição específica no código.
+- `def ocr_documents(self, files: list[tuple[str, bytes, int]]) -> tuple[list[OcrDocument], list[AiUsage]]` — Extrai texto de cada PDF por OCR corporativo antes de qualquer prompt.
+- `def _split_large_block(header: str, text: str, max_chars: int) -> list[str]` — Divide uma página muito grande por parágrafos sem perder referência de página.
+- `def _pack_ocr(self, documents: list[OcrDocument]) -> list[str]` — Agrupa páginas para limitar payload sem descartar texto OCR.
+- `def _json_object(text: str) -> dict` — Aceita JSON puro ou bloco cercado; qualquer outra saída é rejeitada.
+- `def _shift_evidence(field: FieldEvidence, parcel_offset: int, event_offset: int) -> FieldEvidence` — Reindexa referências ao combinar respostas de múltiplos chunks.
+- `def _deduplicate_fields(fields: list[FieldEvidence]) -> list[FieldEvidence]` — Remove duplicatas exatas sem resolver conflitos materiais.
+- `def extract(self, prompt: str, documents: list[OcrDocument], *, stage: str, max_output_tokens: int) -> ProviderResult` — Executa o prompt especializado por ``text_generator`` sobre texto OCR.
 
 ### `class ExtractionService`
 
-Orquestra fila, prompts, cronologia, consolidação e persistência da extração.
+Orquestra OCR, prompts, cronologia, consolidação e persistência da extração.
 
-- `def __init__(self, settings: Settings, repository: Repository, documents: DocumentService, provider: ExtractionProvider)` — Monta o serviço com dependências explícitas e limite configurado de workers.
+- `def __init__(self, settings: Settings, repository: Repository, documents: DocumentService, provider: ExtractionProvider)` — Sem descrição específica no código.
 - `def start(self, process: str, new_upload: bool=False) -> ExtractionStatus` — Retentativa explícita compartilha trabalho ativo; novo upload cria revisão nova.
-- `def run(self, status: ExtractionStatus, documents: list[DocumentMetadata]) -> None` — Cada estágio fica consultável pela API, inclusive falhas e interrupções.
-- `def _summarize_usage(usages: list[AiUsage]) -> AiUsageSummary` — Agrega telemetria; custo fica indefinido se qualquer chamada não tiver tarifa conhecida.
-- `def consolidate(self, result: ExtractionResult, documents: list[DocumentMetadata]) -> ExtractionResult` — Valida evidências, resolve reformas cronológicas inequívocas e sinaliza conflitos restantes.
+- `def run(self, status: ExtractionStatus, documents: list[DocumentMetadata]) -> None` — Executa OCR antes de qualquer prompt e mantém cada estágio consultável.
+- `def _sum_optional(values: list[int | None]) -> int | None` — Soma somente quando todas as chamadas realmente forneceram a métrica.
+- `def _summarize_usage(cls, usages: list[AiUsage]) -> AiUsageSummary` — Não estima tokens ou custo quando o contrato corporativo não os retorna.
+- `def consolidate(self, result: ExtractionResult, documents: list[DocumentMetadata], ocr_documents: list[OcrDocument] | None=None) -> ExtractionResult` — Valida evidências contra OCR, resolve cronologia inequívoca e mantém conflitos.
 - `def close(self) -> None` — Desliga a fila sem perder o status persistido dos trabalhos pendentes.
 
 ## `backend/services/extraction_wire.py`
@@ -739,36 +799,6 @@ Registra eventos imutáveis sem depender do estado visual do Angular.
 - `def record(self, change: ParameterChangeInput, actor: str) -> ParameterChangeRecord` — Enriquece o evento com o valor/origem extraídos que o servidor conhece.
 - `def list_for_process(self, process: str) -> list[ParameterChangeRecord]` — Retorna toda a trilha persistida do processo.
 - `def list_for_draft(self, draft: str) -> list[ParameterChangeRecord]` — Retorna a trilha do rascunho manual atual.
-
-## `backend/services/token_usage.py`
-
-Mede consumo e custo de IA sem persistir conteúdo documental ou segredos.
-
-### `class ModelPrice`
-
-Tarifas em USD por unidade de tokens definida no catálogo externo.
-
-
-### `class PricingCatalog`
-
-Carrega preços versionáveis; modelo desconhecido nunca recebe preço presumido.
-
-- `def __init__(self, path: Path | None=None)` — Lê uma única fonte local para manter cálculo de custo reproduzível.
-- `def estimate(self, *, model: str, input_tokens: int, cached_tokens: int, output_tokens: int) -> Decimal | None` — Calcula custo apenas para modelos presentes no catálogo verificado.
-
-### `class UsageMeter`
-
-Converte o objeto ``usage`` da SDK em contrato estável do projeto.
-
-- `def __init__(self, catalog: PricingCatalog | None=None)` — Sem descrição específica no código.
-- `def from_response(self, *, response: object, model: str, stage: str, duration_ms: float) -> AiUsage` — Tolera evolução da SDK usando apenas campos de uso conhecidos e opcionais.
-
-### `class RequestTimer`
-
-Cronômetro pequeno para não espalhar medição de latência pelo provedor.
-
-- `def __init__(self)` — Sem descrição específica no código.
-- `def elapsed_ms(self) -> float` — Sem descrição específica no código.
 
 ## `scripts/evaluate_extraction.py`
 

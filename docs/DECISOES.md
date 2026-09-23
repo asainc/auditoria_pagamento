@@ -30,9 +30,9 @@
 
 | Schema de parâmetros reduzido por tarefa de extração | Evita repetir o contrato inteiro em dez chamadas e reduz tokens sem remover os campos relevantes da especialidade. |
 | Limites de saída por tarefa em `config/extraction_tasks.json` | Evita reservar saída excessiva e deixa o tuning auditável sem alterar código. |
-| Telemetria baseada no `usage` real do provedor | Tokens e cache são medidos, não estimados a partir do texto local. |
-| Preços fora do código em `config/model_pricing.json` | Tarifas mudam; modelo desconhecido produz custo nulo em vez de preço inventado. |
-| Conteúdo documental não entra na telemetria de custo | Mantém observabilidade sem ampliar exposição de dados do processo. |
+| Telemetria da integração corporativa registra chamadas e duração | O contrato atual do gerador corporativo não expõe contagem de tokens nem faturamento; esses campos permanecem indisponíveis em vez de serem estimados. |
+| OCR precede qualquer prompt de extração | PDFs são enviados ao OCR corporativo e somente o texto OCR, com documento e página, entra nos prompts especializados. |
+| `text_generator` é o único executor de prompts | Centraliza parâmetros, autenticação, tratamento de erro e auditoria da geração de texto. |
 | Seções de parâmetros usam cartões independentes e cabeçalho destacado quando abertas | Mantém o bloco ativo identificável durante a rolagem sem alterar a identidade visual da aplicação. |
 | Categorias do DrCalc são descobertas pela navegação da fonte, com IDs apenas como fallback | Evita quebrar a atualização quando o site altera identificadores de categoria. |
 | Séries do DrCalc são obtidas pela submissão do formulário histórico real | O valor do seletor de indexador não é tratado como URL por suposição; período, categoria, defaults e método GET/POST são reproduzidos conforme a página publicada. |
@@ -45,8 +45,8 @@ Regras que expressem interpretação jurídica, sucessão de decisões, polític
 
 ## Dependências npm — 16/09/2026
 
-- **Decisão:** utilizar exclusivamente pacotes oficiais publicados no npm, sem fork local, tarball de biblioteca ou substituto fictício.
-- **Dependências do frontend/Nexus:** o baseline foi alinhado a Node.js `22.12.0`, npm `10.9.0` e Angular `21.2.19`. Foram removidos os overrides de transitivos. O primeiro `package-lock.json` deve ser gerado no Nexus corporativo e depois versionado, para que a resolução reflita apenas artefatos disponíveis no repositório autorizado.
-- **Justificativa:** um pacote oficial pode ser recusado pelo Nexus; forçar manualmente outra versão pode criar uma combinação não suportada. A estratégia Nexus-first torna o bloqueio explícito e preserva a árvore oficial dos consumidores.
-- **Limite:** a origem oficial e a resolução pelo Nexus não substituem homologação de licença, vulnerabilidade ou política interna.
+- **Decisão:** utilizar somente distribuições oficiais e versões confirmadas no repositório corporativo, sem forks ou pacotes fictícios.
+- **Dependências do frontend/Nexus:** baseline Node.js `22.12.0`, npm `10.9.0` e Angular `21.2.19`; versões transitivas explicitamente compatibilizadas com a disponibilidade informada no Nexus (`rollup 4.60.1`, `readdirp 4.1.2`, `postcss 8.5.25`) e binding oficial Windows do Rollup na mesma versão.
+- **Instalação corporativa:** os `.tgz` obtidos pelo fluxo autorizado podem ser validados e carregados no cache local sem transformar o projeto em uma distribuição baseada em `file:`.
+- **Limite:** disponibilidade técnica no Nexus não equivale a homologação de licença, vulnerabilidade ou política interna.
 

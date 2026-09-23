@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FORBIDDEN_PACKAGE = "streamlit"
+FORBIDDEN_EXTERNAL_AI = "open" + "ai"
 IGNORED = {"node_modules", "dist", ".git", ".venv", ".angular", ".test-build", "__pycache__", ".pytest_cache"}
 
 
@@ -34,6 +35,10 @@ def architecture_errors(root: Path) -> list[str]:
                     errors.append(f"Interface Python: {relative}:{node.lineno}")
                 if "routers" in relative.parts and any(name.startswith("judicial_calc") for name in names):
                     errors.append(f"Rota acessa motor diretamente: {relative}")
+        if path.suffix.lower() in {".py", ".md", ".ts", ".json", ".toml", ".txt"} or path.name in {".env.example"}:
+            content = path.read_text(encoding="utf-8", errors="ignore").lower()
+            if FORBIDDEN_EXTERNAL_AI in content:
+                errors.append(f"Referência à integração externa removida: {relative}")
         if path.name in {"pyproject.toml", "requirements.txt", "requirements-dev.txt", "requirements.lock", "Dockerfile", "package.json", "package-lock.json"}:
             if FORBIDDEN_PACKAGE in path.read_text(encoding="utf-8").lower():
                 errors.append(f"Dependência/configuração proibida: {relative}")

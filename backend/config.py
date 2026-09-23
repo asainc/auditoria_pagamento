@@ -35,12 +35,37 @@ class Settings(Contract):
     max_upload_bytes: int = Field(default=20 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
     max_upload_files: int = Field(default=20, ge=1, le=100)
     extraction_workers: int = Field(default=2, ge=1, le=4)
-    openai_model: str = Field(default="gpt-5.6-sol", min_length=1, max_length=100)
-    openai_api_key: SecretStr = SecretStr("")
-    openai_base_url: str | None = None
-    openai_reasoning_effort: Literal["none", "low", "medium", "high", "xhigh", "max"] = "medium"
-    openai_timeout_seconds: int = Field(default=180, ge=10, le=600)
-    openai_max_output_tokens: int = Field(default=32768, ge=1024, le=128000)
+
+    # Integração corporativa: segredos são lidos somente do ambiente/.env local.
+    bradesco_environment: Literal["dev", "homol", "prod"] = "dev"
+    bradesco_identificador: SecretStr = SecretStr("")
+    bradesco_senha: SecretStr = SecretStr("")
+    bradesco_authorization_token: SecretStr = SecretStr("")
+    bradesco_ca_bundle: Path | None = None
+    bradesco_timeout_seconds: int = Field(default=600, ge=10, le=1800)
+
+    # Geração de texto usada por TODOS os prompts do projeto.
+    bradesco_text_model: str = Field(default="gpt-5.1", min_length=1, max_length=100)
+    bradesco_text_reasoning_effort: Literal["none", "low", "medium", "high"] = "medium"
+    bradesco_text_verbosity: Literal["low", "medium", "high"] = "medium"
+    bradesco_text_modalities: Literal["text"] = "text"
+    bradesco_text_temperature: float = Field(default=1.0, ge=0, le=2)
+    bradesco_text_max_tokens: int = Field(default=16384, ge=1024, le=65536)
+    bradesco_prompt_max_chars: int = Field(default=55000, ge=10000, le=250000)
+
+    # OCR híbrido corporativo. O container precisa ser autorizado pela plataforma.
+    bradesco_ocr_container: str = Field(default="", max_length=200)
+    bradesco_ocr_create_container: bool = False
+    bradesco_ocr_workflow_configuration_code: str = Field(default="CD_WRFL_OCR_HYBRID_ASYNC", min_length=1, max_length=150)
+    bradesco_ocr_vision_model: str = Field(default="gpt-4o", min_length=1, max_length=100)
+    bradesco_ocr_language_model: str = Field(default="gpt-4o", min_length=1, max_length=100)
+    bradesco_ocr_max_image_size: int = Field(default=0, ge=0)
+    bradesco_ocr_image_format: Literal["PNG", "JPEG"] = "PNG"
+    bradesco_ocr_table_format: Literal["MARKDOWN", "HTML", "TEXT"] = "MARKDOWN"
+    bradesco_ocr_locale: str = Field(default="pt-BR", min_length=2, max_length=20)
+    bradesco_ocr_poll_interval_seconds: float = Field(default=5.0, gt=0, le=60)
+    bradesco_ocr_max_wait_seconds: int = Field(default=600, ge=30, le=3600)
+
     gateway_token: SecretStr = SecretStr("")
     index_timeout_seconds: int = Field(default=30, ge=1, le=60)
 
@@ -64,7 +89,7 @@ class Settings(Contract):
 
 
 def load_settings() -> Settings:
-    """Prioridade: ambiente > .env > JSON > padrões; API_TOKEN é a chave principal."""
+    """Prioridade: ambiente > .env > JSON > padrões; segredos corporativos não são persistidos."""
     env_path = Path(os.environ.get("APP_ENV_FILE", ROOT / ".env"))
     if "APP_ENV_FILE" in os.environ and not env_path.is_file():
         raise ValueError("APP_ENV_FILE aponta para um arquivo inexistente.")
@@ -79,13 +104,37 @@ def load_settings() -> Settings:
         raise ValueError("Não foi possível ler o JSON de configuração do backend.") from None
     if not isinstance(data, dict):
         raise ValueError("A configuração do backend deve ser um objeto JSON.")
-    mapping = {"APP_ENV": "environment", "APP_DATA_DIR": "data_dir", "OPENAI_MODEL": "openai_model", "OPENAI_API_KEY": "openai_api_key", "API_TOKEN": "openai_api_key", "OPENAI_BASE_URL": "openai_base_url", "OPENAI_REASONING_EFFORT": "openai_reasoning_effort", "OPENAI_TIMEOUT_SECONDS": "openai_timeout_seconds", "OPENAI_MAX_OUTPUT_TOKENS": "openai_max_output_tokens", "GATEWAY_TOKEN": "gateway_token"}
+    mapping = {
+        "APP_ENV": "environment",
+        "APP_DATA_DIR": "data_dir",
+        "BRADESCO_IAGEN_AMBIENTE": "bradesco_environment",
+        "BRADESCO_IDENTIFICADOR": "bradesco_identificador",
+        "BRADESCO_SENHA": "bradesco_senha",
+        "BRADESCO_AUTHORIZATION_TOKEN": "bradesco_authorization_token",
+        "BRADESCO_CA_BUNDLE": "bradesco_ca_bundle",
+        "BRADESCO_TIMEOUT_SECONDS": "bradesco_timeout_seconds",
+        "BRADESCO_TEXT_MODEL": "bradesco_text_model",
+        "BRADESCO_TEXT_REASONING_EFFORT": "bradesco_text_reasoning_effort",
+        "BRADESCO_TEXT_VERBOSITY": "bradesco_text_verbosity",
+        "BRADESCO_TEXT_TEMPERATURE": "bradesco_text_temperature",
+        "BRADESCO_TEXT_MAX_TOKENS": "bradesco_text_max_tokens",
+        "BRADESCO_PROMPT_MAX_CHARS": "bradesco_prompt_max_chars",
+        "BRADESCO_OCR_CONTAINER": "bradesco_ocr_container",
+        "BRADESCO_OCR_CREATE_CONTAINER": "bradesco_ocr_create_container",
+        "BRADESCO_OCR_WORKFLOW": "bradesco_ocr_workflow_configuration_code",
+        "BRADESCO_OCR_VISION_MODEL": "bradesco_ocr_vision_model",
+        "BRADESCO_OCR_LANGUAGE_MODEL": "bradesco_ocr_language_model",
+        "BRADESCO_OCR_LOCALE": "bradesco_ocr_locale",
+        "BRADESCO_OCR_POLL_INTERVAL_SECONDS": "bradesco_ocr_poll_interval_seconds",
+        "BRADESCO_OCR_MAX_WAIT_SECONDS": "bradesco_ocr_max_wait_seconds",
+        "GATEWAY_TOKEN": "gateway_token",
+    }
     # O ambiente tem precedência mesmo quando usa o nome alternativo da chave.
     for layer in (file_values, os.environ):
         for variable, field in mapping.items():
             if variable in layer:
                 value = layer[variable].strip()
-                data[field] = (value or None) if field == "openai_base_url" else value
+                data[field] = (value or None) if field == "bradesco_ca_bundle" else value
         if "CORS_ORIGINS" in layer:
             data["cors_origins"] = [item.strip() for item in layer["CORS_ORIGINS"].split(",")]
     try:

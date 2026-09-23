@@ -1,16 +1,16 @@
-/** Verifica o baseline oficial do Angular antes de build ou geração do lockfile. */
+/** Confere o baseline exigido pelo frontend e os ajustes oficiais registrados. */
 import {readFileSync} from 'node:fs';
-
-const EXPECTED_ANGULAR = '21.2.19';
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-const angularPackages = Object.entries({...manifest.dependencies, ...manifest.devDependencies})
-  .filter(([name]) => name.startsWith('@angular/'));
-
-for (const [name, version] of angularPackages) {
-  if (version !== EXPECTED_ANGULAR) {
-    throw new Error(`${name}: esperado ${EXPECTED_ANGULAR}, encontrado ${version}.`);
+for (const [name, version] of Object.entries({...manifest.dependencies, ...manifest.devDependencies})) {
+  if (name.startsWith('@angular/') && version !== '21.2.19') {
+    throw new Error(`${name}: esperado Angular 21.2.19, encontrado ${version}.`);
   }
 }
-if (manifest.overrides) throw new Error('Não use overrides no baseline corporativo; resolva a árvore pelo Nexus.');
 if (manifest.packageManager !== 'npm@10.9.0') throw new Error('packageManager deve permanecer npm@10.9.0.');
-console.log(`Baseline Angular validado: ${EXPECTED_ANGULAR}.`);
+if (manifest.devDependencies['@rollup/rollup-win32-x64-msvc'] !== manifest.overrides?.rollup) {
+  throw new Error('O binding Windows e o override do Rollup devem usar a mesma versão.');
+}
+if (manifest.overrides?.chokidar?.readdirp !== '4.1.2' || manifest.overrides?.postcss !== '8.5.25') {
+  throw new Error('Versões locais declaradas divergentes do baseline documentado.');
+}
+console.log('Baseline Angular 21.2.19 e pares oficiais do Rollup validados.');

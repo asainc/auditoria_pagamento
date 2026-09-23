@@ -29,7 +29,7 @@ process.on('SIGTERM', () => stop());
 
 function launch(command, args, cwd, frontend = false) {
   const environment = {...process.env};
-  if (frontend) for (const key of ['API_TOKEN','OPENAI_API_KEY','GATEWAY_TOKEN']) delete environment[key];
+  if (frontend) for (const key of ['BRADESCO_AUTHORIZATION_TOKEN','BRADESCO_IDENTIFICADOR','BRADESCO_SENHA','GATEWAY_TOKEN']) delete environment[key];
   const child = spawn(command, args, {cwd, stdio:'inherit', detached:!windows, env:environment});
   children.push(child);
   child.on('error', () => { console.error('Não foi possível iniciar um serviço. Confira as dependências no README.'); stop(1); });

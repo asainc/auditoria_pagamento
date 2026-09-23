@@ -41,7 +41,7 @@ function runNpm(args, timeout = 45000) {
 function classifyError(result) {
   if (result.error?.code === 'ETIMEDOUT' || result.signal) return 'TIMEOUT';
   const stderr = String(result.stderr || '');
-  for (const code of ['E401', 'E403', 'E404', 'ENOTFOUND', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EINTEGRITY', 'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE']) {
+  for (const code of ['E400', 'E401', 'E403', 'E404', 'ENOTFOUND', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EINTEGRITY', 'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE']) {
     if (stderr.includes(code) || stderr.includes(` ${code.slice(1)} `)) return code;
   }
   return 'ERRO_NAO_CLASSIFICADO';

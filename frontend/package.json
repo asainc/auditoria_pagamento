@@ -14,7 +14,13 @@
     "test": "tsc -p tsconfig.tests.json && node --test tests/*.test.cjs tests/*.test.mjs",
     "verify:lock": "node scripts/validate-dependency-lock.mjs",
     "governance:check": "node scripts/governance-check.mjs",
-    "install:corporate": "node scripts/nexus-bootstrap.mjs --install"
+    "install:corporate": "node scripts/nexus-bootstrap.mjs --install",
+    "local:check": "node scripts/local-tarballs.mjs --check",
+    "local:cache": "node scripts/local-tarballs.mjs --cache",
+    "local:install": "node scripts/local-install.mjs",
+    "native:check": "node scripts/validate-native-rollup.mjs",
+    "prestart": "node scripts/validate-native-rollup.mjs",
+    "nexus:diagnose": "node scripts/diagnose-registry.mjs"
   },
   "dependencies": {
     "@angular/common": "21.2.19",
@@ -30,10 +36,18 @@
     "@angular/build": "21.2.19",
     "@angular/cli": "21.2.19",
     "@angular/compiler-cli": "21.2.19",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "@rollup/rollup-win32-x64-msvc": "4.60.1"
   },
   "engines": {
     "node": "22.12.x",
     "npm": "10.9.x"
+  },
+  "overrides": {
+    "rollup": "4.60.1",
+    "chokidar": {
+      "readdirp": "4.1.2"
+    },
+    "postcss": "8.5.25"
   }
 }

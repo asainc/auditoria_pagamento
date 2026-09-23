@@ -30,7 +30,7 @@ Os padrões completam somente campos ausentes. Um valor explicitamente informado
 | Chave | Rótulo | Tipo visual | Obrigatório base | Opções/observações |
 | --- | --- | --- | --- | --- |
 | `juros_moratorios_sobre_compensatorios` | Juros moratórios sobre compensatórios | `checkbox` | não | — |
-| `juros_moratorios_tipo` | Juros moratórios - tipo | `select` | sim | sem_juros, capitalizacao_simples, capitalizacao_composta, juros_moratorios_ctn_lei_14905, juros_moratorios_stj1368_lei_14905, taxa_legal_12_aa_6_aa, taxa_legal_diaria_selic_ipcae, taxa_legal |
+| `juros_moratorios_tipo` | Juros moratórios - tipo | `select` | sim | juros_moratorios_stj1368_lei_14905, taxa_legal_12_aa_6_aa, capitalizacao_composta, capitalizacao_simples, sem_juros, juros_moratorios_ctn_lei_14905, taxa_legal_diaria_selic_ipcae, taxa_legal |
 | `juros_moratorios_taxa` | Juros moratórios - taxa | `text` | não | — |
 | `juros_moratorios_periodicidade` | Juros moratórios - periodicidade | `select` | não | diaria, mensal, anual |
 | `juros_moratorios_pro_rata` | Aplicar juros moratórios pro rata | `checkbox` | não | — |
@@ -50,7 +50,7 @@ Os padrões completam somente campos ausentes. Um valor explicitamente informado
 
 | Chave | Rótulo | Tipo visual | Obrigatório base | Opções/observações |
 | --- | --- | --- | --- | --- |
-| `juros_compensatorios_tipo` | Juros compensatórios - tipo | `select` | sim | sem_juros, capitalizacao_simples, capitalizacao_composta, juros_moratorios_ctn_lei_14905, juros_moratorios_stj1368_lei_14905, taxa_legal_12_aa_6_aa, taxa_legal_diaria_selic_ipcae, taxa_legal |
+| `juros_compensatorios_tipo` | Juros compensatórios - tipo | `select` | sim | juros_moratorios_stj1368_lei_14905, taxa_legal_12_aa_6_aa, capitalizacao_composta, capitalizacao_simples, sem_juros, juros_moratorios_ctn_lei_14905, taxa_legal_diaria_selic_ipcae, taxa_legal |
 | `juros_compensatorios_taxa` | Juros compensatórios - taxa | `text` | não | — |
 | `juros_compensatorios_periodicidade` | Juros compensatórios - periodicidade | `select` | não | diaria, mensal, anual |
 | `juros_compensatorios_pro_rata` | Aplicar juros compensatórios pro rata | `checkbox` | não | — |

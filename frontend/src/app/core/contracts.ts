@@ -1,8 +1,8 @@
 /** Gerado de docs/openapi.json. Atualize por scripts/generate_contracts.py. */
 
-export type AiUsage = { "etapa": string; "modelo": string; "tokens_entrada": number; "tokens_entrada_cache": number; "tokens_saida": number; "tokens_total": number; "custo_estimado_usd"?: string | null; "duracao_ms": number };
+export type AiUsage = { "etapa": string; "modelo": string; "tokens_entrada"?: number | null; "tokens_entrada_cache"?: number | null; "tokens_saida"?: number | null; "tokens_total"?: number | null; "custo_estimado_usd"?: string | null; "duracao_ms": number };
 
-export type AiUsageSummary = { "chamadas": number; "tokens_entrada": number; "tokens_entrada_cache": number; "tokens_saida": number; "tokens_total": number; "custo_estimado_usd"?: string | null; "detalhamento"?: Array<AiUsage> };
+export type AiUsageSummary = { "chamadas": number; "tokens_entrada"?: number | null; "tokens_entrada_cache"?: number | null; "tokens_saida"?: number | null; "tokens_total"?: number | null; "custo_estimado_usd"?: string | null; "duracao_total_ms"?: number; "detalhamento"?: Array<AiUsage> };
 
 export type BatchImport = { "processos": Array<CalculationDraft>; "erros": Array<string> };
 
@@ -20,7 +20,7 @@ export type Body_upload_api_documentos_upload_post = { "files": Array<string> };
 
 export type CalculationDefaults = { "mes": "janeiro" | "fevereiro" | "março" | "abril" | "maio" | "junho" | "julho" | "agosto" | "setembro" | "outubro" | "novembro" | "dezembro"; "ano": number };
 
-export type CalculationDraft = { "origem_calculo": "manual" | "processo"; "numero_processo"?: string | null; "parcelas": Array<Installment_Output>; "parametros": CalculationParameters_Output; "eventos_financeiros"?: Array<FinancialEvent_Output>; "revisao_humana_confirmada"?: boolean; "honorarios_sobre_danos_morais"?: boolean; "competencia_automatica"?: boolean; "uso_ia"?: AiUsageSummary | null };
+export type CalculationDraft = { "origem_calculo": "manual" | "processo"; "numero_processo"?: string | null; "parcelas": Array<Installment_Output>; "parametros": CalculationParameters_Output; "eventos_financeiros"?: Array<FinancialEvent_Output>; "revisao_humana_confirmada"?: boolean; "honorarios_sobre_danos_morais"?: boolean; "competencia_automatica"?: boolean };
 
 export type CalculationMetadata = { "entrada_sha256": string; "politica_sha256": string; "motor_sha256": string; "indices_sha256": string; "duracao_ms": number; "revisao_humana_confirmada": boolean };
 
@@ -40,7 +40,7 @@ export type DataTable = { "colunas": Array<string>; "linhas": Array<Array<string
 
 export type DocumentMetadata = { "identificador": string; "numero_processo": string; "nome": string; "sha256": string; "tamanho_bytes": number; "paginas": number; "classificacao": string };
 
-export type ExtractionConfiguration = { "provedor"?: "openai"; "configurada": boolean; "modelo": string; "mensagem": string; "moeda_custo"?: string; "precos_verificados_em"?: string | null; "fonte_precos"?: string | null };
+export type ExtractionConfiguration = { "provedor"?: "bradesco_iagen"; "configurada": boolean; "modelo": string; "mensagem": string; "ocr_workflow": string; "tokens_disponiveis"?: boolean; "custo_disponivel"?: boolean };
 
 export type ExtractionRequest = { "numero_processo": string };
 
@@ -76,7 +76,7 @@ export type ParameterChangeInput = { "origem_calculo": "manual" | "processo"; "n
 
 export type ParameterChangeRecord = { "origem_calculo": "manual" | "processo"; "numero_processo"?: string | null; "rascunho_id": string; "campo": string; "valor_anterior"?: string | number | number | boolean | null; "valor_novo"?: string | number | number | boolean | null; "extracao_id"?: string | null; "identificador": number; "registrado_em": string; "ator_tecnico": string; "valor_extraido"?: string | number | number | boolean | null; "origem_extraida"?: string | null };
 
-export type ParameterOption = { "value": string | number | number | boolean | null; "label": string };
+export type ParameterOption = { "value": string | number | number | boolean | null; "label": string; "hidden"?: boolean };
 
 export type ProcessSummary = { "numero_processo": string; "quantidade_documentos": number };
 

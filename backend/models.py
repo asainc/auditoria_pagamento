@@ -220,25 +220,26 @@ class ProcessSummary(Contract):
 
 
 class AiUsage(Contract):
-    """Consumo técnico de uma chamada de IA, sem conteúdo dos documentos."""
+    """Telemetria técnica de uma chamada corporativa, sem conteúdo documental."""
     etapa: str
     modelo: str
-    tokens_entrada: int = Field(ge=0)
-    tokens_entrada_cache: int = Field(ge=0)
-    tokens_saida: int = Field(ge=0)
-    tokens_total: int = Field(ge=0)
+    tokens_entrada: int | None = Field(default=None, ge=0)
+    tokens_entrada_cache: int | None = Field(default=None, ge=0)
+    tokens_saida: int | None = Field(default=None, ge=0)
+    tokens_total: int | None = Field(default=None, ge=0)
     custo_estimado_usd: Decimal | None = Field(default=None, ge=0, decimal_places=6)
     duracao_ms: float = Field(ge=0)
 
 
 class AiUsageSummary(Contract):
-    """Resumo acumulado da extração para transparência operacional de custo."""
+    """Resumo de chamadas; tokens/custo ficam nulos quando o serviço não os informa."""
     chamadas: int = Field(ge=0)
-    tokens_entrada: int = Field(ge=0)
-    tokens_entrada_cache: int = Field(ge=0)
-    tokens_saida: int = Field(ge=0)
-    tokens_total: int = Field(ge=0)
+    tokens_entrada: int | None = Field(default=None, ge=0)
+    tokens_entrada_cache: int | None = Field(default=None, ge=0)
+    tokens_saida: int | None = Field(default=None, ge=0)
+    tokens_total: int | None = Field(default=None, ge=0)
     custo_estimado_usd: Decimal | None = Field(default=None, ge=0, decimal_places=6)
+    duracao_total_ms: float = Field(default=0, ge=0)
     detalhamento: list[AiUsage] = Field(default_factory=list)
 
 class ExtractionRequest(Contract):
@@ -259,14 +260,14 @@ class ExtractionStatus(Contract):
 
 
 class ExtractionConfiguration(Contract):
-    """Presença da configuração, sem chave nem chamada cobrada ao provedor."""
-    provedor: Literal["openai"] = "openai"
+    """Presença da configuração corporativa sem expor segredos ou testar credenciais."""
+    provedor: Literal["bradesco_iagen"] = "bradesco_iagen"
     configurada: bool
     modelo: str
     mensagem: str
-    moeda_custo: str = "USD"
-    precos_verificados_em: str | None = None
-    fonte_precos: str | None = None
+    ocr_workflow: str
+    tokens_disponiveis: bool = False
+    custo_disponivel: bool = False
 
 
 class UploadResponse(Contract):

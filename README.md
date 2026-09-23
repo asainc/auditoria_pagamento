@@ -1,153 +1,162 @@
 # Plataforma Jurídica — Auditoria de Pagamentos
 
-Aplicação web para extração assistida, revisão e cálculo de débitos judiciais. O projeto separa apresentação, políticas operacionais, extração documental e fórmulas financeiras para que cada decisão seja rastreável e testável.
+Aplicação web para extração assistida, revisão humana e cálculo de débitos judiciais. O frontend utiliza Angular 21.2.19; o backend usa FastAPI; o motor `judicial_calc` permanece determinístico e separado da camada de IA.
 
-A arquitetura principal é:
-
-```text
-Angular 21.2.19
-      ↓ HTTP/REST
-FastAPI + serviços de aplicação
-      ↓
-EngineFacade
-      ↓
-judicial_calc (motor determinístico)
-```
-
-A IA não executa fórmulas. Ela extrai fatos e relações dos documentos, associa evidências e classifica o efeito cronológico de decisões. O Python consolida a linha do tempo, aplica políticas operacionais explícitas e somente então apresenta os dados para revisão humana. O cálculo final exige confirmação humana.
-
-## Modos de cálculo
-
-O contrato possui `origem_calculo` explícita:
-
-| Origem | `numero_processo` | Uso |
-| --- | --- | --- |
-| `manual` | `null` | teste com parcelas e parâmetros digitados manualmente |
-| `processo` | obrigatório | cálculo apoiado por documentos e extração |
-
-Não existe número de processo sentinela para representar cálculo manual.
-
-## Padrões operacionais
-
-A fonte única de verdade é `config/calculation_policy.json`. Ela define metadados dos parâmetros, campos obrigatórios e padrões por origem.
-
-| Contexto | Índice ausente | Juros moratórios ausentes | Juros compensatórios ausentes | Art. 523 ausente |
-| --- | --- | --- | --- | --- |
-| Manual | sem padrão | `sem_juros` | `sem_juros` | `nao_aplicar` |
-| Processo real | `tjsp_inpc_ipca15_lei_14905` | `taxa_legal_12_aa_6_aa` | `taxa_legal_12_aa_6_aa` | `nao_aplicar` |
-
-Em processo real, um valor documental consolidado prevalece sobre o padrão. A aplicação de padrão é registrada separadamente em `ajustes_operacionais`; ela não vira citação fictícia.
-
-## Estrutura do repositório
+## Arquitetura
 
 ```text
-backend/                         API FastAPI e serviços de aplicação
-  calculation_policy.py         leitura do catálogo central
-  routers/                       endpoints HTTP
-  services/                      orquestração, IA, cronologia, cálculo e auditoria
-config/
-  calculation_policy.json       fonte de verdade de parâmetros/defaults
-  app.settings.json             configuração não secreta da aplicação
-  extraction_tasks.json         orçamento máximo de saída por tarefa de IA
-  model_pricing.json             tarifas verificadas usadas na estimativa de custo
-frontend/                        Angular 21.2.19
-prompts/
-  _base.md                       regras comuns de extração
-  00_...09_*.md                  tarefas especializadas
-src/judicial_calc/               motor financeiro determinístico
-scripts/                         geração, validação e inicialização
-  generate_contracts.py          OpenAPI + contratos TypeScript
-  generate_parameter_catalog.py  catálogo Angular a partir da política central
-  generate_parameter_docs.py     documentação dos parâmetros
-  generate_code_reference.py     referência técnica a partir do próprio source
-  evaluate_extraction.py         comparação offline contra benchmark rotulado
-tests/                           testes Python
-docs/                            documentação técnica
-examples/                        exemplos sintéticos de lote
+PDFs enviados pelo usuário
+        ↓
+DocumentService (persistência local controlada)
+        ↓
+gpt_bradesco.py → File Manager corporativo
+        ↓
+OCR híbrido corporativo
+        ↓
+texto por documento/página
+        ↓
+prompts especializados 00..09
+        ↓
+gpt_bradesco.text_generator
+        ↓
+JSON validado pelo Pydantic
+        ↓
+ChronologyReducer + OperationalPolicy
+        ↓
+revisão humana obrigatória
+        ↓
+CalculationService → EngineFacade → judicial_calc
 ```
 
-A extração documental pertence à camada `backend/services/extraction.py` e seus colaboradores. O pacote `judicial_calc` contém somente componentes determinísticos de cálculo, índices, juros, exportação e suas fachadas públicas.
+A IA não executa fórmulas financeiras. Ela transforma conteúdo documental em sugestões estruturadas, sempre acompanhadas de evidência rastreável. O cálculo final só é liberado após revisão humana.
 
-## Fluxo resumido de processo real
+## Integração corporativa de IA
+
+Toda geração de texto passa exclusivamente por `gpt_bradesco.text_generator`. PDFs não são enviados diretamente ao gerador de texto: antes, cada arquivo é carregado temporariamente no File Manager corporativo e processado pelo OCR híbrido via `gpt_bradesco.ocr_hibrido` (com fallback compatível para `ocr_generator`/`ocr`). Quando o OCR é assíncrono, o backend aguarda a conclusão pelo workflow configurado.
+
+O payload padrão do OCR inclui:
+
+- `detailed_output=true`;
+- `async_mode=true`;
+- `workflow_configuration_code=CD_WRFL_OCR_HYBRID_ASYNC`;
+- modelo de visão configurável;
+- saída de tabelas em Markdown;
+- `locale=pt-BR`;
+- avisos habilitados.
+
+Os arquivos remotos são removidos após a extração do texto sempre que o serviço devolve o identificador necessário para a limpeza. Uma falha de limpeza é registrada somente como evento técnico, sem conteúdo documental.
+
+## Configuração do backend
+
+Copie `.env.example` para `.env` na raiz. Nunca versione credenciais reais.
+
+É necessário informar um dos métodos de autenticação autorizados:
 
 ```text
-PDFs
- ↓
-DocumentService
- ↓
-ExtractionService
- ↓
-PromptContextBuilder + prompts especializados
- ↓
-validação de evidências
- ↓
-ChronologyReducer
- ↓
-OperationalPolicy
- ↓
-revisão/edição humana + trilha de auditoria
- ↓
-CalculationRequest
- ↓
-CalculationService → EngineFacade → judicial_calc.calcular_debitos
- ↓
-memória + resumo + hashes técnicos
+BRADESCO_AUTHORIZATION_TOKEN=
 ```
 
-A ordem documental é derivada de `<processo>_<sequencia>.pdf`, sendo a maior sequência o anexo mais recente. Recência não é, por si só, reforma: cada evidência recebe `natureza` e `efeito`, e a consolidação determinística só altera o estado quando há suporte estruturado suficiente. Conflitos não resolvidos permanecem para revisão humana.
+ou:
 
-> **Dependências corporativas do frontend:** esta variante usa estratégia **Nexus-first**. O repositório distribuído não traz um `package-lock.json` resolvido no registry público. O lock deve ser criado uma única vez dentro do ambiente corporativo com `npm run nexus:lock`; depois, ele deve ser revisado e versionado para que `npm ci` seja determinístico.
-
-## Instalação local
-
-### Backend
-
-Pré-requisito recomendado: Python 3.12.
-
-```bash
-python -m venv .venv
-source .venv/bin/activate       # Linux/macOS
-# .\.venv\Scripts\Activate.ps1 # Windows
-python -m pip install -r requirements.txt
-cp .env.example .env
+```text
+BRADESCO_IDENTIFICADOR=
+BRADESCO_SENHA=
 ```
 
-Configure `API_TOKEN`/`OPENAI_API_KEY` somente no ambiente ou `.env`. Nunca versione credenciais.
+Além disso, configure um container aprovado para o OCR:
 
-Inicie:
+```text
+BRADESCO_OCR_CONTAINER=CONTAINER_AUTORIZADO
+```
 
-```bash
+Parâmetros principais:
+
+```text
+BRADESCO_IAGEN_AMBIENTE=dev
+BRADESCO_TEXT_MODEL=gpt-5.1
+BRADESCO_TEXT_REASONING_EFFORT=medium
+BRADESCO_TEXT_VERBOSITY=medium
+BRADESCO_TEXT_TEMPERATURE=1
+BRADESCO_TEXT_MAX_TOKENS=16384
+BRADESCO_OCR_WORKFLOW=CD_WRFL_OCR_HYBRID_ASYNC
+BRADESCO_OCR_VISION_MODEL=gpt-4o
+BRADESCO_OCR_LANGUAGE_MODEL=gpt-4o
+BRADESCO_OCR_LOCALE=pt-BR
+```
+
+Os nomes de deployment e workflow precisam existir no ambiente corporativo. A aplicação não inventa substitutos quando uma configuração não está disponível.
+
+## Execução sem ambiente virtual
+
+Em computadores onde ambientes virtuais não são permitidos, execute a partir da raiz do projeto e garanta que as dependências Python aprovadas estejam disponíveis no interpretador corporativo:
+
+```cmd
+set "PYTHONPATH=%CD%\src;%CD%"
 python -m uvicorn backend.principal:aplicacao --reload --host 127.0.0.1 --port 8000
 ```
 
-### Frontend
+Teste antes:
 
-Baseline de reprodução: **Node.js 22.12.0 + npm 10.9.0 + Angular 21.2.19**. O projeto usa apenas dependências diretas oficiais com versões exatas e não possui `overrides`, forks, `file:`, Git ou pacotes vendorizados.
-
-O primeiro lockfile deve nascer no próprio Nexus corporativo:
-
-```powershell
-cd frontend
-npm run env:check
-npm run nexus:check
-npm run nexus:lock
+```cmd
+python -c "import judicial_calc.data; import gpt_bradesco; print('Imports OK')"
 ```
 
-Revise e versione o `frontend/package-lock.json` gerado. A partir daí, as instalações reproduzíveis usam:
+O projeto inclui `src/judicial_calc/data/` com as planilhas exigidas pelo motor.
 
-```powershell
-npm run install:corporate
-npm run build
-npm start
+## Frontend corporativo
+
+Baseline utilizado:
+
+- Node.js 22.12.0;
+- npm 10.9.0;
+- Angular 21.2.19.
+
+A instalação corporativa aceita os `.tgz` oficiais baixados localmente conforme `docs/INSTALACAO_FRONTEND_NEXUS_TARBALLS.md`. Os overrides atuais refletem as versões informadas como disponíveis no ambiente corporativo e devem ser revalidados se o catálogo do Nexus mudar.
+
+## Prompts especializados
+
+Os prompts ficam em `prompts/`:
+
+- `_base.md`: regras comuns, segurança e contrato de evidência;
+- `00_classificacao.md`: tipo documental e marcos processuais;
+- `01_parcelas.md`: dano material, moral, honorários e custas;
+- `02_correcao.md`: atualização monetária;
+- `03_moratorios.md`: juros moratórios;
+- `04_compensatorios.md`: juros compensatórios;
+- `05_encargos.md`: multa, honorários e art. 523;
+- `06_prescricao.md`: prescrição;
+- `07_compensacao.md`: compensação;
+- `08_duplo_indice.md`: períodos com índices diferentes;
+- `09_eventos.md`: depósitos, pagamentos, levantamentos e compensações.
+
+O backend envia somente o subcontrato de parâmetros necessário a cada tarefa. Se o texto OCR ultrapassar o limite configurado por chamada, ele é dividido por documento/página sem descartar conteúdo. Cada parte continua sendo processada por `text_generator`, e o backend reindexa parcelas/eventos antes da consolidação.
+
+## Telemetria
+
+A aplicação registra apenas informações observáveis: número de chamadas, modelo/serviço e duração. O contrato corporativo atualmente usado pelo projeto não devolve contagem de tokens nem cobrança; por isso esses campos ficam `null` e a interface mostra “Não disponibilizado”. Nenhum valor é estimado sem fonte verificável.
+
+## Estrutura principal
+
+```text
+backend/
+  services/bradesco_bridge.py   facade do módulo corporativo
+  services/extraction.py        OCR, prompts e consolidação
+  services/ai_usage.py          telemetria conservadora
+config/
+  app.settings.json             configuração não secreta
+  calculation_policy.json       políticas operacionais
+  extraction_tasks.json         limite de saída por tarefa
+frontend/                        Angular 21.2.19
+prompts/                         prompts especializados
+src/judicial_calc/               motor financeiro determinístico
+gpt_bradesco.py                  cliente corporativo integrado
+tests/                           testes automatizados
+docs/                            documentação técnica
 ```
 
-O script `nexus:lock` executa somente a resolução de metadados (`--package-lock-only --ignore-scripts`), valida a origem dos artefatos e não envia credenciais para logs. A instalação real ocorre depois com `npm ci`.
+## Regeneração de artefatos
 
-O proxy de desenvolvimento encaminha `/api` ao FastAPI.
-
-## Artefatos gerados
-
-Quando alterar contratos ou política central, regenere os artefatos antes de testar:
+Após alterar contratos Python:
 
 ```bash
 python scripts/generate_contracts.py
@@ -157,43 +166,29 @@ python scripts/generate_code_reference.py
 python scripts/generate_engine_manifest.py
 ```
 
-`frontend/src/app/core/contracts.ts`, `frontend/src/app/calculation/parameter-fields.ts`, `docs/openapi.json`, `docs/PARAMETROS.md` e `docs/REFERENCIA_CODIGO.md` não devem divergir de suas fontes.
-
-## Visibilidade de tokens e custo da IA
-
-Cada chamada de extração registra o consumo real informado pela API: tokens de entrada, entrada em cache, saída, total, duração e custo estimado. O custo usa `config/model_pricing.json`; se o modelo configurado não tiver uma tarifa verificada nesse catálogo, os tokens continuam disponíveis e o custo fica explicitamente como não calculado.
-
-Os limites de saída são definidos por tarefa em `config/extraction_tasks.json`. O objetivo é reduzir payload e saída excessiva sem fundir domínios de extração que precisam de avaliação independente. Veja `docs/IA_CUSTOS_E_OTIMIZACAO.md`.
-
 ## Testes
 
 ```bash
 python -m pytest
-cd frontend && npm test
+python scripts/validate_architecture.py
 ```
 
-`tests/test_engine_golden_master.py` verifica estabilidade numérica do motor em cenários congelados. `tests/test_extraction_evaluation.py` cobre regras determinísticas de cronologia e requisitos dos prompts; ele não é uma métrica de acurácia do LLM. `evals/` contém a estrutura de avaliação sintética e o contrato para benchmarks rotulados.
+No frontend, quando as dependências estiverem instaladas:
 
-## Documentação
+```powershell
+cd frontend
+npm test
+npm run build
+```
 
-- `docs/ARQUITETURA.md`: fronteiras e responsabilidades.
-- `docs/FLUXO_CALCULO.md`: percurso completo da entrada até a memória final.
-- `docs/EXTRACAO_IA.md`: prompts, evidências e consolidação cronológica.
-- `docs/IA_CUSTOS_E_OTIMIZACAO.md`: tokens, custos, cache e decisões de otimização de payload.
-- `docs/FLUXO_EXTRACAO_VISUAL.md`: diagramas Mermaid e exemplo visual de uma evidência até a revisão.
-- `docs/PARAMETROS.md`: catálogo gerado e padrões por origem.
-- `docs/OPERACAO.md`: configuração, execução, persistência e segurança.
-- `docs/DECISOES.md`: decisões técnicas vigentes e justificativas.
-- `docs/MODEL_CARD.md`: escopo, limites e governança do componente de IA.
-- `docs/VALIDACAO.md`: estratégia e comandos de validação.
-- `docs/REFERENCIA_CODIGO.md`: referência gerada de classes e funções Python.
+Os testes corporativos de integração usam dublês e não chamam rede real. A primeira execução real deve ser feita em ambiente autorizado, com PDF sintético, antes de qualquer uso com documentos reais.
 
-## Segurança, privacidade e governança
+## Governança e privacidade
 
-PDFs são tratados como conteúdo não confiável. Prompts instruem o modelo a ignorar comandos contidos nos documentos. Logs HTTP não armazenam payloads nem credenciais. A trilha de revisão de parâmetros grava eventos imutáveis; em ambiente não local, o identificador técnico do operador é derivado de um subject confiável do gateway por hash, sem persistir identidade em claro.
+- segredos não ficam no código, exemplos, logs ou documentação;
+- conteúdo OCR, prompts e PDFs não são registrados nos logs técnicos;
+- o arquivo remoto usado pelo OCR é removido após o processamento quando possível;
+- evidências são revalidadas contra o texto OCR antes de chegar à revisão;
+- qualquer interpretação jurídica, política de retenção ou uso de dados pessoais precisa de validação do Jurídico/Compliance e do DPO conforme o caso de uso.
 
-A retenção de documentos, eventos de auditoria, identificadores técnicos e o uso de dados pessoais devem ser definidos com Segurança, Compliance e DPO conforme a implantação. Critérios jurídicos, inclusive interpretação de sucessão de decisões, precisam de validação do time jurídico antes de serem tratados como política institucional.
-
-## Preparação para validação das dependências do frontend no Nexus
-
-O frontend foi alinhado ao baseline Node.js 22.12.0 + npm 10.9.0 + Angular 21.2.19 e não força dependências transitivas. O primeiro lockfile deve ser resolvido pelo próprio Nexus com `npm run nexus:lock`; depois disso ele é validado, revisado e versionado. Consulte [o procedimento de validação corporativa](docs/VALIDACAO_GOVERNANCA_FRONTEND.md).
+Consulte `docs/EXTRACAO_IA.md`, `docs/OPERACAO.md`, `docs/FLUXO_EXTRACAO_VISUAL.md`, `docs/MODEL_CARD.md` e `docs/VALIDACAO.md`.

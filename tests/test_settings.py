@@ -1,46 +1,62 @@
-"""Evita regressão da leitura de API_TOKEN e vazamento em erros de configuração."""
+"""Evita regressão da configuração corporativa e vazamento de segredos."""
 import secrets
+
 import pytest
+
 from backend import config
+
+
+CORPORATE_ENV_VARS = [
+    "APP_ENV_FILE", "APP_CONFIG_PATH", "APP_ENV", "APP_DATA_DIR",
+    "BRADESCO_IAGEN_AMBIENTE", "BRADESCO_IDENTIFICADOR", "BRADESCO_SENHA",
+    "BRADESCO_AUTHORIZATION_TOKEN", "BRADESCO_CA_BUNDLE", "BRADESCO_TIMEOUT_SECONDS",
+    "BRADESCO_TEXT_MODEL", "BRADESCO_TEXT_REASONING_EFFORT", "BRADESCO_TEXT_VERBOSITY",
+    "BRADESCO_TEXT_TEMPERATURE", "BRADESCO_TEXT_MAX_TOKENS", "BRADESCO_PROMPT_MAX_CHARS",
+    "BRADESCO_OCR_CONTAINER", "BRADESCO_OCR_CREATE_CONTAINER", "BRADESCO_OCR_WORKFLOW",
+    "BRADESCO_OCR_VISION_MODEL", "BRADESCO_OCR_LANGUAGE_MODEL", "BRADESCO_OCR_LOCALE",
+    "BRADESCO_OCR_POLL_INTERVAL_SECONDS", "BRADESCO_OCR_MAX_WAIT_SECONDS",
+    "GATEWAY_TOKEN", "CORS_ORIGINS",
+]
 
 
 @pytest.fixture
 def isolated_settings(monkeypatch, tmp_path):
-    for name in ["APP_ENV_FILE", "APP_CONFIG_PATH", "APP_ENV", "APP_DATA_DIR", "API_TOKEN", "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OPENAI_REASONING_EFFORT", "OPENAI_TIMEOUT_SECONDS", "OPENAI_MAX_OUTPUT_TOKENS", "GATEWAY_TOKEN", "CORS_ORIGINS"]:
+    for name in CORPORATE_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(config, "ROOT", tmp_path)
     return tmp_path
 
 
-def test_api_token_is_loaded_from_root_env_from_any_working_directory(isolated_settings, monkeypatch, tmp_path):
+def test_corporate_token_and_model_are_loaded_from_root_env(isolated_settings, monkeypatch, tmp_path):
     token = secrets.token_urlsafe(32)
-    (isolated_settings / ".env").write_text('\ufeffAPI_TOKEN="' + token + '"\nOPENAI_MODEL=gpt-5.6-sol\n', encoding="utf-8")
+    (isolated_settings / ".env").write_text(
+        '\ufeffBRADESCO_AUTHORIZATION_TOKEN="' + token + '"\nBRADESCO_TEXT_MODEL=gpt-5.1\nBRADESCO_OCR_CONTAINER=container-teste\n',
+        encoding="utf-8",
+    )
     monkeypatch.chdir(tmp_path.parent)
     settings = config.load_settings()
-    assert settings.openai_api_key.get_secret_value() == token
-    assert settings.openai_model == "gpt-5.6-sol"
+    assert settings.bradesco_authorization_token.get_secret_value() == token
+    assert settings.bradesco_text_model == "gpt-5.1"
+    assert settings.bradesco_ocr_container == "container-teste"
     assert token not in repr(settings)
 
 
-def test_environment_wins_and_primary_token_wins_within_same_source(isolated_settings, monkeypatch):
-    file_token, alias_token, primary_token = [secrets.token_urlsafe(32) for _ in range(3)]
-    (isolated_settings / ".env").write_text("API_TOKEN=" + file_token)
-    monkeypatch.setenv("OPENAI_API_KEY", alias_token)
-    assert config.load_settings().openai_api_key.get_secret_value() == alias_token
-    monkeypatch.setenv("API_TOKEN", primary_token)
-    assert config.load_settings().openai_api_key.get_secret_value() == primary_token
-    monkeypatch.setenv("API_TOKEN", "")
-    assert config.load_settings().openai_api_key.get_secret_value() == ""
+def test_environment_wins_over_env_file(isolated_settings, monkeypatch):
+    file_token = secrets.token_urlsafe(32)
+    environment_token = secrets.token_urlsafe(32)
+    (isolated_settings / ".env").write_text("BRADESCO_AUTHORIZATION_TOKEN=" + file_token)
+    monkeypatch.setenv("BRADESCO_AUTHORIZATION_TOKEN", environment_token)
+    assert config.load_settings().bradesco_authorization_token.get_secret_value() == environment_token
 
 
-def test_invalid_config_does_not_echo_token(isolated_settings, monkeypatch):
-    token = secrets.token_urlsafe(32)
-    monkeypatch.setenv("API_TOKEN", token)
-    monkeypatch.setenv("OPENAI_TIMEOUT_SECONDS", "invalido")
+def test_invalid_config_does_not_echo_secret(isolated_settings, monkeypatch):
+    secret = secrets.token_urlsafe(32)
+    monkeypatch.setenv("BRADESCO_AUTHORIZATION_TOKEN", secret)
+    monkeypatch.setenv("BRADESCO_TIMEOUT_SECONDS", "invalido")
     with pytest.raises(ValueError) as caught:
         config.load_settings()
-    assert "openai_timeout_seconds" in str(caught.value)
-    assert token not in str(caught.value)
+    assert "bradesco_timeout_seconds" in str(caught.value)
+    assert secret not in str(caught.value)
 
 
 def test_missing_explicit_env_file_is_an_error(isolated_settings, monkeypatch):

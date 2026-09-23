@@ -252,7 +252,7 @@
           "Extrações"
         ],
         "summary": "Configuration",
-        "description": "Permite orientar a operação sem expor ou testar a credencial da OpenAI.",
+        "description": "Expõe somente disponibilidade operacional da integração corporativa.",
         "operationId": "configuration_api_extracoes_configuracao_get",
         "responses": {
           "200": {
@@ -883,6 +883,181 @@
   },
   "components": {
     "schemas": {
+      "AiUsage": {
+        "properties": {
+          "etapa": {
+            "type": "string",
+            "title": "Etapa"
+          },
+          "modelo": {
+            "type": "string",
+            "title": "Modelo"
+          },
+          "tokens_entrada": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Entrada"
+          },
+          "tokens_entrada_cache": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Entrada Cache"
+          },
+          "tokens_saida": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Saida"
+          },
+          "tokens_total": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Total"
+          },
+          "custo_estimado_usd": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custo Estimado Usd"
+          },
+          "duracao_ms": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Duracao Ms"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "etapa",
+          "modelo",
+          "duracao_ms"
+        ],
+        "title": "AiUsage",
+        "description": "Telemetria técnica de uma chamada corporativa, sem conteúdo documental."
+      },
+      "AiUsageSummary": {
+        "properties": {
+          "chamadas": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Chamadas"
+          },
+          "tokens_entrada": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Entrada"
+          },
+          "tokens_entrada_cache": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Entrada Cache"
+          },
+          "tokens_saida": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Saida"
+          },
+          "tokens_total": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Total"
+          },
+          "custo_estimado_usd": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custo Estimado Usd"
+          },
+          "duracao_total_ms": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Duracao Total Ms",
+            "default": 0
+          },
+          "detalhamento": {
+            "items": {
+              "$ref": "#/components/schemas/AiUsage"
+            },
+            "type": "array",
+            "title": "Detalhamento"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "chamadas"
+        ],
+        "title": "AiUsageSummary",
+        "description": "Resumo de chamadas; tokens/custo ficam nulos quando o serviço não os informa."
+      },
       "BatchImport": {
         "properties": {
           "processos": {
@@ -2569,9 +2744,9 @@
         "properties": {
           "provedor": {
             "type": "string",
-            "const": "openai",
+            "const": "bradesco_iagen",
             "title": "Provedor",
-            "default": "openai"
+            "default": "bradesco_iagen"
           },
           "configurada": {
             "type": "boolean",
@@ -2584,6 +2759,20 @@
           "mensagem": {
             "type": "string",
             "title": "Mensagem"
+          },
+          "ocr_workflow": {
+            "type": "string",
+            "title": "Ocr Workflow"
+          },
+          "tokens_disponiveis": {
+            "type": "boolean",
+            "title": "Tokens Disponiveis",
+            "default": false
+          },
+          "custo_disponivel": {
+            "type": "boolean",
+            "title": "Custo Disponivel",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -2591,10 +2780,11 @@
         "required": [
           "configurada",
           "modelo",
-          "mensagem"
+          "mensagem",
+          "ocr_workflow"
         ],
         "title": "ExtractionConfiguration",
-        "description": "Presença da configuração, sem chave nem chamada cobrada ao provedor."
+        "description": "Presença da configuração corporativa sem expor segredos ou testar credenciais."
       },
       "ExtractionRequest": {
         "properties": {
@@ -2696,6 +2886,16 @@
             "type": "boolean",
             "title": "Competencia Automatica",
             "default": false
+          },
+          "uso_ia": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AiUsageSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -2755,6 +2955,16 @@
               }
             ],
             "title": "Codigo Erro"
+          },
+          "uso_ia": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AiUsageSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -3618,6 +3828,11 @@
           "label": {
             "type": "string",
             "title": "Label"
+          },
+          "hidden": {
+            "type": "boolean",
+            "title": "Hidden",
+            "default": false
           }
         },
         "additionalProperties": false,

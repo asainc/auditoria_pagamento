@@ -1,63 +1,47 @@
-# Fluxo visual da extração documental
-
-## Entrada e separação de responsabilidades
+# Fluxo visual da extração
 
 ```mermaid
 sequenceDiagram
-    participant U as Operador
+    participant U as Usuário
     participant A as Angular
     participant B as FastAPI
-    participant D as DocumentService
-    participant X as ExtractionService
-    participant O as OpenAI
-    participant R as Repository
+    participant F as File Manager corporativo
+    participant O as OCR corporativo
+    participant T as text_generator
+    participant C as Consolidação Python
 
-    U->>A: Envia PDFs
+    U->>A: envia PDFs
     A->>B: POST /documentos/upload
-    B->>D: Valida e persiste arquivos
-    B->>X: Inicia revisão de extração
-    loop Uma tarefa especializada por vez
-        X->>O: PDFs + contexto enxuto + subcontrato
-        O-->>X: JSON estruturado + usage
-        X->>R: Atualiza status + tokens/custo
+    B->>F: upload temporário
+    F-->>B: file_id
+    B->>O: OCR híbrido por file_id
+    O-->>B: texto detalhado / workflow_id
+    B->>O: consulta workflow quando necessário
+    O-->>B: texto por página
+    B->>F: exclusão do arquivo remoto
+    loop prompts 00..09
+        B->>T: prompt especializado + texto OCR
+        T-->>B: JSON estruturado
     end
-    X->>X: Consolida cronologia e conflitos
-    X->>R: Persiste resultado revisável
-    A->>B: Consulta status/resultado
-    B-->>A: Evidências + telemetria
-    U->>A: Confere e altera campos
+    B->>C: evidências e fatos
+    C-->>B: cronologia + parâmetros consolidados
+    B-->>A: resultado para revisão
+    A-->>U: conferência humana
 ```
 
-## Como uma evidência vira sugestão
-
-```mermaid
-flowchart TD
-    A[Trecho encontrado] --> B{É do caso concreto?}
-    B -- não --> X[Ignorar para consolidação]
-    B -- sim --> C{Página e trecho verificáveis?}
-    C -- não --> X
-    C -- sim --> D[Classificar natureza e efeito]
-    D --> E{Campo pertence ao subcontrato?}
-    E -- não --> Y[Não retornar nesta tarefa]
-    E -- sim --> F[Normalizar valor sem inventar]
-    F --> G[Validação Pydantic]
-    G --> H[Redutor cronológico]
-    H --> I{Conflito inequívoco?}
-    I -- sim --> J[Gerar alerta para revisão humana]
-    I -- não --> K[Sugerir valor consolidado]
-```
-
-## Exemplo sintético
-
-Documento 1 contém pedido de honorários de 20%. Documento 3 contém sentença fixando 10%. Documento 5 contém acórdão majorando para 15%.
+## Exemplo conceitual
 
 ```text
-123_1.pdf -> pedido               -> 20%
-123_3.pdf -> comando decisório    -> 10%
-123_5.pdf -> comando decisório    -> 15% (majora)
-                                      |
-                                      v
-                               sugestão: 15%
+PDF: 123_4.pdf
+  ↓ OCR
+PÁGINA 7: "... juros moratórios de 1% ao mês desde ..."
+  ↓ prompt especializado
+campo: parametros.juros_moratorios_taxa
+valor: 1
+página: 7
+natureza: comando_decisorio
+  ↓ validação Python
+ChronologyReducer
+  ↓
+parâmetro sugerido para revisão humana
 ```
-
-O exemplo é didático e não representa interpretação aplicável a processos reais. A consolidação depende das evidências extraídas e continua sujeita à revisão humana e, quando necessário, à validação jurídica.

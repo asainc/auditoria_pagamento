@@ -13,7 +13,6 @@ dependencies = [
     "requests==2.34.2",
     "beautifulsoup4==4.15.0",
     "openpyxl==3.1.5",
-    "openai==3.10.0",
     "reportlab==4.4.9",
     "pydantic==2.13.5",
     "fastapi==0.141.1",
@@ -25,6 +24,9 @@ dependencies = [
     "filelock==3.32.6",
     "xlrd==2.0.1",
 ]
+
+[tool.setuptools]
+py-modules = ["gpt_bradesco"]
 
 [tool.setuptools.packages.find]
 where = ["src", "."]

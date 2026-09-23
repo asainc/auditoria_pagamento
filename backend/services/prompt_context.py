@@ -62,8 +62,13 @@ class PromptContextBuilder:
     def build(self, process: str, documents: list[DocumentMetadata]) -> PromptContext:
         """Materializa apenas cronologia e catálogo; o subcontrato entra por tarefa."""
         chronology = [
-            {"arquivo": document.nome, "sequencia": document_sequence(document.nome), "classificacao_atual": document.classificacao}
-            for document in documents
+            {
+                "indice_documento": index,
+                "arquivo": document.nome,
+                "sequencia": document_sequence(document.nome),
+                "classificacao_atual": document.classificacao,
+            }
+            for index, document in enumerate(documents)
         ]
         dynamic = "\n".join([
             "## Contexto fornecido pelo backend",

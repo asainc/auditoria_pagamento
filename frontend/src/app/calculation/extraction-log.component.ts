@@ -28,15 +28,14 @@ interface RevisionLogRow {
   <div class="panel-heading"><div><h2>Logs de extração e revisão</h2><p>Rastreabilidade dos parâmetros sugeridos automaticamente e das alterações realizadas na conferência humana.</p></div></div>
   <div class="tray-scroll log-list">
     @if (usage()) {
-      <section class="usage-summary" aria-label="Consumo da extração por inteligência artificial">
-        <div><span>Modelo</span><strong>{{ usage()!.modelo }}</strong></div>
+      <section class="usage-summary" aria-label="Telemetria da extração corporativa">
+        <div><span>Modelos/serviços</span><strong>{{ usage()!.modelo }}</strong></div>
         <div><span>Chamadas</span><strong>{{ usage()!.chamadas }}</strong></div>
-        <div><span>Tokens de entrada</span><strong>{{ number(usage()!.tokens_entrada) }}</strong></div>
-        <div><span>Entrada em cache</span><strong>{{ number(usage()!.tokens_entrada_cache) }}</strong></div>
-        <div><span>Tokens de saída</span><strong>{{ number(usage()!.tokens_saida) }}</strong></div>
-        <div><span>Custo estimado</span><strong>{{ cost(usage()!.custo_estimado_usd) }}</strong></div>
+        <div><span>Duração acumulada</span><strong>{{ duration(usage()!.duracao_total_ms) }}</strong></div>
+        <div><span>Tokens</span><strong>{{ usage()!.tokens_total == null ? 'Não disponibilizado' : number(usage()!.tokens_total!) }}</strong></div>
+        <div><span>Custo</span><strong>{{ usage()!.custo_estimado_usd == null ? 'Não disponibilizado' : cost(usage()!.custo_estimado_usd) }}</strong></div>
       </section>
-      <p class="log-note">O custo usa o consumo retornado pela API e a tabela local de preços verificada. Se o modelo não tiver tarifa cadastrada, nenhum preço é presumido.</p>
+      <p class="log-note">A aplicação exibe somente métricas retornadas ou observadas. O contrato corporativo atual não fornece contagem de tokens nem cobrança, portanto esses valores não são estimados.</p>
     }
 
     @if (rows().length) {
@@ -90,8 +89,8 @@ export class ExtractionLogComponent {
   readonly usage = computed(() => {
     const usage = this.store.active().extraction?.uso_ia;
     if (!usage) return null;
-    const model = usage.detalhamento?.[0]?.modelo ?? 'Não informado';
-    return {...usage, modelo:model};
+    const models = [...new Set((usage.detalhamento ?? []).map(item => item.modelo).filter(Boolean))];
+    return {...usage, modelo:models.length ? models.join(' · ') : 'Não informado'};
   });
 
   readonly rows = computed<ExtractionLogRow[]>(() => {
@@ -145,6 +144,12 @@ export class ExtractionLogComponent {
 
   number(value: number): string {
     return new Intl.NumberFormat('pt-BR').format(value);
+  }
+
+  duration(value: number | null | undefined): string {
+    if (value === null || value === undefined) return 'Não disponível';
+    if (value < 1000) return `${Math.round(value)} ms`;
+    return `${(value / 1000).toFixed(1).replace('.', ',')} s`;
   }
 
   cost(value: string | null | undefined): string {

@@ -1,6 +1,8 @@
 """Consulta e repetição da extração não dependem de estado do navegador."""
 from typing import Annotated
+
 from fastapi import APIRouter, Depends
+
 from backend.container import Services, services
 from backend.errors import ServiceError
 from backend.models import ExtractionConfiguration, ExtractionRequest, ExtractionResult, ExtractionStatus
@@ -11,17 +13,20 @@ Dependency = Annotated[Services, Depends(services)]
 
 @router.get("/configuracao", response_model=ExtractionConfiguration)
 def configuration(service: Dependency):
-    """Permite orientar a operação sem expor ou testar a credencial da OpenAI."""
+    """Expõe somente disponibilidade operacional da integração corporativa."""
     provider = service.extractions.provider
-    pricing = provider.usage_meter.catalog
+    configured = provider.configured
     return ExtractionConfiguration(
-        configurada=provider.configured,
-        modelo=provider.settings.openai_model,
-        mensagem=("Extração automática configurada. O acesso à OpenAI será verificado ao extrair."
-                  if provider.configured else "Configure API_TOKEN no .env do backend e reinicie a aplicação para habilitar a extração automática."),
-        moeda_custo=pricing.currency,
-        precos_verificados_em=pricing.verified_at,
-        fonte_precos=pricing.source,
+        configurada=configured,
+        modelo=provider.settings.bradesco_text_model,
+        mensagem=(
+            "Extração corporativa configurada. OCR e geração de texto serão validados na primeira execução."
+            if configured
+            else "Configure autenticação corporativa, BRADESCO_OCR_CONTAINER e BRADESCO_TEXT_MODEL no backend."
+        ),
+        ocr_workflow=provider.settings.bradesco_ocr_workflow_configuration_code,
+        tokens_disponiveis=False,
+        custo_disponivel=False,
     )
 
 

@@ -1,111 +1,75 @@
-# Extração documental por IA
+# Extração documental com serviços corporativos
 
-## 1. Papel do componente
+## Objetivo
 
-A IA estrutura informações verificáveis de PDFs para revisão humana. Ela não executa cálculo, não escolhe valores padrão e não deve produzir interpretação jurídica autônoma.
+Converter PDFs judiciais heterogêneos em sugestões estruturadas de parâmetros sem misturar a camada probabilística com o motor de cálculo.
 
-A saída é um conjunto de evidências rastreáveis. O backend, e não o modelo, decide como consolidar a cronologia segundo regras técnicas explícitas.
+## Fluxo
 
-## 2. Organização dos prompts
+1. O usuário envia os PDFs ao FastAPI.
+2. `DocumentService` valida tipo, tamanho, nome, quantidade de páginas e criptografia.
+3. `BradescoBridgeClient` carrega o arquivo temporariamente no File Manager corporativo.
+4. `ocr_hibrido` executa o workflow híbrido configurado; o adaptador aceita `ocr_generator`/`ocr` quando a versão corporativa expõe esses nomes.
+5. Se a execução for assíncrona, `wait_for_workflow` aguarda a conclusão.
+6. O backend normaliza texto e número de página.
+7. Cada prompt especializado recebe o subcontrato de campos e o conteúdo OCR.
+8. Qualquer prompt é executado exclusivamente por `text_generator`.
+9. O texto retornado precisa ser JSON válido e satisfazer `WireExtractionFragment`.
+10. O backend revalida tipos, evidências, cronologia e regras operacionais.
+11. O resultado só é aplicado depois da revisão humana.
 
-`prompts/_base.md` contém regras comuns aplicáveis a todas as tarefas:
+## OCR híbrido
 
-- segurança contra instruções presentes nos PDFs;
-- tratamento de jurisprudência/terceiros;
-- taxonomia de natureza e efeito;
-- sucessão documental;
-- requisitos de evidência;
-- conflitos, tabelas, imagens e limites de inferência.
+A configuração padrão segue o contrato informado para o ambiente corporativo:
 
-Os arquivos `00_...09_*.md` contêm apenas instruções de domínio:
+```json
+{
+  "detailed_output": true,
+  "async_mode": true,
+  "workflow_configuration_code": "CD_WRFL_OCR_HYBRID_ASYNC",
+  "figure_settings": {
+    "vision_model": "gpt-4o",
+    "max_image_size": 0,
+    "image_format": "PNG"
+  },
+  "table_settings": {
+    "table_format": "MARKDOWN",
+    "language_model": "gpt-4o"
+  },
+  "document_settings": {"locale": "pt-BR"},
+  "warning_settings": {"enabled": true}
+}
+```
 
-| Prompt | Assunto |
-| --- | --- |
-| `00_classificacao.md` | classificação e datas processuais |
-| `01_parcelas.md` | dano material, dano moral, honorários e custas |
-| `02_correcao.md` | atualização monetária |
-| `03_moratorios.md` | juros moratórios |
-| `04_compensatorios.md` | juros compensatórios |
-| `05_encargos.md` | multa, honorários e Art. 523 |
-| `06_prescricao.md` | prescrição |
-| `07_compensacao.md` | compensação |
-| `08_duplo_indice.md` | transição/faixas de índices |
-| `09_eventos.md` | depósitos, pagamentos, compensações e levantamentos |
+Modelos e workflow são parametrizados no backend e precisam corresponder aos deployments realmente habilitados.
 
-`PromptContextBuilder` carrega a base, schema e catálogo uma vez e concatena apenas a tarefa específica em cada chamada. Isso reduz duplicação e evita regras comuns divergentes entre prompts.
+## Geração de texto
 
-## 3. Cronologia dos documentos
+O backend usa `gpt_bradesco.text_generator(payload, parameters)` com chamada síncrona, sem streaming e saída `json_object`. Os parâmetros de modelo, esforço, verbosidade, temperatura e limite de saída são centralizados em `Settings`.
 
-O padrão de nome é `<processo>_<sequencia>.pdf`. `document_sequence()` extrai a sequência e `ordered_documents()` ordena do mais antigo ao mais recente.
+Nenhum outro componente da aplicação executa prompts diretamente.
 
-A maior sequência significa **anexo mais recente**, não “valor sempre vencedor”. Um acórdão posterior pode manter, alterar, reduzir, majorar ou afastar apenas parte da sentença.
+## Divisão de payload
 
-Cada `FieldEvidence` possui:
+O texto OCR não é truncado silenciosamente. Quando o volume ultrapassa `BRADESCO_PROMPT_MAX_CHARS`, o backend agrupa páginas em partes menores. Uma página excepcionalmente grande é dividida por parágrafos, mantendo o cabeçalho de documento e página.
 
-- `natureza`: `pedido`, `fato`, `comando_decisorio`, `fundamentacao`, `classificacao_documental`, `evento_comprovado` ou `indeterminado`;
-- `efeito`: `informa`, `mantem`, `altera`, `afasta`, `majora`, `reduz`, `substitui` ou `nao_se_aplica`.
+Ao combinar respostas de partes diferentes, referências como `parcelas.0.valor_singelo` são reindexadas para não colidir.
 
-Esses campos permitem que a consolidação use a relação processual extraída, e não apenas a posição do arquivo.
+## Evidência e validação
 
-## 4. Evidência
+Cada sugestão precisa informar:
 
-Cada campo sugerido deve informar caminho do contrato, valor normalizado, documento, página, trecho literal curto, escopo, natureza e efeito.
+- campo;
+- valor;
+- documento;
+- página;
+- trecho literal;
+- escopo;
+- natureza;
+- efeito cronológico.
 
-O backend rejeita evidência quando não consegue validar origem, página, trecho ou tipo. Jurisprudência citada não vira parâmetro do caso concreto.
+O backend normaliza espaços e confere se o trecho existe no texto OCR da página. Se o serviço retornar texto sem separação de páginas, a aplicação gera alerta explícito e exige conferência visual.
 
-## 5. Consolidação determinística
+## Retenção remota
 
-`ChronologyReducer.reduce()` recebe as evidências já validadas e consolida somente `parametros.*`.
-
-Regras centrais:
-
-- comandos decisórios têm precedência sobre pedido/fundamentação conflitantes;
-- `mantem` preserva o estado anterior;
-- efeitos de alteração só substituem quando há valor representável;
-- comandos divergentes na mesma sequência ficam sem resolução automática;
-- conflito entre fatos/pedidos sem comando não é resolvido apenas pela recência;
-- evidências originais nunca são apagadas.
-
-A saída contém `parametros_consolidados`, `decisoes_cronologicas` e alertas. A semântica jurídica dessas regras precisa ser validada pelo time jurídico antes de mudança de política.
-
-## 6. Parcelas e valores em formatos variados
-
-`01_parcelas.md` orienta a leitura de petição inicial, anexos, extratos, tabelas e narrativa. Por exemplo, uma sentença pode ordenar restituição sem repetir as transações; nesse caso, a decomposição factual pode estar na petição inicial/extrato e o comando posterior define o escopo.
-
-O prompt diferencia:
-
-- linha de transação versus totalizador;
-- valor pedido versus valor arbitrado;
-- dado factual versus comando decisório;
-- dano material/moral versus pagamento ou depósito;
-- valor global sem data versus parcela calculável.
-
-Ele contém exemplos sintéticos de texto descritivo e tabelas para aumentar consistência sem usar documentos reais como fixture de cálculo.
-
-## 7. Política operacional após a IA
-
-`OperationalPolicy` roda somente depois da consolidação. Ela pode adicionar defaults autorizados para processo real, sempre como `OperationalAdjustment` e nunca como `FieldEvidence`.
-
-Exemplo: se nenhum documento fornece tipo de juros moratórios, a política pode sugerir `taxa_legal_12_aa_6_aa`. Se há valor documental válido, o padrão não o substitui.
-
-Honorários não recebem `honorarios_tipo='percentual'` por padrão. Parcelas automáticas de honorários sobre dano moral só são geradas quando existe percentual documental único e tipo documental único `percentual`.
-
-## 8. Structured Outputs
-
-`backend/services/extraction_wire.py` define modelos simples para o schema externo. Depois da resposta, o backend converte para os modelos internos mais rigorosos. Essa separação evita enfraquecer a validação de datas, dinheiro e tipos internos por limitações do schema aceito pelo provedor.
-
-## 9. Testes de regressão
-
-`tests/test_extraction_evaluation.py` testa sem rede:
-
-- majoração por decisão posterior;
-- manutenção de comando anterior;
-- precedência de decisão sobre pedido;
-- conflito decisório da mesma sequência;
-- conflito factual sem resolução por recência;
-- presença das regras críticas em `_base.md`;
-- exemplos de narrativa/tabela em `01_parcelas.md`.
-
-Esses testes verificam lógica determinística e contrato de prompt. Eles **não medem acurácia, precisão ou recall do modelo**.
-
-Para medir qualidade da IA, deve existir benchmark rotulado e revisado por pessoas qualificadas, com métricas por campo e cenário processual.
+O ID do arquivo remoto é mantido somente durante a execução. Após o OCR, a aplicação tenta excluí-lo do File Manager. Uma falha de exclusão não apaga o resultado local, mas gera evento técnico para investigação operacional.

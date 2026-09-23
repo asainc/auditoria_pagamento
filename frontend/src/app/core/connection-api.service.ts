@@ -27,7 +27,7 @@ export class ConnectionApiService {
       const health = await firstValueFrom(this.http.get<Health>(`${this.config.baseUrl}/saude`).pipe(timeout(8000)));
       if (health.status !== 'ok' || health.versao_api !== '1.0.0') throw new Error('O endereço respondeu, mas não é uma API compatível com esta calculadora. Confira apiBaseUrl.');
       const extraction = await firstValueFrom(this.http.get<ExtractionConfiguration>(`${this.config.baseUrl}/extracoes/configuracao`).pipe(timeout(8000)));
-      if (extraction.provedor !== 'openai' || typeof extraction.configurada !== 'boolean') throw new Error('O backend precisa ser atualizado para a mesma versão deste frontend.');
+      if (extraction.provedor !== 'bradesco_iagen' || typeof extraction.configurada !== 'boolean') throw new Error('O backend precisa ser atualizado para a mesma versão deste frontend.');
       this.extraction.set(extraction);
       this.state.set('online'); this.message.set('Conectado ao servidor');
       return true;
