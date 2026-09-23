@@ -22,7 +22,7 @@ def configuration(service: Dependency):
         mensagem=(
             "Extração corporativa configurada. OCR e geração de texto serão validados na primeira execução."
             if configured
-            else "Configure autenticação corporativa, BRADESCO_OCR_CONTAINER e BRADESCO_TEXT_MODEL no backend."
+            else "Configure BRADESCO_OCR_CONTAINER e BRADESCO_TEXT_MODEL e mantenha gpt_bradesco.py funcional no backend."
         ),
         ocr_workflow=provider.settings.bradesco_ocr_workflow_configuration_code,
         tokens_disponiveis=False,

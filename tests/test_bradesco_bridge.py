@@ -1,62 +1,36 @@
-"""Valida a integração corporativa com dublês, sem autenticação nem rede real."""
+"""Valida compatibilidade com contratos antigos e novos de gpt_bradesco.py sem rede."""
 from __future__ import annotations
 
 import json
 import sys
 import types
+from pathlib import Path
 
 from backend.config import Settings
 from backend.services.bradesco_bridge import BradescoBridgeClient
 
 
-def fake_module(calls: list[str]):
+def _settings() -> Settings:
+    return Settings(bradesco_ocr_container="container-sintetico", bradesco_text_model="gpt-5.1")
+
+
+def test_hybrid_contract_does_not_require_optional_helpers(monkeypatch):
+    """A versão mostrada pelo usuário pode expor só upload, OCR híbrido e text_generator."""
+    calls: list[str] = []
     module = types.ModuleType("gpt_bradesco")
 
-    def configure_iagen(parameters):
-        calls.append("configure_iagen")
-        return {"ambiente": parameters["ambiente"]}
-
-    def file_manager_upload_base64(payload, parameters):
+    def file_manager_upload_base64(payload):
         calls.append("file_manager_upload_base64")
         assert payload["base64"]
-        assert parameters["ambiente"] == "dev"
         return {"response": {"file_id": "file-synthetic"}}
 
-    def file_manager_list(payload, parameters):
-        calls.append("file_manager_list")
-        return {"response": []}
-
-    def ocr_hibrido(payload, parameters):
+    def ocr_hibrido(payload):
         calls.append("ocr_hibrido")
+        assert payload["files_id"] == ["file-synthetic"]
+        # Sem wait_for_workflow o adaptador pede retorno síncrono.
+        assert payload["async_mode"] == "false"
         assert payload["workflow_configuration_code"] == "CD_WRFL_OCR_HYBRID_ASYNC"
-        assert payload["detailed_output"] is True
-        assert payload["async_mode"] is True
-        assert payload["figure_settings"]["vision_model"] == "gpt-4o"
-        assert payload["table_settings"]["language_model"] == "gpt-4o"
-        assert payload["document_settings"]["locale"] == "pt-BR"
-        return {"workflow_execution_id": "wf-synthetic", "status": "WF_RUNNING"}
-
-    def wait_for_workflow(identifier, parameters):
-        calls.append("wait_for_workflow")
-        assert identifier == "wf-synthetic"
-        detailed = {"pages": [{"page_number": 1, "text": "Multa: 2%."}]}
-        return {
-            "status": "WF_COMPLETED_SUCCESS",
-            "output_collection": {
-                "output_datas": [
-                    {
-                        "workflow_step_output_collection": {
-                            "output": {"json_data": {"output_text": json.dumps(detailed)}}
-                        }
-                    }
-                ]
-            },
-        }
-
-    def file_manager_delete_file(payload, parameters):
-        calls.append("file_manager_delete_file")
-        assert payload["file_id"] == "file-synthetic"
-        return "ok"
+        return {"pages": [{"page_number": 1, "text": "Multa: 2%."}]}
 
     def text_generator(payload, parameters):
         calls.append("text_generator")
@@ -64,30 +38,120 @@ def fake_module(calls: list[str]):
         assert parameters["message_format"] == {"type": "json_object"}
         return json.dumps({"campos": [], "parcelas": [], "eventos_financeiros": [], "alertas": []})
 
-    for name, function in locals().copy().items():
-        if callable(function) and name not in {"fake_module"}:
-            setattr(module, name, function)
-    return module
+    module.file_manager_upload_base64 = file_manager_upload_base64
+    module.ocr_hibrido = ocr_hibrido
+    module.text_generator = text_generator
+    monkeypatch.setitem(sys.modules, "gpt_bradesco", module)
 
-
-def test_ocr_and_text_use_only_corporate_module(monkeypatch):
-    calls: list[str] = []
-    monkeypatch.setitem(sys.modules, "gpt_bradesco", fake_module(calls))
-    settings = Settings(
-        bradesco_authorization_token="synthetic-token",
-        bradesco_ocr_container="container-sintetico",
-    )
-    client = BradescoBridgeClient(settings)
+    client = BradescoBridgeClient(_settings())
     assert client.configured
     document = client.ocr_pdf("1001_1.pdf", b"%PDF-synthetic", expected_pages=1)
     assert document.paginas[0].texto == "Multa: 2%."
-    output = client.generate_text("Prompt sintético", max_tokens=4096)
-    assert json.loads(output)["campos"] == []
+    assert json.loads(client.generate_text("Prompt sintético", max_tokens=4096))["campos"] == []
+    assert calls == ["file_manager_upload_base64", "ocr_hibrido", "text_generator"]
+
+
+def test_legacy_contract_uses_local_upload_list_get_text_and_optional_delete(monkeypatch):
+    """Compatibilidade com as assinaturas legadas exibidas nas primeiras imagens."""
+    calls: list[str] = []
+    module = types.ModuleType("gpt_bradesco")
+
+    def file_manager_upload(path_file, file_name, container_name, create_container="false", overwrite="true"):
+        calls.append("file_manager_upload")
+        assert Path(path_file).is_file()
+        assert container_name == "container-sintetico"
+        assert overwrite == "false"
+        module.remote_name = file_name
+        return 200
+
+    def file_manager_list_files(container_name):
+        calls.append("file_manager_list_files")
+        assert container_name == "container-sintetico"
+        return {"files": [{"id": "legacy-id", "file_name": module.remote_name, "file_path": f"folder/{module.remote_name}"}]}
+
+    def get_text_ocr(files_path, container, input_text):
+        calls.append("get_text_ocr")
+        assert files_path == [f"folder/{module.remote_name}"]
+        assert container == "container-sintetico"
+        assert "Extraia integralmente" in input_text
+        return {"response": {"text": "Juros moratórios desde a citação."}}
+
+    def file_manager_delete(file_id):
+        calls.append("file_manager_delete")
+        assert file_id == "legacy-id"
+        return "200 Arquivo deletado com sucesso"
+
+    def text_generator(payload, parameters):
+        calls.append("text_generator")
+        return json.dumps({"campos": [], "parcelas": [], "eventos_financeiros": [], "alertas": []})
+
+    module.file_manager_upload = file_manager_upload
+    module.file_manager_list_files = file_manager_list_files
+    module.get_text_ocr = get_text_ocr
+    module.file_manager_delete = file_manager_delete
+    module.text_generator = text_generator
+    monkeypatch.setitem(sys.modules, "gpt_bradesco", module)
+
+    client = BradescoBridgeClient(_settings())
+    document = client.ocr_pdf("1001_1.pdf", b"%PDF-synthetic", expected_pages=1)
+    assert document.paginas[0].texto == "Juros moratórios desde a citação."
+    assert calls == [
+        "file_manager_upload",
+        "file_manager_list_files",
+        "get_text_ocr",
+        "file_manager_delete",
+    ]
+
+
+def test_new_contract_can_configure_and_wait(monkeypatch):
+    """Recursos adicionais continuam aproveitados quando existirem no módulo."""
+    calls: list[str] = []
+    module = types.ModuleType("gpt_bradesco")
+
+    def configure_iagen(parameters):
+        calls.append("configure_iagen")
+        assert parameters["token"] == "synthetic-token"
+        return parameters
+
+    def file_manager_upload_base64(payload, parameters):
+        calls.append("file_manager_upload_base64")
+        return {"file_id": "file-new"}
+
+    def ocr_hibrido(payload, parameters):
+        calls.append("ocr_hibrido")
+        assert payload["async_mode"] == "true"
+        return {"workflow_execution_id": "wf-1", "status": "WF_RUNNING"}
+
+    def wait_for_workflow(identifier, parameters):
+        calls.append("wait_for_workflow")
+        assert identifier == "wf-1"
+        return {"pages": [{"page_number": 1, "text": "Texto final."}]}
+
+    def file_manager_delete_file(payload, parameters):
+        calls.append("file_manager_delete_file")
+        return "ok"
+
+    def text_generator(payload, parameters):
+        calls.append("text_generator")
+        return "{}"
+
+    for name, value in list(locals().items()):
+        if name not in {"module", "calls"} and callable(value):
+            setattr(module, name, value)
+    monkeypatch.setitem(sys.modules, "gpt_bradesco", module)
+
+    settings = Settings(
+        bradesco_authorization_token="synthetic-token",
+        bradesco_ocr_container="container-sintetico",
+        bradesco_text_model="gpt-5.1",
+    )
+    client = BradescoBridgeClient(settings)
+    document = client.ocr_pdf("1001_1.pdf", b"%PDF-synthetic", expected_pages=1)
+    assert document.paginas[0].texto == "Texto final."
     assert calls == [
         "configure_iagen",
         "file_manager_upload_base64",
         "ocr_hibrido",
         "wait_for_workflow",
         "file_manager_delete_file",
-        "text_generator",
     ]

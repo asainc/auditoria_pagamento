@@ -84,13 +84,24 @@ export class WorkspaceStore {
       if (!await this.connection.check()) { this.notices.show(this.connection.message(), 'error'); return; }
       const response = await firstValueFrom(this.documentsApi.upload(files));
       this.processes.set(await firstValueFrom(this.documentsApi.processes()));
-      this.notices.show(`${response.documentos.length} documento(s) recebido(s). Selecione o processo para revisar.`);
       const blocked = response.extracoes.find(status => status.estado === 'bloqueada');
-      if (blocked) this.notices.show(blocked.mensagem);
+      if (blocked) this.notices.show(blocked.mensagem, 'error');
+
+      // O backend inicia OCR + text_generator no próprio upload. Quando o lote
+      // pertence a um único processo, a UI também o seleciona automaticamente
+      // para acompanhar a extração e aplicar os parâmetros assim que estiverem prontos.
+      const uploadedProcesses = [...new Set(response.documentos.map(row => row.numero_processo))];
       const selected = this.selectedProcess();
-      if (response.documentos.some(row => row.numero_processo === selected)) {
-        this.update(draft => ({...draft, extraction:null}));
-        await this.selectProcess(selected);
+      const target = uploadedProcesses.length === 1 ? uploadedProcesses[0] : selected;
+      if (target && uploadedProcesses.includes(target)) {
+        this.drafts.update(values => ({
+          ...values,
+          [target]: {...(values[target] ?? blankDraft(target, 'processo')), extraction:null, appliedExtractionId:''}
+        }));
+        await this.selectProcess(target);
+        this.notices.show(`${response.documentos.length} documento(s) recebido(s). OCR e consolidação dos parâmetros iniciados automaticamente.`);
+      } else {
+        this.notices.show(`${response.documentos.length} documento(s) recebido(s). A extração foi iniciada para todos os processos enviados; selecione um processo para acompanhar.`);
       }
     } catch (error) { this.notices.error(error); }
     finally { this.uploading.set(false); }

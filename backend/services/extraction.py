@@ -107,7 +107,7 @@ class ExtractionProvider:
         if not self.configured:
             raise ExtractionProviderError(
                 "bradesco_nao_configurado",
-                "Configure as credenciais corporativas, o container de OCR e o deployment de texto no backend.",
+                "Configure o container de OCR, o deployment de texto e mantenha gpt_bradesco.py funcional no backend.",
                 503,
             )
         documents: list[OcrDocument] = []
@@ -326,7 +326,7 @@ class ExtractionService:
                 status.estado = "bloqueada"
                 status.codigo_erro = "bradesco_nao_configurado"
                 status.mensagem = (
-                    "Configure autenticação corporativa, BRADESCO_OCR_CONTAINER e BRADESCO_TEXT_MODEL no backend; "
+                    "Configure BRADESCO_OCR_CONTAINER e BRADESCO_TEXT_MODEL no backend e mantenha gpt_bradesco.py funcional; "
                     "depois repita a extração. Os PDFs locais já foram preservados."
                 )
             self.repository.start_job(status)

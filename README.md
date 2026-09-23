@@ -32,7 +32,7 @@ A IA não executa fórmulas financeiras. Ela transforma conteúdo documental em 
 
 ## Integração corporativa de IA
 
-Toda geração de texto passa exclusivamente por `gpt_bradesco.text_generator`. PDFs não são enviados diretamente ao gerador de texto: antes, cada arquivo é carregado temporariamente no File Manager corporativo e processado pelo OCR híbrido via `gpt_bradesco.ocr_hibrido` (com fallback compatível para `ocr_generator`/`ocr`). Quando o OCR é assíncrono, o backend aguarda a conclusão pelo workflow configurado.
+Toda geração de texto passa exclusivamente por `gpt_bradesco.text_generator`. Ao anexar um PDF, o backend inicia automaticamente upload corporativo, OCR e consolidação dos parâmetros. O adaptador prioriza `ocr_hibrido`, mas também reconhece `ocr`, `ocr_generator` e `get_text_ocr`. Para upload/listagem/limpeza, reconhece tanto as assinaturas legadas (`file_manager_upload`, `file_manager_list_files`, `file_manager_delete`) quanto wrappers mais novos. Funções como `configure_iagen` e `wait_for_workflow` são opcionais e só são usadas quando existirem.
 
 O payload padrão do OCR inclui:
 
@@ -50,20 +50,7 @@ Os arquivos remotos são removidos após a extração do texto sempre que o serv
 
 Copie `.env.example` para `.env` na raiz. Nunca versione credenciais reais.
 
-É necessário informar um dos métodos de autenticação autorizados:
-
-```text
-BRADESCO_AUTHORIZATION_TOKEN=
-```
-
-ou:
-
-```text
-BRADESCO_IDENTIFICADOR=
-BRADESCO_SENHA=
-```
-
-Além disso, configure um container aprovado para o OCR:
+A autenticação pode permanecer integralmente dentro do `gpt_bradesco.py` corporativo. Os campos `BRADESCO_AUTHORIZATION_TOKEN`, `BRADESCO_IDENTIFICADOR` e `BRADESCO_SENHA` só precisam ser preenchidos quando a versão do módulo expuser `configure_iagen` e a equipe responsável determinar esse fluxo. Configure obrigatoriamente um container aprovado para o OCR:
 
 ```text
 BRADESCO_OCR_CONTAINER=CONTAINER_AUTORIZADO
