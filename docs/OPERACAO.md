@@ -1,53 +1,34 @@
-# Operação
+# Operação da aplicação
 
-## Configuração mínima
+## Configuração mínima da extração
 
-Copie `.env.example` para `.env` e preencha apenas valores autorizados. O projeto aceita token corporativo já emitido ou identificador/senha do serviço. Nunca registre esses valores em tickets, prints ou commits.
+A extração automática requer:
 
-Campos necessários para habilitar a extração:
+- `BRADESCO_TEXT_MODEL` com um deployment autorizado;
+- `gpt_bradesco.py` disponível na raiz do projeto com `text_generator` funcional;
+- `PyMuPDF` instalado no interpretador Python utilizado pelo backend.
 
-- `BRADESCO_IAGEN_AMBIENTE`;
-- `BRADESCO_OCR_CONTAINER`;
-- `BRADESCO_TEXT_MODEL`;
-- `BRADESCO_AUTHORIZATION_TOKEN` **ou** `BRADESCO_IDENTIFICADOR` + `BRADESCO_SENHA`.
+Não é necessário configurar container, File Manager ou workflow de OCR.
 
-Se a rede interna exigir CA própria, defina `BRADESCO_CA_BUNDLE` com o caminho de um certificado aprovado.
+## Validação inicial
 
-## Inicialização sem ambiente virtual
+Use um PDF sintético com camada de texto e confirme:
+
+1. o upload retorna `202`;
+2. o status passa por `Extraindo texto dos PDFs com PyMuPDF`;
+3. os prompts especializados são executados;
+4. o resultado fica `pronto`;
+5. os campos aparecem preenchidos para revisão;
+6. o cálculo permanece bloqueado até a confirmação humana.
+
+Para conferir a dependência local:
 
 ```cmd
-cd CAMINHO_DO_PROJETO
-set "PYTHONPATH=%CD%\src;%CD%"
-python -m uvicorn backend.principal:aplicacao --reload --host 127.0.0.1 --port 8000
+python -c "import pymupdf; print(pymupdf.__version__)"
 ```
 
-Verificações rápidas:
+## Diagnóstico
 
-```cmd
-python -c "import judicial_calc.data; print('motor OK')"
-python -c "import gpt_bradesco; print('módulo corporativo OK')"
-```
+Se todas as páginas vierem sem texto, verifique se o PDF é apenas imagem digitalizada. PyMuPDF lê a camada textual existente; ele não executa OCR.
 
-A importação do módulo corporativo não deve efetuar login automaticamente. A autenticação acontece na primeira chamada necessária.
-
-## Teste operacional recomendado
-
-1. use um PDF sintético sem dados reais;
-2. confirme `/api/extracoes/configuracao`;
-3. faça upload;
-4. acompanhe `/api/extracoes/{processo}/status`;
-5. confira se o OCR termina e o arquivo remoto é limpo;
-6. confira o JSON extraído;
-7. somente depois use documentos autorizados.
-
-## Logs
-
-Logs técnicos podem registrar IDs de requisição sanitizados, status, duração e tipo de erro. Não devem registrar:
-
-- PDFs;
-- texto OCR;
-- prompt completo;
-- resposta completa do gerador;
-- tokens de autenticação;
-- identificador/senha;
-- URL assinada de download.
+Se a geração falhar, valide separadamente a importação de `gpt_bradesco.py`, a função `text_generator` e o deployment configurado. Não imprima prompts, PDFs, tokens ou conteúdo processual real em logs de suporte.

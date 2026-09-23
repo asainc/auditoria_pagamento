@@ -9,11 +9,9 @@ PDFs enviados pelo usuário
         ↓
 DocumentService (persistência local controlada)
         ↓
-gpt_bradesco.py → File Manager corporativo
+PyMuPDF (leitura local da camada de texto)
         ↓
-OCR híbrido corporativo
-        ↓
-texto por documento/página
+string com documento/página
         ↓
 prompts especializados 00..09
         ↓
@@ -32,29 +30,15 @@ A IA não executa fórmulas financeiras. Ela transforma conteúdo documental em 
 
 ## Integração corporativa de IA
 
-Toda geração de texto passa exclusivamente por `gpt_bradesco.text_generator`. Ao anexar um PDF, o backend inicia automaticamente upload corporativo, OCR e consolidação dos parâmetros. O adaptador prioriza `ocr_hibrido`, mas também reconhece `ocr`, `ocr_generator` e `get_text_ocr`. Para upload/listagem/limpeza, reconhece tanto as assinaturas legadas (`file_manager_upload`, `file_manager_list_files`, `file_manager_delete`) quanto wrappers mais novos. Funções como `configure_iagen` e `wait_for_workflow` são opcionais e só são usadas quando existirem.
+Os PDFs não são enviados para OCR nem para File Manager. O backend lê a camada de texto localmente com `PyMuPDF`, preserva marcadores de documento e página e monta uma string para cada lote de contexto. Cada string é combinada com o prompt especializado e enviada exclusivamente a `gpt_bradesco.text_generator`.
 
-O payload padrão do OCR inclui:
-
-- `detailed_output=true`;
-- `async_mode=true`;
-- `workflow_configuration_code=CD_WRFL_OCR_HYBRID_ASYNC`;
-- modelo de visão configurável;
-- saída de tabelas em Markdown;
-- `locale=pt-BR`;
-- avisos habilitados.
-
-Os arquivos remotos são removidos após a extração do texto sempre que o serviço devolve o identificador necessário para a limpeza. Uma falha de limpeza é registrada somente como evento técnico, sem conteúdo documental.
+Não existe fallback automático para OCR. Se uma página for imagem sem camada textual, a aplicação gera um alerta para revisão humana em vez de inventar conteúdo.
 
 ## Configuração do backend
 
 Copie `.env.example` para `.env` na raiz. Nunca versione credenciais reais.
 
-A autenticação pode permanecer integralmente dentro do `gpt_bradesco.py` corporativo. Os campos `BRADESCO_AUTHORIZATION_TOKEN`, `BRADESCO_IDENTIFICADOR` e `BRADESCO_SENHA` só precisam ser preenchidos quando a versão do módulo expuser `configure_iagen` e a equipe responsável determinar esse fluxo. Configure obrigatoriamente um container aprovado para o OCR:
-
-```text
-BRADESCO_OCR_CONTAINER=CONTAINER_AUTORIZADO
-```
+A autenticação pode permanecer integralmente dentro do `gpt_bradesco.py` corporativo. Os campos `BRADESCO_AUTHORIZATION_TOKEN`, `BRADESCO_IDENTIFICADOR` e `BRADESCO_SENHA` só precisam ser preenchidos quando a versão do módulo expuser `configure_iagen` e a equipe responsável determinar esse fluxo. Não há configuração de container ou workflow de OCR.
 
 Parâmetros principais:
 
@@ -65,13 +49,10 @@ BRADESCO_TEXT_REASONING_EFFORT=medium
 BRADESCO_TEXT_VERBOSITY=medium
 BRADESCO_TEXT_TEMPERATURE=1
 BRADESCO_TEXT_MAX_TOKENS=16384
-BRADESCO_OCR_WORKFLOW=CD_WRFL_OCR_HYBRID_ASYNC
-BRADESCO_OCR_VISION_MODEL=gpt-4o
-BRADESCO_OCR_LANGUAGE_MODEL=gpt-4o
-BRADESCO_OCR_LOCALE=pt-BR
+BRADESCO_PROMPT_MAX_CHARS=55000
 ```
 
-Os nomes de deployment e workflow precisam existir no ambiente corporativo. A aplicação não inventa substitutos quando uma configuração não está disponível.
+O nome do deployment precisa existir no ambiente corporativo. A aplicação não inventa substitutos quando ele não está disponível.
 
 ## Execução sem ambiente virtual
 
@@ -116,7 +97,7 @@ Os prompts ficam em `prompts/`:
 - `08_duplo_indice.md`: períodos com índices diferentes;
 - `09_eventos.md`: depósitos, pagamentos, levantamentos e compensações.
 
-O backend envia somente o subcontrato de parâmetros necessário a cada tarefa. Se o texto OCR ultrapassar o limite configurado por chamada, ele é dividido por documento/página sem descartar conteúdo. Cada parte continua sendo processada por `text_generator`, e o backend reindexa parcelas/eventos antes da consolidação.
+O backend envia somente o subcontrato de parâmetros necessário a cada tarefa. Se o texto extraído pelo PyMuPDF ultrapassar o limite configurado por chamada, ele é dividido por documento/página sem descartar conteúdo. Cada parte continua sendo processada por `text_generator`, e o backend reindexa parcelas/eventos antes da consolidação.
 
 ## Telemetria
 
@@ -127,7 +108,7 @@ A aplicação registra apenas informações observáveis: número de chamadas, m
 ```text
 backend/
   services/bradesco_bridge.py   facade do módulo corporativo
-  services/extraction.py        OCR, prompts e consolidação
+  services/extraction.py        PyMuPDF, prompts e consolidação
   services/ai_usage.py          telemetria conservadora
 config/
   app.settings.json             configuração não secreta
@@ -173,9 +154,9 @@ Os testes corporativos de integração usam dublês e não chamam rede real. A p
 ## Governança e privacidade
 
 - segredos não ficam no código, exemplos, logs ou documentação;
-- conteúdo OCR, prompts e PDFs não são registrados nos logs técnicos;
-- o arquivo remoto usado pelo OCR é removido após o processamento quando possível;
-- evidências são revalidadas contra o texto OCR antes de chegar à revisão;
+- PDFs, texto extraído e prompts não são registrados nos logs técnicos;
+- os PDFs permanecem no armazenamento controlado do backend e não são enviados ao serviço de OCR;
+- evidências são revalidadas contra o texto extraído da página antes de chegar à revisão;
 - qualquer interpretação jurídica, política de retenção ou uso de dados pessoais precisa de validação do Jurídico/Compliance e do DPO conforme o caso de uso.
 
 Consulte `docs/EXTRACAO_IA.md`, `docs/OPERACAO.md`, `docs/FLUXO_EXTRACAO_VISUAL.md`, `docs/MODEL_CARD.md` e `docs/VALIDACAO.md`.

@@ -12,9 +12,6 @@ CORPORATE_ENV_VARS = [
     "BRADESCO_AUTHORIZATION_TOKEN", "BRADESCO_CA_BUNDLE", "BRADESCO_TIMEOUT_SECONDS",
     "BRADESCO_TEXT_MODEL", "BRADESCO_TEXT_REASONING_EFFORT", "BRADESCO_TEXT_VERBOSITY",
     "BRADESCO_TEXT_TEMPERATURE", "BRADESCO_TEXT_MAX_TOKENS", "BRADESCO_PROMPT_MAX_CHARS",
-    "BRADESCO_OCR_CONTAINER", "BRADESCO_OCR_CREATE_CONTAINER", "BRADESCO_OCR_WORKFLOW",
-    "BRADESCO_OCR_VISION_MODEL", "BRADESCO_OCR_LANGUAGE_MODEL", "BRADESCO_OCR_LOCALE",
-    "BRADESCO_OCR_POLL_INTERVAL_SECONDS", "BRADESCO_OCR_MAX_WAIT_SECONDS",
     "GATEWAY_TOKEN", "CORS_ORIGINS",
 ]
 
@@ -30,14 +27,13 @@ def isolated_settings(monkeypatch, tmp_path):
 def test_corporate_token_and_model_are_loaded_from_root_env(isolated_settings, monkeypatch, tmp_path):
     token = secrets.token_urlsafe(32)
     (isolated_settings / ".env").write_text(
-        '\ufeffBRADESCO_AUTHORIZATION_TOKEN="' + token + '"\nBRADESCO_TEXT_MODEL=gpt-5.1\nBRADESCO_OCR_CONTAINER=container-teste\n',
+        '\ufeffBRADESCO_AUTHORIZATION_TOKEN="' + token + '"\nBRADESCO_TEXT_MODEL=gpt-5.1\n',
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path.parent)
     settings = config.load_settings()
     assert settings.bradesco_authorization_token.get_secret_value() == token
     assert settings.bradesco_text_model == "gpt-5.1"
-    assert settings.bradesco_ocr_container == "container-teste"
     assert token not in repr(settings)
 
 

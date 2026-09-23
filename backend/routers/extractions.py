@@ -13,18 +13,19 @@ Dependency = Annotated[Services, Depends(services)]
 
 @router.get("/configuracao", response_model=ExtractionConfiguration)
 def configuration(service: Dependency):
-    """Expõe somente disponibilidade operacional da integração corporativa."""
+    """Expõe somente disponibilidade operacional da leitura local + geração corporativa."""
     provider = service.extractions.provider
     configured = provider.configured
     return ExtractionConfiguration(
         configurada=configured,
         modelo=provider.settings.bradesco_text_model,
         mensagem=(
-            "Extração corporativa configurada. OCR e geração de texto serão validados na primeira execução."
+            "Extração automática configurada: PDFs são lidos localmente com PyMuPDF e os prompts usam text_generator."
             if configured
-            else "Configure BRADESCO_OCR_CONTAINER e BRADESCO_TEXT_MODEL e mantenha gpt_bradesco.py funcional no backend."
+            else "Configure BRADESCO_TEXT_MODEL e mantenha gpt_bradesco.py com text_generator funcional no backend."
         ),
-        ocr_workflow=provider.settings.bradesco_ocr_workflow_configuration_code,
+        # Campo mantido no contrato da API para compatibilidade com o frontend atual.
+        ocr_workflow="pymupdf_local_text",
         tokens_disponiveis=False,
         custo_disponivel=False,
     )
@@ -32,7 +33,7 @@ def configuration(service: Dependency):
 
 @router.post("", response_model=ExtractionStatus, status_code=202)
 def start(payload: ExtractionRequest, service: Dependency):
-    """Retentativa manual é útil após configurar o provedor ou reiniciar o serviço."""
+    """Retentativa manual é útil após configurar o deployment ou reiniciar o serviço."""
     return service.extractions.start(payload.numero_processo)
 
 

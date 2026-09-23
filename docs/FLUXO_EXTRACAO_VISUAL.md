@@ -5,43 +5,22 @@ sequenceDiagram
     participant U as Usuário
     participant A as Angular
     participant B as FastAPI
-    participant F as File Manager corporativo
-    participant O as OCR corporativo
-    participant T as text_generator
-    participant C as Consolidação Python
+    participant P as PyMuPDF
+    participant T as gpt_bradesco.text_generator
+    participant C as Consolidação
 
-    U->>A: envia PDFs
+    U->>A: Anexa PDFs
     A->>B: POST /documentos/upload
-    B->>F: upload temporário
-    F-->>B: file_id
-    B->>O: OCR híbrido por file_id
-    O-->>B: texto detalhado / workflow_id
-    B->>O: consulta workflow quando necessário
-    O-->>B: texto por página
-    B->>F: exclusão do arquivo remoto
-    loop prompts 00..09
-        B->>T: prompt especializado + texto OCR
+    B->>B: Valida e persiste os arquivos
+    B->>P: Abre bytes do PDF
+    P-->>B: Texto por página
+    loop prompts especializados 00..09
+        B->>T: prompt + string de texto + schema
         T-->>B: JSON estruturado
     end
-    B->>C: evidências e fatos
-    C-->>B: cronologia + parâmetros consolidados
-    B-->>A: resultado para revisão
-    A-->>U: conferência humana
+    B->>C: Valida evidências e cronologia
+    C-->>A: parâmetros consolidados
+    A-->>U: campos preenchidos para revisão
 ```
 
-## Exemplo conceitual
-
-```text
-PDF: 123_4.pdf
-  ↓ OCR
-PÁGINA 7: "... juros moratórios de 1% ao mês desde ..."
-  ↓ prompt especializado
-campo: parametros.juros_moratorios_taxa
-valor: 1
-página: 7
-natureza: comando_decisorio
-  ↓ validação Python
-ChronologyReducer
-  ↓
-parâmetro sugerido para revisão humana
-```
+A leitura do PDF ocorre localmente. Não há upload para serviço de OCR no fluxo de extração.

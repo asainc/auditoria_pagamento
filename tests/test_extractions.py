@@ -8,9 +8,8 @@ from fastapi.testclient import TestClient
 from backend.config import Settings
 from backend.models import AiUsage, ExtractionResult, FieldEvidence
 from backend.principal import create_app
-from backend.services.bradesco_bridge import OcrDocument, OcrPage
 from backend.services.chronology import document_sequence, ordered_documents
-from backend.services.extraction import ExtractionFragment, ExtractionProvider, ProviderResult
+from backend.services.extraction import ExtractionFragment, ExtractionProvider, PdfTextDocument, PdfTextPage, ProviderResult
 
 
 class SyntheticProvider(ExtractionProvider):
@@ -20,16 +19,14 @@ class SyntheticProvider(ExtractionProvider):
     def configured(self):
         return True
 
-    def ocr_documents(self, files):
-        documents = [
-            OcrDocument(
+    def read_documents(self, files):
+        return [
+            PdfTextDocument(
                 nome=name,
-                paginas=(OcrPage(1, "Parcela: 100.00. Data: 2025-01-01. Tipo: dano_material. Multa: 2%."),),
+                paginas=(PdfTextPage(1, "Parcela: 100.00. Data: 2025-01-01. Tipo: dano_material. Multa: 2%."),),
             )
             for name, _, _ in files
         ]
-        usage = AiUsage(etapa="ocr_documento_1", modelo="OCR sintético", duracao_ms=1)
-        return documents, [usage]
 
     def extract(self, prompt, documents, *, stage, max_output_tokens):
         source = {
@@ -85,6 +82,15 @@ def test_document_sequence_orders_history_by_attachment_number():
     assert [item.nome for item in ordered_documents(documents)] == ["1001_2.pdf", "1001_3_anexo.pdf", "1001_10.pdf"]
 
 
+def test_pymupdf_reads_text_locally(pdf_bytes):
+    provider = ExtractionProvider(Settings(bradesco_text_model="gpt-5.1"))
+    documents = provider.read_documents([("1001_1.pdf", pdf_bytes, 1)])
+    assert len(documents) == 1
+    assert documents[0].paginas[0].numero == 1
+    assert "Parcela: 100.00" in documents[0].paginas[0].texto
+    assert not any("Container" in alert for alert in documents[0].alertas)
+
+
 def test_upload_orchestrates_background_extraction(tmp_path, pdf_bytes):
     settings = Settings(data_dir=tmp_path)
     with TestClient(create_app(settings, SyntheticProvider(settings))) as client:
@@ -119,8 +125,8 @@ def test_jurisprudence_wrong_source_and_fabricated_quote_are_rejected(client, pd
         {**valid, "valor": "-1"},
     ]
     result = ExtractionResult(numero_processo="1001", campos=[FieldEvidence.model_validate(row) for row in fields], parcelas=[], eventos_financeiros=[], alertas=[], versao_prompts="teste")
-    ocr = [OcrDocument(nome="1001_1.pdf", paginas=(OcrPage(1, "Multa: 2%."),))]
-    consolidated = client.app.state.services.extractions.consolidate(result, documents, ocr)
+    pdf_text = [PdfTextDocument(nome="1001_1.pdf", paginas=(PdfTextPage(1, "Multa: 2%."),))]
+    consolidated = client.app.state.services.extractions.consolidate(result, documents, pdf_text)
     assert len(consolidated.campos) == 1
     assert consolidated.campos[0].valor == "2"
     assert consolidated.alertas

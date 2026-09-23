@@ -16,16 +16,5 @@
   "bradesco_text_temperature": 1.0,
   "bradesco_text_max_tokens": 16384,
   "bradesco_prompt_max_chars": 55000,
-  "bradesco_ocr_container": "",
-  "bradesco_ocr_create_container": false,
-  "bradesco_ocr_workflow_configuration_code": "CD_WRFL_OCR_HYBRID_ASYNC",
-  "bradesco_ocr_vision_model": "gpt-4o",
-  "bradesco_ocr_language_model": "gpt-4o",
-  "bradesco_ocr_max_image_size": 0,
-  "bradesco_ocr_image_format": "PNG",
-  "bradesco_ocr_table_format": "MARKDOWN",
-  "bradesco_ocr_locale": "pt-BR",
-  "bradesco_ocr_poll_interval_seconds": 5,
-  "bradesco_ocr_max_wait_seconds": 600,
   "index_timeout_seconds": 30
 }

@@ -1,75 +1,42 @@
-# Extração documental com serviços corporativos
+# Extração documental — PyMuPDF + text_generator
 
 ## Objetivo
 
-Converter PDFs judiciais heterogêneos em sugestões estruturadas de parâmetros sem misturar a camada probabilística com o motor de cálculo.
+Transformar PDFs judiciais em parâmetros revisáveis sem utilizar OCR. A camada de leitura documental é local e determinística; somente os prompts são enviados ao serviço corporativo de geração de texto.
 
 ## Fluxo
 
-1. O usuário envia os PDFs ao FastAPI.
-2. `DocumentService` valida tipo, tamanho, nome, quantidade de páginas e criptografia.
-3. `BradescoBridgeClient` carrega o arquivo temporariamente no File Manager corporativo.
-4. O adaptador prioriza `ocr_hibrido`; também aceita `ocr`, `ocr_generator` e `get_text_ocr`, conforme a versão corporativa disponível.
-5. `configure_iagen`, listagem, exclusão e espera de workflow são recursos opcionais: são usados quando existem, mas não bloqueiam versões legadas do módulo.
-6. O backend normaliza texto e número de página.
-7. Cada prompt especializado recebe o subcontrato de campos e o conteúdo OCR.
-8. Qualquer prompt é executado exclusivamente por `text_generator`.
-9. O texto retornado precisa ser JSON válido e satisfazer `WireExtractionFragment`.
-10. O backend revalida tipos, evidências, cronologia e regras operacionais.
-11. Quando o upload contém um único processo, o frontend seleciona esse processo, acompanha a extração e aplica automaticamente os parâmetros consolidados; revisão humana continua obrigatória antes do cálculo.
+1. O upload valida e persiste o PDF no backend.
+2. `PyMuPDF` abre o arquivo a partir dos bytes já persistidos.
+3. Cada página é lida com `page.get_text("text", sort=True)`.
+4. O backend cria uma string com marcadores `DOCUMENTO` e `PAGINA`.
+5. Quando a string ultrapassa `BRADESCO_PROMPT_MAX_CHARS`, ela é particionada sem remover conteúdo.
+6. Cada prompt especializado é combinado com a string correspondente.
+7. Toda execução de prompt chama exclusivamente `gpt_bradesco.text_generator`.
+8. A resposta precisa ser JSON válido e aderente ao contrato Pydantic.
+9. As evidências são conferidas novamente contra o texto extraído da página.
+10. A interface recebe os parâmetros consolidados para revisão humana antes do cálculo.
 
-## OCR híbrido
+## PDFs sem camada de texto
 
-A configuração padrão segue o contrato informado para o ambiente corporativo:
+PyMuPDF não é OCR. PDFs formados apenas por imagens podem devolver páginas vazias. Nessa situação o backend adiciona um alerta explícito e não tenta preencher parâmetros com conteúdo inexistente. A decisão sobre um eventual fluxo separado de OCR precisa ser validada antes de ser incorporada novamente.
 
-```json
-{
-  "detailed_output": "true",
-  "async_mode": "true",
-  "workflow_configuration_code": "CD_WRFL_OCR_HYBRID_ASYNC",
-  "figure_settings": {
-    "vision_model": "gpt-4o",
-    "max_image_size": 0,
-    "image_format": "PNG"
-  },
-  "table_settings": {
-    "table_format": "MARKDOWN",
-    "language_model": "gpt-4o"
-  },
-  "document_settings": {"locale": "pt-BR"},
-  "warning_settings": {"enabled": "true"}
-}
-```
+## Payload para text_generator
 
-Modelos e workflow são parametrizados no backend e precisam corresponder aos deployments realmente habilitados.
+Cada chamada contém, em ordem:
 
-## Geração de texto
+- prompt especializado;
+- aviso de que o conteúdo documental é evidência e não instrução;
+- texto extraído do PDF com nome do documento e número da página;
+- schema JSON obrigatório;
+- instrução para devolver somente JSON.
 
-O backend usa `gpt_bradesco.text_generator(payload, parameters)` com chamada síncrona, sem streaming e saída `json_object`. Os parâmetros de modelo, esforço, verbosidade, temperatura e limite de saída são centralizados em `Settings`.
+A aplicação não envia o arquivo PDF ao `text_generator`; envia apenas a string textual necessária à tarefa.
 
-Nenhum outro componente da aplicação executa prompts diretamente.
+## Rastreabilidade
 
-## Divisão de payload
+Cada `FieldEvidence` continua contendo `documento`, `pagina` e `trecho`. Antes de consolidar um campo, o backend normaliza espaços e confirma que o trecho está presente na página correspondente do texto extraído pelo PyMuPDF.
 
-O texto OCR não é truncado silenciosamente. Quando o volume ultrapassa `BRADESCO_PROMPT_MAX_CHARS`, o backend agrupa páginas em partes menores. Uma página excepcionalmente grande é dividida por parágrafos, mantendo o cabeçalho de documento e página.
+## Privacidade e logs
 
-Ao combinar respostas de partes diferentes, referências como `parcelas.0.valor_singelo` são reindexadas para não colidir.
-
-## Evidência e validação
-
-Cada sugestão precisa informar:
-
-- campo;
-- valor;
-- documento;
-- página;
-- trecho literal;
-- escopo;
-- natureza;
-- efeito cronológico.
-
-O backend normaliza espaços e confere se o trecho existe no texto OCR da página. Se o serviço retornar texto sem separação de páginas, a aplicação gera alerta explícito e exige conferência visual.
-
-## Retenção remota
-
-O identificador remoto é mantido somente durante a execução quando o módulo o disponibiliza. Após o OCR, a aplicação tenta excluí-lo se `file_manager_delete` ou `file_manager_delete_file` estiver disponível. Ausência dessa função não impede a extração; a política de retenção do container deve ser validada com a equipe proprietária do serviço.
+Os logs técnicos registram etapa, modelo, duração e identificadores operacionais. PDF, texto extraído, prompt, resposta completa, credenciais e tokens não devem ser registrados. Qualquer uso com dados reais deve seguir os controles aprovados por Segurança, Jurídico/Compliance e DPO.

@@ -45,26 +45,13 @@ class Settings(Contract):
     bradesco_timeout_seconds: int = Field(default=600, ge=10, le=1800)
 
     # Geração de texto usada por TODOS os prompts do projeto.
-    bradesco_text_model: str = Field(default="gpt-5.1", min_length=1, max_length=100)
+    bradesco_text_model: str = Field(default="", max_length=100)
     bradesco_text_reasoning_effort: Literal["none", "low", "medium", "high"] = "medium"
     bradesco_text_verbosity: Literal["low", "medium", "high"] = "medium"
     bradesco_text_modalities: Literal["text"] = "text"
     bradesco_text_temperature: float = Field(default=1.0, ge=0, le=2)
     bradesco_text_max_tokens: int = Field(default=16384, ge=1024, le=65536)
     bradesco_prompt_max_chars: int = Field(default=55000, ge=10000, le=250000)
-
-    # OCR híbrido corporativo. O container precisa ser autorizado pela plataforma.
-    bradesco_ocr_container: str = Field(default="", max_length=200)
-    bradesco_ocr_create_container: bool = False
-    bradesco_ocr_workflow_configuration_code: str = Field(default="CD_WRFL_OCR_HYBRID_ASYNC", min_length=1, max_length=150)
-    bradesco_ocr_vision_model: str = Field(default="gpt-4o", min_length=1, max_length=100)
-    bradesco_ocr_language_model: str = Field(default="gpt-4o", min_length=1, max_length=100)
-    bradesco_ocr_max_image_size: int = Field(default=0, ge=0)
-    bradesco_ocr_image_format: Literal["PNG", "JPEG"] = "PNG"
-    bradesco_ocr_table_format: Literal["MARKDOWN", "HTML", "TEXT"] = "MARKDOWN"
-    bradesco_ocr_locale: str = Field(default="pt-BR", min_length=2, max_length=20)
-    bradesco_ocr_poll_interval_seconds: float = Field(default=5.0, gt=0, le=60)
-    bradesco_ocr_max_wait_seconds: int = Field(default=600, ge=30, le=3600)
 
     gateway_token: SecretStr = SecretStr("")
     index_timeout_seconds: int = Field(default=30, ge=1, le=60)
@@ -119,14 +106,6 @@ def load_settings() -> Settings:
         "BRADESCO_TEXT_TEMPERATURE": "bradesco_text_temperature",
         "BRADESCO_TEXT_MAX_TOKENS": "bradesco_text_max_tokens",
         "BRADESCO_PROMPT_MAX_CHARS": "bradesco_prompt_max_chars",
-        "BRADESCO_OCR_CONTAINER": "bradesco_ocr_container",
-        "BRADESCO_OCR_CREATE_CONTAINER": "bradesco_ocr_create_container",
-        "BRADESCO_OCR_WORKFLOW": "bradesco_ocr_workflow_configuration_code",
-        "BRADESCO_OCR_VISION_MODEL": "bradesco_ocr_vision_model",
-        "BRADESCO_OCR_LANGUAGE_MODEL": "bradesco_ocr_language_model",
-        "BRADESCO_OCR_LOCALE": "bradesco_ocr_locale",
-        "BRADESCO_OCR_POLL_INTERVAL_SECONDS": "bradesco_ocr_poll_interval_seconds",
-        "BRADESCO_OCR_MAX_WAIT_SECONDS": "bradesco_ocr_max_wait_seconds",
         "GATEWAY_TOKEN": "gateway_token",
     }
     # O ambiente tem precedência mesmo quando usa o nome alternativo da chave.

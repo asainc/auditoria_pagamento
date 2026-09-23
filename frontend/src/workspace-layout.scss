@@ -1,8 +1,59 @@
-/* A leitura ocupa toda a altura disponível; dados, parâmetros e logs compartilham a bandeja lateral. */
-.workspace{grid-template-columns:190px minmax(0,1fr)}
+/*
+ * Layout da conferência.
+ *
+ * Em desktop, inclusive quando o navegador está com zoom elevado, as três áreas
+ * permanecem lado a lado: processos | PDF | painel de trabalho. O zoom altera o
+ * número de CSS pixels disponíveis; por isso os breakpoints de desktop não devem
+ * transformar o painel direito em uma linha abaixo do PDF.
+ */
+.workspace{
+  grid-template-columns:clamp(170px,15vw,210px) minmax(0,1fr);
+  min-width:0;
+}
 .workspace.sidebar-collapsed{grid-template-columns:minmax(0,1fr)}
-.document-workspace{grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr);min-height:0}
-.document-panel,.work-tray{height:100%;min-height:0}
+
+.document-workspace{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) clamp(300px,34%,460px);
+  grid-template-areas:"pdf tray";
+  grid-template-rows:minmax(0,1fr);
+  gap:12px;
+  min-width:0;
+  min-height:0;
+  width:100%;
+  height:100%;
+  align-items:stretch;
+}
+
+/* O PDF ocupa sempre a região central e nunca empurra o painel direito para baixo. */
+.document-panel{
+  grid-area:pdf;
+  min-width:0;
+  min-height:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  position:relative;
+  justify-self:stretch;
+}
+.document-panel app-pdf-viewer{width:100%;height:100%;min-width:0;min-height:0}
+.pdf-surface{width:100%;min-width:0;min-height:0}
+.pdf-surface iframe{display:block;width:100%;height:100%;min-width:0;border:0}
+
+/* A bandeja de parcelas/evidências/parâmetros é a coluna direita estável. */
+.work-tray{
+  grid-area:tray;
+  min-width:0;
+  min-height:0;
+  width:100%;
+  height:100%;
+  position:sticky;
+  right:0;
+  top:0;
+  z-index:4;
+  align-self:stretch;
+}
+
 .viewer-heading{align-items:end;flex-wrap:wrap}
 .viewer-heading .field{flex:1;min-width:180px}
 .installment-header{flex-wrap:wrap;gap:10px}
@@ -13,24 +64,66 @@
 .evidence-row span,.evidence-row blockquote{overflow-wrap:anywhere}
 .operational-rule{background:var(--accent-soft);border-left:3px solid var(--accent);padding:14px;margin-bottom:12px}
 .operational-rule p{font-size:.85rem;margin-top:8px}
-@media(max-width:1279px){
-  /* Em telas menores, a página cresce em vez de comprimir o PDF e as tabelas. */
-  .application-shell{height:auto;min-height:100dvh}
-  .route-content>app-calculation-page{height:auto}
-  .workspace{grid-template-columns:190px minmax(0,1fr);align-items:start}
-  .document-workspace{display:flex;flex-direction:column;min-height:0}
-  .document-panel{height:78dvh;min-height:560px}
-  .work-tray{height:72dvh;min-height:520px}
-  .process-sidebar{max-height:calc(100dvh - 180px);position:sticky;top:12px}
+
+/*
+ * Desktop com zoom: viewport em CSS pixels pode ficar abaixo de 800px, mas um
+ * dispositivo com ponteiro fino continua usando o layout em colunas. Isso evita
+ * o efeito observado em que o painel direito aparece sob o visualizador.
+ */
+@media (max-width:1279px) and (pointer:fine){
+  .application-shell{height:100dvh;min-height:0}
+  .route-content{overflow:hidden}
+  .route-content>app-calculation-page{height:100%;min-height:0}
+  .workspace,.workspace.sidebar-collapsed{display:grid;align-items:stretch;min-height:0}
+  .workspace{grid-template-columns:clamp(150px,16vw,190px) minmax(0,1fr)}
+  .workspace.sidebar-collapsed{grid-template-columns:minmax(0,1fr)}
+  .document-workspace{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) clamp(280px,35%,400px);
+    grid-template-areas:"pdf tray";
+    grid-template-rows:minmax(0,1fr);
+    min-height:0;
+    height:100%;
+  }
+  .document-panel,.work-tray{height:100%;min-height:0}
+  .process-sidebar{max-height:none;position:relative;top:auto;min-height:0}
 }
-@media(max-width:800px){
+
+@media (max-width:800px) and (pointer:fine){
+  .route-content{overflow:hidden}
+  .workspace,.workspace.sidebar-collapsed{
+    display:grid;
+    flex-direction:initial;
+    padding:0 10px 10px;
+    gap:10px;
+    min-height:0;
+  }
+  .workspace{grid-template-columns:minmax(128px,165px) minmax(0,1fr)}
+  .workspace.sidebar-collapsed{grid-template-columns:minmax(0,1fr)}
+  .process-sidebar{position:relative;max-height:none;width:auto;min-height:0}
+  .document-workspace{
+    display:grid;
+    flex-direction:initial;
+    grid-template-columns:minmax(0,1fr) clamp(250px,38%,340px);
+    grid-template-areas:"pdf tray";
+    grid-template-rows:minmax(0,1fr);
+    gap:10px;
+    width:100%;
+    height:100%;
+  }
+  .document-panel,.work-tray{height:100%;min-height:0;min-width:0}
+}
+
+/* Em dispositivo realmente móvel, a leitura empilhada continua disponível. */
+@media (max-width:800px) and (pointer:coarse){
   .workspace,.workspace.sidebar-collapsed{display:flex;flex-direction:column}
   .process-sidebar{position:static;max-height:440px;width:100%}
-  .document-workspace{width:100%}
-  .document-panel{min-height:500px}
-  .work-tray{min-height:500px}
+  .document-workspace{display:flex;flex-direction:column;width:100%;height:auto}
+  .document-panel{min-height:500px;height:55dvh}
+  .work-tray{position:static;min-height:500px;height:60dvh}
 }
-/* Parâmetros e logs passam a ocupar a mesma bandeja dos demais dados; não há controles de ampliação. */
+
+/* Parâmetros e logs compartilham a mesma bandeja lateral; não há ampliação global. */
 .parameters-tab{display:flex;flex-direction:column;min-height:0;width:100%;overflow:auto}
 .tray-content>app-extraction-log{display:flex;flex-direction:column;min-height:0;width:100%;min-width:0}
 .log-list{display:flex;flex-direction:column}
