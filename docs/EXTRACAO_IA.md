@@ -47,3 +47,10 @@ Os logs técnicos registram etapa, modelo, duração e identificadores operacion
 A integração usa `message_format={"type": "json_object"}`, mas esse modo garante apenas um objeto JSON; ele não garante sozinho aderência completa ao contrato da calculadora. O backend valida cada resposta com Pydantic. Se houver apenas incompatibilidade estrutural ou de tipos, executa **uma única chamada adicional ao `text_generator`** para reformatar a resposta anterior, sem reler o caso e sem permitir inclusão de fatos novos. Se a segunda validação também falhar, nenhuma sugestão parcial é aplicada e a extração termina com erro explícito.
 
 O contrato de transporte aceita omissões que possuem defaults conservadores equivalentes aos contratos internos (por exemplo, `natureza=indeterminado`, `efeito=informa` e descrição vazia de parcela). Valores financeiros, datas calculáveis e evidências continuam sujeitos às validações rígidas do backend e à revisão humana.
+
+
+## Compatibilidade do `text_generator`
+
+A calculadora chama `gpt_bradesco.text_generator` com o conjunto mínimo de parâmetros compartilhado pelas versões corporativas conhecidas: `deployment_name`, `temperature`, `max_tokens`, `async_mode=false`, `stream=false` e `message_format={"type":"text"}`. O JSON de extração é exigido pelo prompt e validado pelo Pydantic no backend. Essa decisão evita depender de `response_format=json_object`, que pode não estar habilitado em todos os deployments corporativos.
+
+Quando uma implementação legada lança uma exceção textual com código HTTP (por exemplo, `Erro na execução: 400 - ...`), somente o código é aproveitado para diagnóstico; o corpo da resposta não é propagado para a interface nem para logs de negócio.

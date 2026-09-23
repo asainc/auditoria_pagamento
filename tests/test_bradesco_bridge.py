@@ -6,7 +6,7 @@ import sys
 import types
 
 from backend.config import Settings
-from backend.services.bradesco_bridge import BradescoBridgeClient
+from backend.services.bradesco_bridge import BradescoBridgeClient, BradescoBridgeError
 
 
 def _settings(**values) -> Settings:
@@ -21,7 +21,11 @@ def test_only_text_generator_is_required(monkeypatch):
     def text_generator(payload, parameters):
         calls.append((payload, parameters))
         assert parameters["deployment_name"] == "gpt-5.1"
-        assert parameters["message_format"] == {"type": "json_object"}
+        assert parameters["message_format"] == {"type": "text"}
+        assert set(parameters) == {
+            "deployment_name", "temperature", "max_tokens",
+            "async_mode", "stream", "message_format",
+        }
         return json.dumps({"campos": [], "parcelas": [], "alertas": []})
 
     module.text_generator = text_generator
@@ -55,3 +59,42 @@ def test_optional_configuration_is_used_when_available(monkeypatch):
     client = BradescoBridgeClient(_settings(bradesco_authorization_token="synthetic-token"))
     assert client.generate_text("Prompt sintético", max_tokens=1024) == "{}"
     assert calls == ["configure_iagen", "text_generator"]
+
+
+def test_legacy_text_generator_receives_only_common_parameters(monkeypatch):
+    """O bridge não envia parâmetros novos a uma implementação corporativa legada."""
+    module = types.ModuleType("gpt_bradesco")
+
+    def text_generator(payload, parameters):
+        allowed = {
+            "deployment_name", "temperature", "max_tokens",
+            "async_mode", "stream", "message_format",
+        }
+        assert set(parameters) == allowed
+        assert parameters["message_format"] == {"type": "text"}
+        return json.dumps({"campos": [], "parcelas": [], "alertas": []})
+
+    module.text_generator = text_generator
+    monkeypatch.setitem(sys.modules, "gpt_bradesco", module)
+    client = BradescoBridgeClient(_settings())
+    assert client.generate_text("Prompt", max_tokens=2048).startswith("{")
+
+
+def test_http_400_from_legacy_module_is_classified_without_response_body(monkeypatch):
+    """Erros legados em texto expõem somente o código HTTP ao diagnóstico público."""
+    module = types.ModuleType("gpt_bradesco")
+
+    def text_generator(payload, parameters):
+        raise Exception("Erro na execução: 400 - resposta interna que não deve aparecer")
+
+    module.text_generator = text_generator
+    monkeypatch.setitem(sys.modules, "gpt_bradesco", module)
+    client = BradescoBridgeClient(_settings())
+    try:
+        client.generate_text("Prompt", max_tokens=2048)
+    except BradescoBridgeError as exc:
+        assert exc.code == "bradesco_requisicao_rejeitada"
+        assert "HTTP 400" in exc.message
+        assert "resposta interna" not in exc.message
+    else:
+        raise AssertionError("Era esperado BradescoBridgeError")

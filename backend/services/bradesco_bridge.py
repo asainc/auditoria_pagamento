@@ -100,11 +100,39 @@ class BradescoBridgeClient:
             return value
         return None
 
+    @staticmethod
+    def _safe_status_code(exc: Exception) -> int | None:
+        """Recupera apenas o código HTTP sem propagar corpo de resposta ou documento.
+
+        Algumas versões legadas de ``gpt_bradesco.py`` levantam ``Exception`` comum
+        com texto no formato ``Erro na execução: 400 - ...`` em vez de anexar
+        ``status_code`` ao objeto. A calculadora extrai somente os três dígitos para
+        produzir diagnóstico acionável, descartando todo o restante da mensagem.
+        """
+        direct = getattr(exc, "status_code", None)
+        if isinstance(direct, int) and 100 <= direct <= 599:
+            return direct
+        match = re.search(
+            r"(?:erro\s+na\s+execu[cç][aã]o|http|status(?:\s+code)?)\s*[:=]?\s*(\d{3})\b",
+            str(exc),
+            re.IGNORECASE,
+        )
+        if match:
+            value = int(match.group(1))
+            return value if 100 <= value <= 599 else None
+        return None
+
     def _classify_error(self, exc: Exception, operation: str) -> BradescoBridgeError:
         """Traduz falhas externas sem ecoar prompt, documento ou credencial."""
-        status_code = getattr(exc, "status_code", None)
+        status_code = self._safe_status_code(exc)
         request_id = self._safe_request_id(getattr(exc, "request_id", None))
         suffix = f" Referência técnica: {request_id}." if request_id else ""
+        if status_code == 400:
+            return BradescoBridgeError(
+                "bradesco_requisicao_rejeitada",
+                "O serviço corporativo rejeitou os parâmetros da geração de texto (HTTP 400). "
+                "A calculadora usa o contrato mínimo compatível com gpt_bradesco.py; valide somente o deployment habilitado no ambiente." + suffix,
+            )
         if status_code == 401:
             return BradescoBridgeError(
                 "bradesco_credencial_invalida",
@@ -187,16 +215,17 @@ class BradescoBridgeClient:
         """
         module = self._load()
         function = getattr(module, "text_generator")
+        # Contrato mínimo comum às versões corporativas fornecidas pelo usuário.
+        # O formato estruturado é exigido no PROMPT e validado pelo backend; não
+        # dependemos de ``response_format=json_object``, que alguns gateways/modelos
+        # corporativos rejeitam mesmo quando conseguem produzir JSON em modo texto.
         parameters = {
             "deployment_name": self.settings.bradesco_text_model,
-            "reasoning_effort": self.settings.bradesco_text_reasoning_effort,
-            "verbosity": self.settings.bradesco_text_verbosity,
-            "modalities": self.settings.bradesco_text_modalities,
             "temperature": self.settings.bradesco_text_temperature,
             "max_tokens": min(max_tokens, self.settings.bradesco_text_max_tokens),
             "async_mode": False,
             "stream": False,
-            "message_format": {"type": "json_object"},
+            "message_format": {"type": "text"},
         }
         response = self._invoke_callable("geração de texto", function, [(payload, parameters)])
         if not isinstance(response, str) or not response.strip():
