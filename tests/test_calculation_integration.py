@@ -20,6 +20,7 @@ def test_manual_calculation_runs_without_process_context(client, payload):
     """
     payload["origem_calculo"] = "manual"
     payload["numero_processo"] = None
+    payload["identificador_calculo"] = "manual-001"
     response = client.post("/api/calculos", json=payload)
     assert response.status_code == 200, response.text
     body = response.json()
@@ -46,9 +47,11 @@ def test_manual_ui_flow_audits_parameter_before_calculation(client, payload):
     assert audit.status_code == 200, audit.text
     payload["origem_calculo"] = "manual"
     payload["numero_processo"] = None
+    payload["identificador_calculo"] = "manual-002"
     response = client.post("/api/calculos", json=payload)
     assert response.status_code == 200, response.text
     assert response.json()["origem_calculo"] == "manual"
+    assert response.json()["registro"]["versao"] == 1
 
 def test_angular_payload_runs_real_engine(client, payload):
     response = client.post("/api/calculos", json=payload)
@@ -70,7 +73,8 @@ def test_angular_payload_runs_real_engine(client, payload):
     {"compensacao_flag": True, "compensacao_tipo_calculo": "fixo", "compensacao_valor": "100"},
     {"compensacao_flag": True, "compensacao_tipo_calculo": "percentual", "compensacao_valor": "10"},
     {"prescricao_flag": True, "prescricao_anos": 5, "prescricao_data_referencia_tipo": "data_decisao", "prescricao_data_referencia": "2026-01-01"},
-    {"multa_percentual": "2", "honorarios": "10", "honorarios_tipo": "percentual", "art_523": "aplicar_multa_honorarios"},
+    {"multa_valor": "2", "multa_tipo": "percentual", "honorarios": "10", "honorarios_tipo": "percentual", "art_523": "aplicar_multa_honorarios"},
+    {"multa_valor": "100", "multa_tipo": "fixo"},
     {"duplo_indice_flag": True, "duplo_indice_primeiro_indice": "sem_correcao", "duplo_indice_primeiro_data_inicio": "2024-01-01", "duplo_indice_primeiro_data_fim": "2025-01-31", "duplo_indice_segundo_indice": "sem_correcao", "duplo_indice_segundo_data_inicio": "2025-02-01", "duplo_indice_segundo_data_fim": "2026-03-31"},
 ])
 def test_facade_matches_direct_engine_calculation(client, payload, changes):
@@ -117,10 +121,9 @@ def test_double_value_flag_does_not_double_moral_damage(client, payload):
     assert memory["linhas"][1][value_index] == "100.00"
 
 
-@pytest.mark.parametrize("audit", [False, True])
-def test_pdf_is_valid_and_matches_confirmed_total(client, payload, audit):
+def test_pdf_is_valid_and_matches_confirmed_total(client, payload):
     calculated = client.post("/api/calculos", json=payload).json()
-    response = client.post("/api/calculos/memoria-pdf", params={"auditavel": str(audit).lower(), "indices_sha256": calculated["metadata"]["indices_sha256"]}, json=payload)
+    response = client.post("/api/calculos/memoria-pdf", params={"indices_sha256": calculated["metadata"]["indices_sha256"]}, json=payload)
     assert response.status_code == 200
     assert response.content.startswith(b"%PDF-")
     reader = PdfReader(io.BytesIO(response.content))
@@ -164,7 +167,7 @@ def test_health_and_versioned_alias(client):
     assert client.get("/api/saude").status_code == 200
     response = client.get("/api/v1/saude")
     assert response.status_code == 200
-    assert response.headers["x-api-version"] == "1"
+    assert response.headers["x-api-version"] == "2.0.0"
 
 
 def test_input_hash_changes_when_calculation_input_changes(client, payload):
@@ -219,3 +222,22 @@ def test_installment_multiplier_overrides_global_double_flag(client, payload):
     multiplier_index = memory["colunas"].index("multiplicador_aplicado")
     assert [row[value_index] for row in memory["linhas"]] == ["100.00", "400.00", "100.00"]
     assert [row[multiplier_index] for row in memory["linhas"]] == [1, 2, 2]
+
+
+def test_fixed_penalty_is_applied_once_and_rate_preserves_exact_total(client, payload):
+    """Multa fixa não pode ser multiplicada pelo número de parcelas."""
+    payload["parametros"].update({"multa_valor": "100.00", "multa_tipo": "fixo"})
+    payload["parcelas"].append({
+        "data": "2025-01-01",
+        "valor_singelo": "500.00",
+        "descricao": "Segunda parcela sintética",
+        "verba_tipo": "dano_material",
+    })
+    response = client.post("/api/calculos", json=payload)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    summary = {row["campo"]: row["valor"] for row in body["resumo"]}
+    assert summary["total_multa"] == "100.00"
+    multa_index = body["memoria"]["colunas"].index("multa")
+    penalties = [Decimal(str(row[multa_index])) for row in body["memoria"]["linhas"]]
+    assert sum(penalties, Decimal("0.00")) == Decimal("100.00")

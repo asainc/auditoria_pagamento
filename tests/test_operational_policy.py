@@ -128,6 +128,7 @@ def test_request_defaults_depend_on_origin(payload):
     manual = dict(payload)
     manual["origem_calculo"] = "manual"
     manual["numero_processo"] = None
+    manual["identificador_calculo"] = "manual-defaults"
     manual["parametros"] = dict(payload["parametros"])
     manual["parametros"].pop("juros_moratorios_tipo", None)
     manual["parametros"].pop("juros_compensatorios_tipo", None)

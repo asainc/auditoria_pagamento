@@ -114,14 +114,22 @@ def _total_multa_resumo(memoria: pd.DataFrame, params: dict[str, Any]) -> Decima
     é calculada sobre a soma das bases das parcelas. Em conjuntos com várias
     parcelas isso pode diferir em 1 centavo da soma das multas já arredondadas.
     """
-    percentual = D(params.get("multa_percentual", "0"))
-    if percentual == 0:
+    raw = params.get("multa_valor")
+    if raw in (None, ""):
+        raw = params.get("multa_percentual", "0")
+    valor = D(raw or "0")
+    if valor == 0:
         return Decimal("0.00")
+
+    if str(params.get("multa_tipo") or "percentual").strip().lower() == "fixo":
+        # A memória já contém o rateio exato do valor único entre as parcelas
+        # elegíveis, portanto a soma é a fonte auditável do total fixo aplicado.
+        return moeda(memoria["multa"].sum())
 
     if "incide_multa_manual" in memoria.columns:
         mask = memoria["incide_multa_manual"].astype(bool)
         base_total = sum((D(v) for v in memoria.loc[mask, "base_multa_manual"]), Decimal("0"))
-        return moeda(base_total * percentual / Decimal("100"))
+        return moeda(base_total * valor / Decimal("100"))
 
     return moeda(memoria["multa"].sum())
 

@@ -14,6 +14,7 @@
 | `indice` | sem padrão | `tjsp_inpc_ipca15_lei_14905` |
 | `juros_compensatorios_tipo` | `sem_juros` | `taxa_legal_12_aa_6_aa` |
 | `juros_moratorios_tipo` | `sem_juros` | `taxa_legal_12_aa_6_aa` |
+| `multa_tipo` | `percentual` | `percentual` |
 | `valor_dobrado_flag` | `false` | `false` |
 
 Os padrões completam somente campos ausentes. Um valor explicitamente informado pelo operador ou consolidado a partir dos documentos não é sobrescrito. Para processo real, a `OperationalPolicy` registra o uso de padrão em `ajustes_operacionais`, mantendo separado o que veio de documento e o que veio de política.
@@ -61,7 +62,8 @@ Os padrões completam somente campos ausentes. Um valor explicitamente informado
 
 | Chave | Rótulo | Tipo visual | Obrigatório base | Opções/observações |
 | --- | --- | --- | --- | --- |
-| `multa_percentual` | Multa (%) | `text` | não | — |
+| `multa_valor` | Multa | `text` | não | Informe o percentual ou o valor monetário conforme o tipo selecionado. |
+| `multa_tipo` | Multa - tipo | `select` | não | percentual, fixo |
 | `incidir_multa_sobre_juros_compensatorios` | Incidir multa sobre juros compensatórios | `checkbox` | não | — |
 | `incidir_multa_sobre_juros_moratorios` | Incidir multa sobre juros moratórios | `checkbox` | não | — |
 | `incidir_multa_sobre_parcelas_a_vencer` | Incidir multa sobre parcelas a vencer | `checkbox` | não | — |

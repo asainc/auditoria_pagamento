@@ -32,6 +32,11 @@ class EvidenceValidator:
         valid: list[FieldEvidence] = []
         rejected = 0
         for evidence in result.campos:
+            # Compatibilidade com extrações/snapshots anteriores à introdução
+            # de multa percentual ou fixa. Internamente toda nova evidência usa
+            # ``multa_valor`` e ``multa_tipo``.
+            if evidence.campo == "parametros.multa_percentual":
+                evidence = evidence.model_copy(update={"campo": "parametros.multa_valor"})
             is_document_classification = evidence.campo.startswith("documentos.") and evidence.campo.endswith(".classificacao")
             if (
                 evidence.documento not in known

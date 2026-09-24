@@ -1,6 +1,7 @@
 /** Página compõe componentes coesos e concentra apenas a organização visual. */
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { WorkspaceStore } from '../core/workspace.store';
 import { missingFields } from '../core/calculation-mapper';
 import { DamageType } from './parameter-fields';
@@ -114,13 +115,23 @@ import { ExtractionLogComponent } from './extraction-log.component';
 })
 export class CalculationPageComponent {
   readonly store = inject(WorkspaceStore);
+  private readonly route = inject(ActivatedRoute);
   readonly collapsed = signal(false);
   readonly damageType = signal<DamageType>('dano_material');
   readonly tab = signal<'parcelas' | 'evidencias' | 'parametros' | 'logs' | 'resultado'>('parcelas');
   readonly missing = computed(() => missingFields(this.store.active()));
+  private loadedVersionKey = '';
 
   constructor() {
     void this.store.initialize();
+    this.route.queryParamMap.subscribe(params => {
+      const calculationId = params.get('calculo') ?? '';
+      const version = Number(params.get('versao') ?? '0');
+      const key = calculationId && Number.isInteger(version) && version > 0 ? `${calculationId}:${version}` : '';
+      if (!key || key === this.loadedVersionKey) return;
+      this.loadedVersionKey = key;
+      void this.store.loadCalculationVersion(calculationId, version);
+    });
     effect(() => {
       if (this.store.active().result) {
         this.tab.set('resultado');

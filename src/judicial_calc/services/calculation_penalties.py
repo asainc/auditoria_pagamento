@@ -87,6 +87,19 @@ def _base_multa_manual(
     return moeda(base)
 
 
+def _tipo_multa(params: dict[str, Any]) -> str:
+    """Normaliza o tipo da multa comum, preservando percentuais legados."""
+    return str(params.get("multa_tipo") or "percentual").strip().lower()
+
+
+def _valor_multa(params: dict[str, Any]) -> Decimal:
+    """Obtém o valor canônico da multa e aceita o campo percentual legado."""
+    raw = params.get("multa_valor")
+    if raw in (None, ""):
+        raw = params.get("multa_percentual", "0")
+    return D(raw or "0")
+
+
 def _calcular_multa_linha(
     *,
     data_parcela,
@@ -123,7 +136,13 @@ def _calcular_multa_linha(
     if not _multa_pode_incidir(data_parcela, cfg):
         return MultaLinha(base_manual=base_manual, manual=Decimal("0.00"), total=Decimal("0.00"))
 
-    multa_manual = moeda(base_manual * D(params.get("multa_percentual", "0")) / Decimal("100"))
+    # Multa fixa é um encargo único do cálculo. Ela é rateada depois que todas
+    # as parcelas foram calculadas, para preservar a soma exata e a memória
+    # linha a linha sem multiplicar o valor fixo pelo número de parcelas.
+    if _tipo_multa(params) == "fixo":
+        return MultaLinha(base_manual=base_manual, manual=Decimal("0.00"), total=Decimal("0.00"))
+
+    multa_manual = moeda(base_manual * _valor_multa(params) / Decimal("100"))
     return MultaLinha(base_manual=base_manual, manual=multa_manual, total=multa_manual)
 
 
@@ -152,6 +171,43 @@ def _rateio_monetario(total: Decimal, pesos: list[Decimal]) -> list[Decimal]:
                 break
     return valores
 
+
+
+def _aplicar_multa_fixa_na_memoria(memoria: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
+    """Rateia uma multa fixa uma única vez entre as parcelas elegíveis.
+
+    O rateio existe apenas para manter a memória auditável e fazer com que
+    subtotal, honorários e art. 523 usem a mesma composição linha a linha.
+    O total da multa permanece exatamente igual ao valor fixo informado.
+    """
+    if _tipo_multa(params) != "fixo":
+        return memoria
+
+    total_fixo = moeda(_valor_multa(params))
+    resultado = memoria.copy()
+    if total_fixo == 0 or resultado.empty:
+        return resultado
+
+    if "incide_multa_manual" in resultado.columns:
+        elegiveis = [bool(value) for value in resultado["incide_multa_manual"]]
+    else:
+        elegiveis = [True] * len(resultado)
+
+    pesos = [D(base) if elegivel else Decimal("0") for base, elegivel in zip(resultado["base_multa_manual"], elegiveis)]
+    rateio = _rateio_monetario(total_fixo, pesos)
+    # Se não houver nenhuma parcela elegível, a regra de incidência prevalece:
+    # a multa fixa não é aplicada.
+    if not any(peso != 0 for peso in pesos):
+        rateio = [Decimal("0.00") for _ in pesos]
+
+    multas_anteriores = [D(value) for value in resultado["multa"]]
+    resultado["multa_manual"] = rateio
+    resultado["multa"] = rateio
+    resultado["total"] = [
+        moeda(D(total) - anterior + nova)
+        for total, anterior, nova in zip(resultado["total"], multas_anteriores, rateio)
+    ]
+    return resultado
 
 def _total_art_523(cfg: CalculoParams, base_art_523: Decimal) -> tuple[Decimal, Decimal]:
     """Calcula multa e honorários legais do art. 523 sobre a base final.

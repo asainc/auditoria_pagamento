@@ -13,7 +13,8 @@
         "juros_moratorios_tipo": "sem_juros",
         "juros_compensatorios_tipo": "sem_juros",
         "art_523": "nao_aplicar",
-        "valor_dobrado_flag": false
+        "valor_dobrado_flag": false,
+        "multa_tipo": "percentual"
       }
     },
     "processo": {
@@ -22,7 +23,8 @@
         "juros_moratorios_tipo": "taxa_legal_12_aa_6_aa",
         "juros_compensatorios_tipo": "taxa_legal_12_aa_6_aa",
         "art_523": "nao_aplicar",
-        "valor_dobrado_flag": false
+        "valor_dobrado_flag": false,
+        "multa_tipo": "percentual"
       }
     }
   },
@@ -333,10 +335,31 @@
       "section": "Juros compensatórios"
     },
     {
-      "key": "multa_percentual",
-      "label": "Multa (%)",
+      "key": "multa_valor",
+      "label": "Multa",
       "type": "text",
-      "section": "Multa, honorários e art. 523"
+      "section": "Multa, honorários e art. 523",
+      "help": "Informe o percentual ou o valor monetário conforme o tipo selecionado."
+    },
+    {
+      "key": "multa_tipo",
+      "label": "Multa - tipo",
+      "type": "select",
+      "section": "Multa, honorários e art. 523",
+      "options": [
+        {
+          "value": "",
+          "label": "Selecione"
+        },
+        {
+          "value": "percentual",
+          "label": "Percentual"
+        },
+        {
+          "value": "fixo",
+          "label": "Valor fixo"
+        }
+      ]
     },
     {
       "key": "incidir_multa_sobre_juros_compensatorios",

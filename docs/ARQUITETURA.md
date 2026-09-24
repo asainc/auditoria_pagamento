@@ -17,7 +17,7 @@ A regra de projeto é: **LLM extrai e classifica; Python consolida e calcula; hu
 ┌──────────────────────── Angular 21.2.19 ────────────────────────┐
 │ App shell │ WorkspaceStore │ editores │ PDF │ logs │ resultado │
 └──────────────────────────────┬──────────────────────────────────┘
-                               │ /api
+                               │ /api/v2
 ┌──────────────────────────────▼──────────────────────────────────┐
 │ FastAPI                                                         │
 │ routers → contratos Pydantic → serviços                         │
@@ -79,9 +79,9 @@ O modo manual usa `calculationOrigin='manual'` e `numeroProcesso=''` apenas no e
 
 ## 5. FastAPI e contratos
 
-`backend/principal.py` cria a aplicação e registra rotas sob `/api`; `/api/v1` é um alias versionado sem duplicar handlers.
+`backend/principal.py` cria a aplicação e registra a API canônica sob `/api/v2`. Os prefixos `/api` e `/api/v1` permanecem somente como aliases transitórios e são ocultos do OpenAPI. `X-API-Version` e o health check expõem o contrato `2.0.0`.
 
-Contratos em `backend/models.py` usam `extra='forbid'`. Dinheiro/taxas são validados como `Decimal` internamente, enquanto a interface envia texto decimal para preservar precisão.
+Os contratos Pydantic foram divididos por domínio em `backend/contracts/`. `backend/models.py` permanece somente como fachada retrocompatível. Dinheiro/taxas são validados como `Decimal` internamente, enquanto a interface envia texto decimal para preservar precisão.
 
 Rotas são deliberadamente finas:
 
@@ -91,6 +91,20 @@ Rotas são deliberadamente finas:
 - `indices.py`: catálogo/status/atualização;
 - `batches.py`: importação e execução em lote;
 - `audit.py`: trilha de alteração humana dos parâmetros.
+
+## 5.1 Persistência por domínio
+
+A composição de persistência é explícita em `backend/container.py`. O código novo usa repositórios especializados:
+
+- `DocumentRepository`: documentos/processos;
+- `ExtractionRepository`: fila, status e resultados de extração;
+- `AuditRepository`: trilha de auditoria;
+- `CalculationRepository`: cadastro, versões, execuções e artefatos;
+- `IndexRepository`: estado operacional dos índices.
+
+`backend/repository.py` não contém SQL e existe apenas para compatibilidade com integrações anteriores. Conexão, transações, schema e migrações ficam em `backend/persistence/`.
+
+O agregado de cálculo é persistido como `Cálculo → Versão → Execução → Artefato`. Versões são estados funcionais imutáveis; execuções registram cada materialização técnica; PDFs são artefatos ligados à execução por SHA-256. Constraints/triggers do SQLite reforçam identidade, hashes válidos e imutabilidade.
 
 ## 6. Extração documental
 
@@ -141,6 +155,8 @@ As fronteiras acima isolam responsabilidades sem duplicar fórmulas financeiras.
 ## 9. Erros estruturados
 
 O motor usa `CalculationValidationError(code, fields, message)` para validações de combinação de parâmetros. `backend/services/engine_guidance.py` utiliza `fields` e o catálogo central para orientar o operador. Ele não faz regex em texto de exceção e não ecoa valores recebidos.
+
+Na fronteira HTTP, falhas esperadas usam `ServiceError` com `code`, `message`, `fields`, `retryable` e `request_id`. O frontend decide comportamento pelo código estável e usa a mensagem somente para apresentação; valores de entrada não são devolvidos no envelope de erro.
 
 ## 10. Interfaces públicas do pacote de cálculo
 

@@ -7,7 +7,7 @@ Esta entrega consolida as melhorias técnicas de prioridade média/alta, exceto 
 - `python -m pytest -q`: **121 testes aprovados**.
 - `python scripts/validate_architecture.py`: **aprovado**.
 - `npm test` no frontend: **28 aprovados, 4 ignorados por dependerem do lockfile/catálogo Nexus corporativo, 0 falhas**.
-- regressão específica do fluxo manual: gravação da auditoria de parâmetro seguida de `POST /api/calculos` com `origem_calculo=manual` e `numero_processo=null`: **HTTP 200**.
+- regressão específica do fluxo manual: gravação da auditoria de parâmetro seguida de `POST /api/v2/calculos` com `origem_calculo=manual` e `numero_processo=null`: **HTTP 200**.
 - migração SQLite: uma tabela `parameter_changes` legada é preservada como `parameter_changes_legacy_vN` e migrada para o contrato atual antes da criação dos índices.
 
 ## Limitações de validação

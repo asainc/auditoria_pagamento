@@ -11,7 +11,7 @@ from pathlib import Path
 import pandas as pd
 from filelock import FileLock
 
-from judicial_calc import calcular_debitos, salvar_resultado_pdf, salvar_resultado_pdf_auditavel
+from judicial_calc import calcular_debitos, salvar_resultado_pdf
 from judicial_calc.core.types import ResultadoCalculo
 from backend.config import ROOT, Settings
 from backend.models import CalculationRequest, DataTable, Scalar
@@ -64,12 +64,11 @@ class EngineFacade:
         installments = [dict(item=index, **row.model_dump(mode="json", exclude={"origem"})) for index, row in enumerate(payload.parcelas, 1)]
         return calcular_debitos(installments, **params)
 
-    def pdf(self, result: ResultadoCalculo, audit: bool = False) -> bytes:
-        """O arquivo é exportação de negócio; nenhum HTML é produzido no backend."""
+    def pdf(self, result: ResultadoCalculo) -> bytes:
+        """Gera a única memória de cálculo PDF distribuída pela aplicação."""
         with tempfile.TemporaryDirectory(prefix="judicial_export_") as directory:
             path = Path(directory) / "memoria.pdf"
-            exporter = salvar_resultado_pdf_auditavel if audit else salvar_resultado_pdf
-            exporter(result, path)
+            salvar_resultado_pdf(result, path)
             return path.read_bytes()
 
     def index_hash(self) -> str:

@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import FileResponse
 from backend.container import Services, services
 from backend.errors import ServiceError
-from backend.models import DamageType, DocumentMetadata, Installment, ProcessSummary, UploadResponse
+from backend.contracts.base import DamageType
+from backend.contracts.calculation import Installment
+from backend.contracts.document import DocumentMetadata, ProcessSummary
+from backend.contracts.extraction import UploadResponse
 
 router = APIRouter(prefix="/documentos", tags=["Documentos"])
 Dependency = Annotated[Services, Depends(services)]
@@ -21,13 +24,13 @@ async def upload(service: Dependency, files: list[UploadFile] = File(...)):
 @router.get("/processos", response_model=list[ProcessSummary])
 def processes(service: Dependency):
     """Lista processos armazenados sem selecionar automaticamente nenhum na UI."""
-    return service.repository.processes()
+    return service.document_repository.processes()
 
 
 @router.get("/processos/{numero_processo}", response_model=list[DocumentMetadata])
 def process_documents(numero_processo: str, service: Dependency):
     """A seleção filtra no backend e evita misturar documentos de processos."""
-    return service.repository.documents(numero_processo)
+    return service.document_repository.list_for_process(numero_processo)
 
 
 @router.get("/{identificador_documento}/arquivo")

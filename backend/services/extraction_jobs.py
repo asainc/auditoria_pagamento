@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable
 
-from backend.repository import Repository
+from backend.repositories.extraction_repository import ExtractionRepository
 
 logger = logging.getLogger("judicial")
 
@@ -25,7 +25,7 @@ class DurableExtractionWorkers:
 
     def __init__(
         self,
-        repository: Repository,
+        repository: ExtractionRepository,
         worker_count: int,
         handler: Callable[[ClaimedExtractionJob], None],
         *,
@@ -50,7 +50,7 @@ class DurableExtractionWorkers:
 
     def _loop(self) -> None:
         while not self.stop_event.is_set():
-            claimed = self.repository.claim_extraction_job(self.lease_seconds)
+            claimed = self.repository.claim_job(self.lease_seconds)
             if claimed is None:
                 self.stop_event.wait(self.poll_seconds)
                 continue
@@ -62,7 +62,7 @@ class DurableExtractionWorkers:
                     "extraction_worker_unhandled",
                     extra={"job_id": job.job_id, "error_type": type(exc).__name__},
                 )
-                self.repository.finish_extraction_job(job.job_id, success=False)
+                self.repository.finish_job(job.job_id, success=False)
 
     def wake(self) -> None:
         """Sinal sem estado; reduz latência após enqueue."""

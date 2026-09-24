@@ -7,8 +7,10 @@ from concurrent.futures import ThreadPoolExecutor
 from judicial_calc import atualizar_planilhas_drcalc_se_necessario
 from judicial_calc.data_sources.local_excel import local_index_coverage, local_index_specs, local_missing_index_specs
 from backend.config import ROOT, Settings
-from backend.models import IndexOption, IndexStatus
-from backend.repository import Repository, timestamp
+from backend.contracts.index import IndexOption, IndexStatus
+from backend.persistence.schema import timestamp
+from backend.repositories.audit_repository import AuditRepository
+from backend.repositories.index_repository import IndexRepository
 from backend.services.engine import EngineFacade, file_hashes
 
 logger = logging.getLogger("judicial")
@@ -67,10 +69,26 @@ def _public_update_failure(result) -> str:
 
 class IndexService:
     """Uma atualização por vez, estado verificável e backup fornecido pelo motor."""
-    def __init__(self, settings: Settings, repository: Repository, facade: EngineFacade):
-        """Recebe dependências explicitamente para manter configuração e testes isolados."""
+    def __init__(
+        self,
+        settings: Settings,
+        repository: IndexRepository | object,
+        audit_repository: AuditRepository | object,
+        facade: EngineFacade | None = None,
+    ):
+        """Recebe repositórios especializados e preserva a assinatura legada dos testes.
+
+        Quando a terceira posição contém a fachada antiga, os stores são obtidos da
+        fachada ``Repository`` sem criar uma segunda conexão persistente.
+        """
         self.settings = settings
-        self.repository = repository
+        if facade is None:
+            legacy_registry = repository
+            facade = audit_repository  # type: ignore[assignment]
+            repository = getattr(legacy_registry, "index_store")
+            audit_repository = getattr(legacy_registry, "audit_store")
+        self.repository = repository  # type: ignore[assignment]
+        self.audit_repository = audit_repository  # type: ignore[assignment]
         self.facade = facade
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="indices")
         previous = self.status()
@@ -182,33 +200,24 @@ class IndexService:
     def status(self) -> IndexStatus:
         """Checksum relata o arquivo real; não implica atualidade da série."""
         hashes = file_hashes(ROOT / "src/judicial_calc/data", "*.xlsx")
-        with self.repository.connection() as connection:
-            row = connection.execute("SELECT payload FROM index_state WHERE id=1").fetchone()
-        if not row:
+        status = self.repository.status()
+        if status is None:
             return IndexStatus(estado="nao_verificado", mensagem="Atualidade das séries ainda não verificada nesta instalação.", arquivos_sha256=hashes)
-        status = IndexStatus.model_validate_json(row["payload"])
         status.arquivos_sha256 = hashes
         return status
 
     def save(self, state: str, message: str) -> IndexStatus:
         """Persiste o estado de atualização para consultas e recuperação."""
         status = IndexStatus(estado=state, mensagem=message, atualizado_em=timestamp(), arquivos_sha256=file_hashes(ROOT / "src/judicial_calc/data", "*.xlsx"))
-        with self.repository.connection() as connection:
-            connection.execute("INSERT OR REPLACE INTO index_state VALUES(1,?)", (status.model_dump_json(),))
+        self.repository.save(status)
         return status
 
     def start(self) -> IndexStatus:
         """A trava do processo evita que dois cliques enfileirem atualizações iguais."""
-        with self.repository.connection() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            row = connection.execute("SELECT payload FROM index_state WHERE id=1").fetchone()
-            if row:
-                current = IndexStatus.model_validate_json(row["payload"])
-                if current.estado == "executando":
-                    return current
-            status = IndexStatus(estado="executando", mensagem="Verificando séries e preparando backup.", atualizado_em=timestamp(), arquivos_sha256={})
-            connection.execute("INSERT OR REPLACE INTO index_state VALUES(1,?)", (status.model_dump_json(),))
-        self.executor.submit(self.run)
+        requested = IndexStatus(estado="executando", mensagem="Verificando séries e preparando backup.", atualizado_em=timestamp(), arquivos_sha256={})
+        status = self.repository.start_if_idle(requested)
+        if status is requested:
+            self.executor.submit(self.run)
         return status
 
     def run(self) -> None:
@@ -240,7 +249,7 @@ class IndexService:
                     message = _public_update_failure(result)
 
                 self.save(state, message)
-                self.repository.audit(
+                self.audit_repository.append(
                     "indices_update",
                     {
                         "success": result.success,

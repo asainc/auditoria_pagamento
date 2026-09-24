@@ -28,27 +28,27 @@ def test_engine_source_matches_integrity_manifest():
 def test_minimum_http_endpoints_are_documented():
     specification = json.loads((ROOT / "docs/openapi.json").read_text())
     expected = {
-        "/api/saude": "get",
-        "/api/documentos/upload": "post",
-        "/api/documentos/processos": "get",
-        "/api/documentos/processos/{numero_processo}": "get",
-        "/api/documentos/{identificador_documento}/arquivo": "get",
-        "/api/extracoes": "post",
-        "/api/extracoes/{numero_processo}/status": "get",
-        "/api/extracoes/{numero_processo}/resultado": "get",
-        "/api/indices": "get",
-        "/api/indices/status": "get",
-        "/api/indices/atualizar": "post",
-        "/api/calculos": "post",
-        "/api/calculos/politica/{origem_calculo}": "get",
-        "/api/calculos/memoria-pdf": "post",
-        "/api/auditoria/parametros": "get",
-        "/api/lotes/importar": "post",
-        "/api/lotes/executar": "post",
+        "/api/v2/saude": "get",
+        "/api/v2/documentos/upload": "post",
+        "/api/v2/documentos/processos": "get",
+        "/api/v2/documentos/processos/{numero_processo}": "get",
+        "/api/v2/documentos/{identificador_documento}/arquivo": "get",
+        "/api/v2/extracoes": "post",
+        "/api/v2/extracoes/{numero_processo}/status": "get",
+        "/api/v2/extracoes/{numero_processo}/resultado": "get",
+        "/api/v2/indices": "get",
+        "/api/v2/indices/status": "get",
+        "/api/v2/indices/atualizar": "post",
+        "/api/v2/calculos": "post",
+        "/api/v2/calculos/politica/{origem_calculo}": "get",
+        "/api/v2/calculos/memoria-pdf": "post",
+        "/api/v2/auditoria/parametros": "get",
+        "/api/v2/lotes/importar": "post",
+        "/api/v2/lotes/executar": "post",
     }
     for path, method in expected.items():
         assert method in specification["paths"][path]
-    assert "post" in specification["paths"]["/api/auditoria/parametros"]
+    assert "post" in specification["paths"]["/api/v2/auditoria/parametros"]
 
 
 def test_python_dependency_versions_are_pinned():

@@ -1,6 +1,7 @@
 """Lotes reutilizam o mesmo serviço de cálculo e a confirmação humana."""
 from typing import Annotated
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Request, UploadFile
+from backend.access import technical_actor
 from backend.container import Services, services
 from backend.errors import ServiceError
 from backend.models import BatchImport, BatchRequest, BatchResponse
@@ -20,6 +21,6 @@ async def import_batch(service: Dependency, file: UploadFile = File(...)):
 
 
 @router.post("/executar", response_model=BatchResponse)
-def run(payload: BatchRequest, service: Dependency):
+def run(payload: BatchRequest, request: Request, service: Dependency):
     """Falhas são explícitas por processo; sucessos não são descartados."""
-    return service.batches.execute(payload)
+    return service.batches.execute(payload, actor=technical_actor(request))

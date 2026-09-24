@@ -43,7 +43,12 @@ from judicial_calc.services.calculation_parameters import CalculoParams, FaixaDu
 from judicial_calc.services.calculation_adjustments import (
     _aplicar_compensacao_na_memoria,
 )
-from judicial_calc.services.calculation_penalties import _aplicar_art_523_na_memoria, _calcular_multa_linha, _multa_pode_incidir
+from judicial_calc.services.calculation_penalties import (
+    _aplicar_art_523_na_memoria,
+    _aplicar_multa_fixa_na_memoria,
+    _calcular_multa_linha,
+    _multa_pode_incidir,
+)
 from judicial_calc.services.calculation_prescription import _aplicar_prescricao
 from judicial_calc.services.calculation_summary import (
     _calcular_honorarios_informados,
@@ -600,6 +605,9 @@ def calcular_debitos(parcelas: pd.DataFrame | list[dict[str, Any]], **params: An
 
     memoria = pd.DataFrame([_linha_memoria(row, cfg, params, tabelas) for row in df.to_dict("records")])
     memoria = memoria.sort_values("item").reset_index(drop=True)
+    # Multa fixa é um valor único do cálculo; o rateio só ocorre após a memória
+    # existir para não repetir o valor em cada parcela.
+    memoria = _aplicar_multa_fixa_na_memoria(memoria, params)
 
     # O art. 523 precisa ser calculado depois dos honorários informados,
     # porque o critério de referência aplica a multa/honorários legais sobre o subtotal já

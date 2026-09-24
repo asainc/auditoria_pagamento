@@ -9,8 +9,12 @@ from uuid import uuid4
 
 from backend.config import ROOT, Settings
 from backend.errors import ServiceError
-from backend.models import AiUsage, AiUsageSummary, DocumentMetadata, ExtractionResult, ExtractionStatus
-from backend.repository import Repository, timestamp
+from backend.contracts.extraction import AiUsage, AiUsageSummary, ExtractionResult, ExtractionStatus
+from backend.contracts.document import DocumentMetadata
+from backend.persistence.schema import timestamp
+from backend.repositories.audit_repository import AuditRepository
+from backend.repositories.document_repository import DocumentRepository
+from backend.repositories.extraction_repository import ExtractionRepository
 from backend.services.bradesco_bridge import BradescoBridgeClient
 from backend.services.chronology import ordered_documents
 from backend.services.documents import DocumentService
@@ -112,12 +116,16 @@ class ExtractionService:
     def __init__(
         self,
         settings: Settings,
-        repository: Repository,
+        extraction_repository: ExtractionRepository,
+        document_repository: DocumentRepository,
+        audit_repository: AuditRepository,
         documents: DocumentService,
         provider: ExtractionProvider,
     ):
         self.settings = settings
-        self.repository = repository
+        self.extraction_repository = extraction_repository
+        self.document_repository = document_repository
+        self.audit_repository = audit_repository
         self.documents = documents
         self.provider = provider
         self.policy = OperationalPolicy(settings.operational)
@@ -137,7 +145,7 @@ class ExtractionService:
         ]
         self.version = hashlib.sha256(b"".join(path.read_bytes() for path in versioned_files)).hexdigest()
         self.workers = DurableExtractionWorkers(
-            repository,
+            extraction_repository,
             settings.extraction_workers,
             self._handle_claimed_job,
             lease_seconds=settings.extraction_lease_seconds,
@@ -145,11 +153,11 @@ class ExtractionService:
 
     def start(self, process: str, new_upload: bool = False) -> ExtractionStatus:
         """Cria uma revisão e a persiste na fila; trabalhos ativos são compartilhados."""
-        documents = self.repository.documents(process)
+        documents = self.document_repository.list_for_process(process)
         if not documents:
             raise ServiceError("Envie documentos para este processo antes da extração.", 404)
         with self.lock:
-            current = self.repository.status(process)
+            current = self.extraction_repository.status(process)
             if current and current.estado in {"aguardando", "executando"} and not new_upload:
                 return current
             status = ExtractionStatus(
@@ -167,18 +175,18 @@ class ExtractionService:
                     "Configure BRADESCO_TEXT_MODEL e mantenha gpt_bradesco.py com text_generator funcional; "
                     "depois repita a extração. Os PDFs locais já foram preservados."
                 )
-                self.repository.start_job(status, max_attempts=self.settings.extraction_max_attempts)
-                self.repository.finish_extraction_job(status.identificador, success=False)
+                self.extraction_repository.start_job(status, max_attempts=self.settings.extraction_max_attempts)
+                self.extraction_repository.finish_job(status.identificador, success=False)
                 return status
-            self.repository.start_job(status, max_attempts=self.settings.extraction_max_attempts)
+            self.extraction_repository.start_job(status, max_attempts=self.settings.extraction_max_attempts)
         return status
 
     def _handle_claimed_job(self, claimed: ClaimedExtractionJob) -> None:
-        status = self.repository.status(claimed.process)
+        status = self.extraction_repository.status(claimed.process)
         if status is None or status.identificador != claimed.job_id:
-            self.repository.finish_extraction_job(claimed.job_id, success=False)
+            self.extraction_repository.finish_job(claimed.job_id, success=False)
             return
-        documents = self.repository.documents(claimed.process)
+        documents = self.document_repository.list_for_process(claimed.process)
         try:
             self._run_once(status, documents, claimed.attempt)
         except ExtractionProviderError as exc:
@@ -190,18 +198,18 @@ class ExtractionService:
                     f"Falha transitória na extração. Nova tentativa automática {claimed.attempt + 1} de {claimed.max_attempts} será realizada."
                 )
                 status.atualizado_em = timestamp()
-                self.repository.update_job(status)
-                self.repository.retry_extraction_job(
+                self.extraction_repository.update_job(status)
+                self.extraction_repository.retry_job(
                     claimed.job_id,
                     self.settings.extraction_retry_delay_seconds * claimed.attempt,
                 )
-                self.repository.audit(
+                self.audit_repository.append(
                     "extraction_retry_scheduled",
                     {"job": claimed.job_id, "attempt": claimed.attempt, "error_code": exc.code},
                 )
                 return
             self._persist_failure(status, exc.code, exc.message)
-            self.repository.finish_extraction_job(claimed.job_id, success=False)
+            self.extraction_repository.finish_job(claimed.job_id, success=False)
         except Exception as exc:
             logger.error(
                 "extraction_failed",
@@ -212,24 +220,24 @@ class ExtractionService:
                 "extracao_falhou",
                 "Extração não concluída. Os documentos foram preservados. Repita a extração e, se persistir, consulte o suporte.",
             )
-            self.repository.finish_extraction_job(claimed.job_id, success=False)
+            self.extraction_repository.finish_job(claimed.job_id, success=False)
         else:
-            self.repository.finish_extraction_job(claimed.job_id, success=True)
+            self.extraction_repository.finish_job(claimed.job_id, success=True)
 
     def _persist_failure(self, status: ExtractionStatus, code: str, message: str) -> None:
         status.estado = "falha"
         status.codigo_erro = code
         status.mensagem = message
         status.atualizado_em = timestamp()
-        self.repository.update_job(status)
-        self.repository.audit("extraction_failed", {"job": status.identificador, "error_code": code})
+        self.extraction_repository.update_job(status)
+        self.audit_repository.append("extraction_failed", {"job": status.identificador, "error_code": code})
 
     def _run_once(self, status: ExtractionStatus, documents: list[DocumentMetadata], attempt: int) -> None:
         status.estado = "executando"
         status.etapa = "Extraindo texto dos PDFs com PyMuPDF"
         status.mensagem = "Lendo e avaliando a qualidade da camada de texto dos documentos localmente, sem OCR."
         status.atualizado_em = timestamp()
-        self.repository.update_job(status)
+        self.extraction_repository.update_job(status)
 
         documents = ordered_documents(documents)
         files = [
@@ -244,7 +252,7 @@ class ExtractionService:
             "job": status.identificador, "attempt": attempt, "documents": len(pdf_documents),
             "pages": page_count, "usable_pages": usable_pages, "characters": usable_chars,
         }
-        self.repository.audit("extraction_pdf_text_ready", pdf_metrics)
+        self.audit_repository.append("extraction_pdf_text_ready", pdf_metrics)
         logger.info("extraction_pdf_text_ready", extra={"job_id":status.identificador,"attempt":attempt,"pages":page_count,"characters":usable_chars})
 
         context = self.context_builder.build(status.numero_processo, documents)
@@ -257,13 +265,13 @@ class ExtractionService:
         )
         usages: list[AiUsage] = []
         for path in self.prompts:
-            current = self.repository.status(status.numero_processo)
+            current = self.extraction_repository.status(status.numero_processo)
             if current is None or current.identificador != status.identificador:
                 return
             stage = path.stem
             status.etapa = path.read_text(encoding="utf-8").splitlines()[0].lstrip("# ")
             status.atualizado_em = timestamp()
-            self.repository.update_job(status)
+            self.extraction_repository.update_job(status)
             prompt = context.for_task(path)
             budget = int(
                 self.task_config.get(stage, {}).get(
@@ -280,7 +288,7 @@ class ExtractionService:
             fragment = provider_result.fragmento
             usages.extend(provider_result.usos)
             status.uso_ia = self._summarize_usage(usages)
-            self.repository.update_job(status)
+            self.extraction_repository.update_job(status)
             result.campos.extend(fragment.campos)
             result.parcelas.extend(fragment.parcelas)
             result.alertas.extend(fragment.alertas)
@@ -291,15 +299,15 @@ class ExtractionService:
                 "chunks": metrics.chunks, "repairs": metrics.reparos_estruturais,
                 "fields": len(fragment.campos), "installments": len(fragment.parcelas),
             }
-            self.repository.audit("extraction_prompt_completed", prompt_metrics)
+            self.audit_repository.append("extraction_prompt_completed", prompt_metrics)
             logger.info("extraction_prompt_completed", extra={"job_id":status.identificador,"stage":stage,"pages":metrics.paginas_contexto,"characters":metrics.caracteres_contexto})
 
         status.etapa = "Consolidando informações"
-        self.repository.update_job(status)
+        self.extraction_repository.update_job(status)
         result, accepted_evidence, rejected_evidence = self.validator.consolidate(result, documents, pdf_documents)
         result = self.policy.apply(result)
         result.uso_ia = self._summarize_usage(usages)
-        self.repository.audit("extraction_evidence_validated", {"job":status.identificador,"accepted":accepted_evidence,"rejected":rejected_evidence})
+        self.audit_repository.append("extraction_evidence_validated", {"job":status.identificador,"accepted":accepted_evidence,"rejected":rejected_evidence})
         logger.info("extraction_evidence_validated", extra={"job_id":status.identificador,"accepted":accepted_evidence,"rejected":rejected_evidence})
 
         for index, document in enumerate(documents):
@@ -310,15 +318,15 @@ class ExtractionService:
             if len(set(classifications)) == 1 and classifications[0] in {
                 "peticao_inicial", "sentenca", "acordao", "comprovante_pagamento", "extrato", "decisao", "outro",
             }:
-                self.repository.classify_document(document.identificador, str(classifications[0]))
+                self.document_repository.classify(document.identificador, str(classifications[0]))
 
         status.estado = "pronto"
         status.etapa = "Pronto para revisão"
         status.mensagem = "Confira os campos extraídos e suas fontes antes do cálculo."
         status.codigo_erro = None
         status.atualizado_em = timestamp()
-        self.repository.update_job(status, result)
-        self.repository.audit(
+        self.extraction_repository.update_job(status, result)
+        self.audit_repository.append(
             "extraction_completed",
             {
                 "job": status.identificador,

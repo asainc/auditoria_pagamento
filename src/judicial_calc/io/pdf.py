@@ -3,8 +3,8 @@
 O PDF gerado por este módulo prioriza leitura e conferência manual, com layout
 compacto semelhante aos demonstrativos usados em calculadoras judiciais como o
 DrCalc: cabeçalho resumido, tabela de parcelas, subtotais, honorários e total
-geral. A trilha auditável detalhada continua disponível nas estruturas do
-``ResultadoCalculo``, mas não é despejada em várias abas ou páginas por padrão.
+geral. A aplicação distribui uma única memória de cálculo em PDF; evidências e
+metadados permanecem disponíveis nas estruturas e telas próprias do sistema.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from judicial_calc.core.types import ResultadoCalculo
 
@@ -404,7 +404,9 @@ def _build_header_lines(resultado: ResultadoCalculo) -> list[str]:
     """Monta o cabeçalho textual do PDF."""
     resumo = _resumo_dict(resultado)
     parametros = dict(resultado.parametros or {})
-    multa = parametros.get("multa_percentual", "0")
+    multa = parametros.get("multa_valor", parametros.get("multa_percentual", "0"))
+    multa_tipo = str(parametros.get("multa_tipo", "percentual") or "percentual")
+    multa_text = f"{_format_percent(multa)}%" if multa_tipo == "percentual" else _format_currency_br(multa)
     honorarios = parametros.get("honorarios", "0")
     hon_tipo = str(parametros.get("honorarios_tipo", "percentual") or "percentual")
     hon_text = f"{_format_percent(honorarios)}%" if hon_tipo == "percentual" else _format_currency_br(honorarios)
@@ -412,7 +414,7 @@ def _build_header_lines(resultado: ResultadoCalculo) -> list[str]:
         f"Data de atualização dos valores: {_competencia_label(resumo, parametros)}",
         f"Indexador utilizado: {_indice_header(resumo, parametros)}",
         f"Juros moratórios - {_juros_header(parametros, 'juros_moratorios')}",
-        f"Acréscimo de {_format_percent(multa)}% referente a multa.",
+        f"Acréscimo de {multa_text} referente a multa.",
         f"Honorários advocatícios de {hon_text} - (não aplicável sobre a multa).",
     ]
 
@@ -424,118 +426,6 @@ def _draw_footer(canvas, doc) -> None:
     canvas.setFillColor(colors.HexColor("#666666"))
     canvas.drawRightString(doc.pagesize[0] - doc.rightMargin, 8 * mm, f"Página {doc.page}")
     canvas.restoreState()
-
-
-def _records_table(
-    title: str,
-    records: list[dict[str, Any]],
-    styles: dict[str, ParagraphStyle],
-    available_width: float,
-    *,
-    max_rows: int = 80,
-) -> list[Any]:
-    """Cria uma seção auditável em tabela simples."""
-    story: list[Any] = [Spacer(1, 7), Paragraph(title, styles["small_bold"])]
-    if not records:
-        story.append(Paragraph("Nenhum registro.", styles["small"]))
-        return story
-
-    # Escolhe colunas curtas e estáveis para caber no PDF.
-    preferred = [
-        "field_path", "field", "campo", "valor", "value", "source_file", "arquivo",
-        "page", "source_page", "severity", "message", "escopo", "confidence", "evidence", "trecho",
-    ]
-    columns = [col for col in preferred if any(col in row for row in records)]
-    if not columns:
-        columns = list(records[0].keys())[:6]
-    columns = columns[:7]
-
-    data: list[list[Any]] = [[_paragraph(col, styles["small_bold"]) for col in columns]]
-    for row in records[:max_rows]:
-        data.append([_paragraph(str(row.get(col, ""))[:500], styles["small"]) for col in columns])
-
-    col_width = available_width / max(1, len(columns))
-    table = Table(data, colWidths=[col_width] * len(columns), repeatRows=1, hAlign="LEFT")
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E6E6E6")),
-        ("GRID", (0, 0), (-1, -1), 0.15, colors.HexColor("#D0D0D0")),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("TOPPADDING", (0, 0), (-1, -1), 2),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-    ]))
-    story.append(table)
-    return story
-
-
-def _flatten_evidence_map(evidence_map: Any) -> list[dict[str, Any]]:
-    """Transforma evidence_map em linhas para PDF auditável."""
-    rows: list[dict[str, Any]] = []
-    if not isinstance(evidence_map, dict):
-        return rows
-    for field_path, evidences in evidence_map.items():
-        if isinstance(evidences, dict):
-            evidences = [evidences]
-        for evidence in evidences or []:
-            if isinstance(evidence, dict):
-                rows.append({"field_path": field_path, **evidence})
-            else:
-                rows.append({"field_path": field_path, "evidence": str(evidence)})
-    return rows
-
-
-def salvar_resultado_pdf_auditavel(resultado: ResultadoCalculo, caminho: str | Path) -> None:
-    """Salva PDF auditável com memória sintética + evidências e alertas.
-
-    Esta versão é mais longa que a planilha judicial: inclui metadados da versão
-    do cálculo, mapa de evidências, conflitos e jurisprudência ignorada.
-    Use para revisão interna/auditoria, não necessariamente para
-    anexar ao processo.
-    """
-    caminho = Path(caminho)
-    caminho.parent.mkdir(parents=True, exist_ok=True)
-
-    memoria = resultado.memoria.copy() if resultado.memoria is not None else pd.DataFrame()
-    if memoria.empty:
-        raise ValueError("Não há memória de cálculo para exportar em PDF.")
-
-    parametros = dict(resultado.parametros or {})
-    resumo = _resumo_dict(resultado)
-    page_size = landscape(A4)
-    left = right = 18 * mm
-    doc = SimpleDocTemplate(
-        str(caminho),
-        pagesize=page_size,
-        leftMargin=left,
-        rightMargin=right,
-        topMargin=13 * mm,
-        bottomMargin=14 * mm,
-        title="Memória de Cálculo Auditável",
-        author="judicial_calc",
-    )
-    styles = _build_styles()
-    available_width = page_size[0] - left - right
-    story: list[Any] = [Paragraph("MEMÓRIA DE CÁLCULO AUDITÁVEL", styles["title"])]
-    for line in _build_header_lines(resultado):
-        story.append(Paragraph(line, styles["header"]))
-    story.append(Spacer(1, 8))
-    story.append(_build_memory_table(memoria, parametros, styles, available_width))
-    story.append(Spacer(1, 5))
-    story.append(_build_summary_table(resumo, parametros, styles, available_width))
-
-    metadata = parametros.get("calculation_metadata") or parametros.get("_calculation_metadata") or {}
-    if isinstance(metadata, dict) and metadata:
-        story.extend(_records_table("METADADOS DA VERSÃO DO CÁLCULO", [metadata], styles, available_width, max_rows=4))
-
-    story.append(PageBreak())
-    story.append(Paragraph("TRILHA DE AUDITORIA", styles["title"]))
-
-    story.extend(_records_table("ALERTAS E VALIDAÇÕES", parametros.get("validation_issues") or [], styles, available_width))
-    story.extend(_records_table("MAPA DE EVIDÊNCIAS POR PARÂMETRO", _flatten_evidence_map(parametros.get("evidence_map")), styles, available_width))
-    story.extend(_records_table("DIVERGÊNCIAS ENTRE DOCUMENTOS", parametros.get("document_conflicts") or [], styles, available_width))
-    story.extend(_records_table("JURISPRUDÊNCIA IGNORADA", parametros.get("ignored_jurisprudence_audit") or [], styles, available_width))
-    story.extend(_records_table("DOCUMENTOS LIDOS", parametros.get("document_roles") or [], styles, available_width))
-
-    doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
 
 
 def salvar_resultado_pdf(resultado: ResultadoCalculo, caminho: str | Path) -> None:
@@ -593,4 +483,4 @@ def salvar_resultado_pdf(resultado: ResultadoCalculo, caminho: str | Path) -> No
     doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
 
 
-__all__ = ["salvar_resultado_pdf", "salvar_resultado_pdf_auditavel"]
+__all__ = ["salvar_resultado_pdf"]

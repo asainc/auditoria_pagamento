@@ -10,12 +10,12 @@ class BatchService:
         """Recebe dependências explicitamente para manter configuração e testes isolados."""
         self.calculation = calculation
 
-    def execute(self, payload: BatchRequest) -> BatchResponse:
+    def execute(self, payload: BatchRequest, *, actor: str = "system") -> BatchResponse:
         """Preserva os sucessos e informa explicitamente cada falha de domínio."""
         results = []
         for process in payload.processos:
             try:
-                results.append(BatchItem(numero_processo=process.numero_processo, resultado=self.calculation.execute(process)))
+                results.append(BatchItem(numero_processo=process.numero_processo, resultado=self.calculation.execute(process, actor=actor)))
             except ServiceError as exc:
                 results.append(BatchItem(numero_processo=process.numero_processo, erro=exc.message))
         return BatchResponse(resultados=results)

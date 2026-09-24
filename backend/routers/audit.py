@@ -1,33 +1,21 @@
 """Endpoints de auditoria da revisão humana de parâmetros."""
 from __future__ import annotations
 
-import hashlib
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
 
 from backend.container import Services, services
+from backend.access import technical_actor
 from backend.models import ParameterChangeInput, ParameterChangeRecord
 
 router = APIRouter(prefix="/auditoria", tags=["Auditoria"])
 Dependency = Annotated[Services, Depends(services)]
 
-
-def _technical_actor(request: Request) -> str:
-    """Deriva identificador técnico sem persistir identidade pessoal em claro."""
-    settings = request.app.state.settings
-    if settings.environment == "local":
-        return "local"
-    subject = request.headers.get("X-Authenticated-Subject", "")
-    if not subject:
-        return "gateway"
-    return "usr_" + hashlib.sha256(subject.encode("utf-8")).hexdigest()[:16]
-
-
 @router.post("/parametros", response_model=ParameterChangeRecord)
 def record_parameter_change(payload: ParameterChangeInput, request: Request, service: Dependency):
     """Registra uma alteração de parâmetro como evento imutável."""
-    return service.revision_audit.record(payload, _technical_actor(request))
+    return service.revision_audit.record(payload, technical_actor(request))
 
 
 @router.get("/parametros", response_model=list[ParameterChangeRecord])

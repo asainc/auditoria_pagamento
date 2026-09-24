@@ -40,7 +40,7 @@ def start(payload: ExtractionRequest, service: Dependency):
 @router.get("/{numero_processo}/status", response_model=ExtractionStatus)
 def status(numero_processo: str, service: Dependency):
     """Ausência de trabalho é 404; falha do provedor é estado explícito."""
-    result = service.repository.status(numero_processo)
+    result = service.extraction_repository.status(numero_processo)
     if result is None:
         raise ServiceError("Nenhuma extração registrada para o processo.", 404)
     return result
@@ -49,7 +49,7 @@ def status(numero_processo: str, service: Dependency):
 @router.get("/{numero_processo}/resultado", response_model=ExtractionResult)
 def result(numero_processo: str, service: Dependency):
     """Somente extração consolidada é devolvida para revisão humana."""
-    result = service.repository.result(numero_processo)
+    result = service.extraction_repository.result(numero_processo)
     if result is None:
         raise ServiceError("A extração ainda não possui resultado revisável.", 409)
     return result

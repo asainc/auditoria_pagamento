@@ -97,7 +97,7 @@ Valores já editados pelo humano não são substituídos. Parcelas previamente d
 
 Atualiza o formulário e invalida resultado/revisão anteriores. Em seguida enfileira evento com debounce de 650 ms. Eventos pendentes são enviados imediatamente antes de trocar de processo, confirmar revisão ou calcular. Se a persistência obrigatória falhar, a operação é bloqueada e o evento permanece pendente para nova tentativa.
 
-### `RevisionAuditApiService.record()` → `POST /api/auditoria/parametros`
+### `RevisionAuditApiService.record()` → `POST /api/v2/auditoria/parametros`
 
 ### `RevisionAuditService.record()`
 
@@ -113,7 +113,7 @@ Enriquece a alteração com a origem automática conhecida pelo servidor. A pref
 
 ### `WorkspaceStore.review(true)`
 
-Se a competência é automática, consulta `/api/calculos/padroes`. O rascunho só é marcado como revisado se não tiver mudado durante a requisição.
+Se a competência é automática, consulta `/api/v2/calculos/padroes`. O rascunho só é marcado como revisado se não tiver mudado durante a requisição.
 
 Qualquer edição posterior redefine `humanReviewed=false` e remove resultado confirmado.
 
@@ -243,3 +243,76 @@ O frontend exibe esses valores sem recalculá-los.
 ## 12. Falha do motor
 
 `CalculationValidationError` informa `code` e `fields`. `engine_error_guidance()` converte as chaves em rótulos do catálogo central e devolve orientação como “ajuste X e Y”. O texto original e valores recebidos não são analisados por regex nem ecoados.
+
+## 13. Cadastro, versionamento e execução técnica
+
+Após um cálculo concluído, `CalculationService.execute()` produz uma única memória de cálculo PDF a partir do resultado e chama `CalculationRepository.append_version()`. A persistência separa o estado funcional escolhido pelo usuário da execução técnica que produziu um resultado.
+
+```text
+processo/identificador normalizado
+    ↓
+calculation_records
+    ↓
+calculation_versions                  calculation_executions
+    ├── V1  ←──────────────────────── Execução A
+    │    └─────────────────────────── Execução B (mesmo estado funcional)
+    ├── V2  ←──────────────────────── Execução C
+    └── VN
+```
+
+O `business_hash` é calculado de forma canônica somente sobre:
+
+- parâmetros de cálculo;
+- parcelas;
+- `honorarios_sobre_danos_morais`.
+
+Se o hash já existir naquele cálculo, nenhuma nova versão é criada; é registrada apenas uma nova execução técnica ligada à versão correspondente. Mudanças de motor, política ou índices ficam, portanto, auditáveis na execução sem gerar uma versão de negócio artificial.
+
+Quando um novo estado funcional precisa ser persistido, `versao_base` funciona como trava otimista. O SQLite inicia `BEGIN IMMEDIATE` antes de decidir o número da versão. Se a versão atual já tiver avançado em relação à base editada pelo usuário, o backend retorna conflito e nenhuma versão parcial é criada.
+
+Cada versão guarda request/result da criação, PDFs históricos, hashes, `business_hash`, versão base e diff estruturado. Cada execução guarda request/result efetivamente executados, PDFs da execução, hashes técnicos, duração, ator e instante UTC.
+
+## 14. Normalização da identidade do processo
+
+`backend/calculation_identity.py` remove pontuação do número do processo para formar a chave de identidade. Quando há exatamente 20 dígitos, a máscara CNJ é reaplicada somente para exibição. Essa transformação evita cadastros duplicados por formatação e não deve ser interpretada como validação jurídica do número ou do dígito verificador.
+
+Documentos recém-enviados também usam a apresentação canônica. Consultas de documentos toleram a máscara histórica já persistida.
+
+## 15. Histórico paginado e lazy loading
+
+`GET /api/v2/calculos/historico` devolve apenas resumos dos cálculos, com paginação e filtros. As versões não fazem parte dessa resposta. Os principais filtros são busca, origem, estado, índice atual, criador, período de atualização e ordenação.
+
+Ao expandir um cálculo, o Angular chama `GET /api/v2/calculos/{calculo_id}/versoes`. A paginação das versões é independente. Ao solicitar detalhes técnicos de uma versão, `GET /api/v2/calculos/{calculo_id}/versoes/{versao}/execucoes` carrega as execuções sob demanda.
+
+Esse desenho mantém a resposta principal pequena mesmo com grande quantidade de versões e reexecuções.
+
+## 16. Comparador e diff completo
+
+`GET /api/v2/calculos/{calculo_id}/comparar` compara diretamente duas versões escolhidas. A resposta contém:
+
+- total da versão de origem;
+- total da versão de destino;
+- diferença aritmética dos totais já produzidos pelo motor;
+- valores anterior/novo dos parâmetros alterados;
+- parcelas adicionadas/removidas/alteradas;
+- snapshots anterior/novo e campos modificados de cada parcela.
+
+O comparador é somente leitura e não recalcula o motor.
+
+## 17. Estado do cálculo
+
+O cadastro pode estar `ativo`, `arquivado` ou `cancelado`. A alteração de estado é auditada e não remove dados. Cálculos arquivados/cancelados continuam consultáveis e seus PDFs permanecem disponíveis, mas novas execuções são recusadas até reativação.
+
+## 18. Reabertura segura
+
+A interface permite editar a versão atual de um cálculo ativo. Ao abrir:
+
+1. o Angular consulta o snapshot imutável da versão;
+2. materializa o request como rascunho editável;
+3. invalida a confirmação humana anterior;
+4. preserva `calculo_id` e `versao_base`;
+5. qualquer nova execução exige nova confirmação humana;
+6. se outro usuário criar uma versão antes da gravação, o backend retorna conflito;
+7. se os parâmetros/parcelas forem idênticos a um estado já registrado, a versão é reutilizada e apenas uma nova execução é criada.
+
+Os PDFs da versão e da execução são lidos do armazenamento persistido. Nenhum endpoint histórico chama `judicial_calc` para reconstruir o passado.

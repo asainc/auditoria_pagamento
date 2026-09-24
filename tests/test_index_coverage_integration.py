@@ -6,6 +6,7 @@ def test_ipca15_future_competence_returns_precise_message(client):
     payload = {
         "origem_calculo": "manual",
         "numero_processo": None,
+        "identificador_calculo": "manual-ipca15",
         "parcelas": [{"data": "2026-01-15", "valor_singelo": "100.00", "verba_tipo": "dano_material"}],
         "parametros": {
             "indice": "ipca_15_ibge",

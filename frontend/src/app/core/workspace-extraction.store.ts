@@ -59,7 +59,8 @@ export class WorkspaceExtractionStore {
       next: status => {
         if (this.state.selectedProcess() !== process) return;
         this.extractionStatus.set(status);
-        if (status.estado === 'pronto' && this.state.drafts()[process]?.appliedExtractionId !== status.identificador) {
+        const draft = this.state.drafts()[process];
+        if (status.estado === 'pronto' && !draft?.loadedFromHistory && draft?.appliedExtractionId !== status.identificador) {
           void this.load(process, status.identificador);
         }
       },

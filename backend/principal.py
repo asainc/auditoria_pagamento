@@ -17,6 +17,7 @@ from backend.config import Settings, load_settings
 from backend.container import Services
 from backend.errors import ServiceError
 from backend.models import Contract
+from backend.version import APP_VERSION, API_CONTRACT_VERSION, API_PREFIX, LEGACY_API_PREFIXES
 from backend.routers import audit, batches, calculations, documents, extractions, indices
 from backend.services.extraction import ExtractionProvider
 
@@ -24,7 +25,7 @@ from backend.services.extraction import ExtractionProvider
 class Health(Contract):
     """Identifica disponibilidade da API e sua versão de contrato."""
     status: str = "ok"
-    versao_api: str = "2.0.0"
+    versao_api: str = API_CONTRACT_VERSION
 
 
 class AuditFormatter(logging.Formatter):
@@ -51,7 +52,7 @@ def create_app(settings: Settings | None = None, provider: ExtractionProvider | 
         finally:
             app.state.services.close()
 
-    app = FastAPI(title="Calculadora de Débitos Judiciais", version="2.0.0", lifespan=lifespan)
+    app = FastAPI(title="Calculadora de Débitos Judiciais", version=APP_VERSION, lifespan=lifespan)
     app.state.settings = configuration
     logger = logging.getLogger("judicial")
     if not logger.handlers:
@@ -66,14 +67,15 @@ def create_app(settings: Settings | None = None, provider: ExtractionProvider | 
     async def audit_request(request: Request, call_next):
         """Não registra caminho, processo, payload, cabeçalhos ou dados pessoais."""
         identifier = uuid4().hex
+        request.state.request_id = identifier
         started = perf_counter()
         try:
             response = await call_next(request)
         except Exception as error:
             logger.error("request_failed", extra={"request_id": identifier, "error_type": type(error).__name__})
-            response = JSONResponse(status_code=500, content={"detail": "Falha interna. Informe o identificador da requisição ao suporte."})
+            response = JSONResponse(status_code=500, content={"code":"INTERNAL_ERROR","message":"Falha interna. Informe o identificador da requisição ao suporte.","fields":[],"retryable":False,"request_id":identifier})
         response.headers["X-Request-ID"] = identifier
-        response.headers["X-API-Version"] = "1"
+        response.headers["X-API-Version"] = API_CONTRACT_VERSION
         response.headers["Cache-Control"] = "no-store"
         logger.info("request_completed", extra={"request_id": identifier, "status_code": response.status_code, "duration_ms": round((perf_counter() - started) * 1000, 2)})
         return response
@@ -81,14 +83,14 @@ def create_app(settings: Settings | None = None, provider: ExtractionProvider | 
     @app.exception_handler(ServiceError)
     async def service_error(request: Request, error: ServiceError):
         """Devolve somente a mensagem de domínio previamente sanitizada."""
-        return JSONResponse(status_code=error.status_code, content={"detail": error.message})
+        return JSONResponse(status_code=error.status_code, content=error.payload(getattr(request.state, "request_id", None)))
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, error: RequestValidationError):
         # A resposta de validação expõe somente localização, mensagem e tipo do erro; o valor recebido não é devolvido.
         """Explica os campos inválidos sem ecoar os valores recebidos."""
-        details = [{"campo": ".".join(str(item) for item in problem["loc"]), "tipo": problem["type"], "mensagem": problem["msg"]} for problem in error.errors()]
-        return JSONResponse(status_code=422, content={"detail": "Revise os campos informados.", "campos": details})
+        details = [{"field": ".".join(str(item) for item in problem["loc"]), "type": problem["type"], "message": problem["msg"]} for problem in error.errors()]
+        return JSONResponse(status_code=422, content={"code":"VALIDATION_ERROR","message":"Revise os campos informados.","fields":details,"retryable":False,"request_id":getattr(request.state, "request_id", None),"detail":"Revise os campos informados.","campos":[{"campo":item["field"],"tipo":item["type"],"mensagem":item["message"]} for item in details]})
 
     api = APIRouter(dependencies=[Depends(require_access)])
 
@@ -99,8 +101,9 @@ def create_app(settings: Settings | None = None, provider: ExtractionProvider | 
 
     for router in (documents.router, extractions.router, calculations.router, indices.router, batches.router, audit.router):
         api.include_router(router)
-    app.include_router(api, prefix="/api")
-    app.include_router(api, prefix="/api/v1", include_in_schema=False)
+    app.include_router(api, prefix=API_PREFIX)
+    for legacy_prefix in LEGACY_API_PREFIXES:
+        app.include_router(api, prefix=legacy_prefix, include_in_schema=False)
     return app
 
 

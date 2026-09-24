@@ -39,8 +39,17 @@ def main() -> None:
     specification = aplicacao.openapi()
     (ROOT / "docs/openapi.json").write_text(json.dumps(specification, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     lines = ["/** Gerado de docs/openapi.json. Atualize por scripts/generate_contracts.py. */"]
-    for name, schema in sorted(specification["components"]["schemas"].items()):
+    schemas = specification["components"]["schemas"]
+    for name, schema in sorted(schemas.items()):
         lines.append(f"export type {name.replace('-', '_')} = {type_name(schema)};")
+    # Quando o mesmo modelo Pydantic é usado como entrada e saída, o OpenAPI pode
+    # gerar sufixos _Input/_Output. Mantemos o alias de entrada usado pelo Angular
+    # para evitar espalhar uma mudança puramente geracional pelo código da UI.
+    for name in sorted(schemas):
+        if name.endswith("-Input"):
+            base = name.removesuffix("-Input").replace("-", "_")
+            if base not in {item.replace("-", "_") for item in schemas}:
+                lines.append(f"export type {base} = {name.replace('-', '_')};")
     path = ROOT / "frontend/src/app/core/contracts.ts"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n\n".join(lines) + "\n", encoding="utf-8")

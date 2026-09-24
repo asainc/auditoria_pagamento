@@ -2,6 +2,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ConnectionApiService } from './connection-api.service';
+import { CalculationApiService } from './calculation-api.service';
 import { DocumentApiService } from './document-api.service';
 import { IndexApiService } from './index-api.service';
 import { Notifications } from './notifications';
@@ -9,7 +10,7 @@ import { WorkspaceStateStore, MANUAL_DRAFT_KEY } from './workspace-state.store';
 import { WorkspaceAuditStore } from './workspace-audit.store';
 import { WorkspaceExtractionStore } from './workspace-extraction.store';
 import { WorkspaceCalculationStore } from './workspace-calculation.store';
-import { blankDraft } from './calculation-mapper';
+import { blankDraft, draftFromCalculationVersion } from './calculation-mapper';
 import { ParameterKey } from '../calculation/parameter-fields';
 
 @Injectable({providedIn:'root'})
@@ -19,6 +20,7 @@ export class WorkspaceStore {
   private readonly extractions = inject(WorkspaceExtractionStore);
   private readonly calculations = inject(WorkspaceCalculationStore);
   private readonly documentsApi = inject(DocumentApiService);
+  private readonly calculationApi = inject(CalculationApiService);
   private readonly indexApi = inject(IndexApiService);
   readonly notices = inject(Notifications);
   readonly connection = inject(ConnectionApiService);
@@ -108,6 +110,59 @@ export class WorkspaceStore {
     } catch(error) { this.notices.error(error); }
   }
 
+  /** Carrega um snapshot histórico como base editável para uma nova versão do mesmo cálculo. */
+  async loadCalculationVersion(calculationId: string, version: number): Promise<void> {
+    if (!calculationId || !Number.isInteger(version) || version < 1) return;
+    try {
+      const detail = await firstValueFrom(this.calculationApi.version(calculationId, version));
+      this.extractions.stopPolling();
+      if (detail.origem_calculo === 'processo' && detail.numero_processo) {
+        await this.selectProcess(detail.numero_processo);
+        this.state.drafts.update(values => ({
+          ...values,
+          [detail.numero_processo as string]:draftFromCalculationVersion(detail),
+        }));
+        this.extractions.watch(detail.numero_processo);
+      } else {
+        await this.selectProcess('');
+        this.mockMode.set(true);
+        this.state.drafts.update(values => ({
+          ...values,
+          [MANUAL_DRAFT_KEY]:draftFromCalculationVersion(detail),
+        }));
+        void this.audits.load(this.state.drafts()[MANUAL_DRAFT_KEY]?.draftId ?? '');
+      }
+      this.notices.show(`Versão ${detail.versao} carregada. Altere parâmetros ou parcelas, revise os dados e calcule para criar uma nova versão do mesmo cálculo.`);
+    } catch(error) {
+      this.notices.error(error);
+    }
+  }
+
+  /** Trocar o identificador manual inicia outro cálculo e impede associação acidental ao anterior. */
+  setManualIdentifier(value: string): void {
+    const key = MANUAL_DRAFT_KEY;
+    this.state.ensureDraft(key, 'manual');
+    this.state.drafts.update(values => {
+      const previous = values[key] ?? blankDraft('', 'manual');
+      if (previous.identificadorCalculo === value) return values;
+      return {
+        ...values,
+        [key]:{
+          ...previous,
+          identificadorCalculo:value,
+          humanReviewed:false,
+          result:null,
+          confirmedRequest:null,
+          calculationId:'',
+          calculationVersion:null,
+          expectedCurrentVersion:null,
+          loadedFromHistory:false,
+          revision:previous.revision + 1,
+        },
+      };
+    });
+  }
+
   update(transform: Parameters<WorkspaceStateStore['update']>[0]): void { this.state.update(transform); }
 
   updateParameter(key: ParameterKey, value: string|number|boolean|null): void {
@@ -122,5 +177,5 @@ export class WorkspaceStore {
   refreshFees(): Promise<void> { return this.calculations.refreshFees(); }
   retryExtraction(): Promise<void> { return this.extractions.retry(); }
   calculate(): Promise<void> { return this.calculations.calculate(); }
-  downloadPdf(audit: boolean): Promise<void> { return this.calculations.downloadPdf(audit); }
+  downloadPdf(): Promise<void> { return this.calculations.downloadPdf(); }
 }

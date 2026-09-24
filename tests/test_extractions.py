@@ -114,7 +114,7 @@ def test_jurisprudence_wrong_source_and_fabricated_quote_are_rejected(client, pd
     from backend.models import DocumentMetadata
 
     documents = [DocumentMetadata.model_validate(row) for row in uploaded]
-    valid = {"campo": "parametros.multa_percentual", "valor": "2", "documento": "1001_1.pdf", "pagina": 1, "trecho": "Multa: 2%.", "escopo": "caso_concreto"}
+    valid = {"campo": "parametros.multa_valor", "valor": "2", "documento": "1001_1.pdf", "pagina": 1, "trecho": "Multa: 2%.", "escopo": "caso_concreto"}
     fields = [
         valid,
         {**valid, "escopo": "jurisprudencia_citada"},
@@ -158,7 +158,7 @@ def test_wire_contract_accepts_safe_omissions_from_text_generator():
         {
             "campos": [
                 {
-                    "campo": "parametros.multa_percentual",
+                    "campo": "parametros.multa_valor",
                     "valor": "2",
                     "documento": "1001_1.pdf",
                     "pagina": 1,

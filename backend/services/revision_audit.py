@@ -4,23 +4,25 @@ from __future__ import annotations
 import sqlite3
 
 from backend.errors import ServiceError
-from backend.models import ParameterChangeInput, ParameterChangeRecord
-from backend.repository import Repository
+from backend.contracts.audit import ParameterChangeInput, ParameterChangeRecord
+from backend.repositories.audit_repository import AuditRepository
+from backend.repositories.extraction_repository import ExtractionRepository
 
 
 class RevisionAuditService:
     """Registra eventos imutáveis sem depender do estado visual do Angular."""
 
-    def __init__(self, repository: Repository):
+    def __init__(self, repository: AuditRepository, extraction_repository: ExtractionRepository):
         """Recebe o repositório que persiste os eventos imutáveis de revisão."""
         self.repository = repository
+        self.extraction_repository = extraction_repository
 
     def record(self, change: ParameterChangeInput, actor: str) -> ParameterChangeRecord:
         """Enriquece o evento com o valor/origem extraídos que o servidor conhece."""
         extracted_value = None
         extracted_source = None
         if change.origem_calculo == "processo" and change.numero_processo:
-            result = self.repository.result(change.numero_processo)
+            result = self.extraction_repository.result(change.numero_processo)
             if result:
                 key = change.campo
                 path = f"parametros.{key}"

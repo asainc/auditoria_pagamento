@@ -7,7 +7,7 @@ const {connectionMessage} = require('../.test-build/core/api-errors.js');
 
 test('runtime e dev-server encaminham /api e suas subrotas ao FastAPI', () => {
   const read = name => JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', name), 'utf8'));
-  assert.equal(read('public/app-config.json').apiBaseUrl, '/api');
+  assert.equal(read('public/app-config.json').apiBaseUrl, '/api/v2');
   assert.equal(read('angular.json').projects['judicial-calculator'].architect.serve.options.proxyConfig, 'proxy.conf.json');
   assert.equal(read('proxy.conf.json')['/api/**'].target, 'http://127.0.0.1:8000');
 });

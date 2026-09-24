@@ -18,7 +18,7 @@ TASK_FIELDS: dict[str, tuple[str, ...]] = {
     "02_correcao": ("mes_atualizacao", "ano_atualizacao", "indice", "deflacionar_valor_nominal", "competencia_final_taxa_legal"),
     "03_moratorios": ("juros_moratorios_tipo", "juros_moratorios_taxa", "juros_moratorios_periodicidade", "juros_moratorios_pro_rata", "juros_moratorios_data_inicio", "juros_moratorios_sobre_compensatorios"),
     "04_compensatorios": ("juros_compensatorios_tipo", "juros_compensatorios_taxa", "juros_compensatorios_periodicidade", "juros_compensatorios_pro_rata", "juros_compensatorios_data_inicio"),
-    "05_encargos": ("multa_percentual", "honorarios", "honorarios_tipo", "art_523", "incidir_multa_sobre_juros_compensatorios", "incidir_multa_sobre_juros_moratorios", "incidir_multa_sobre_parcelas_a_vencer", "incidir_honorarios_sobre_multa"),
+    "05_encargos": ("multa_valor", "multa_tipo", "honorarios", "honorarios_tipo", "art_523", "incidir_multa_sobre_juros_compensatorios", "incidir_multa_sobre_juros_moratorios", "incidir_multa_sobre_parcelas_a_vencer", "incidir_honorarios_sobre_multa"),
     "06_prescricao": ("prescricao_flag", "prescricao_anos", "prescricao_data_referencia_tipo", "prescricao_data_referencia"),
     "07_compensacao": ("compensacao_flag", "compensacao_tipo_calculo", "compensacao_valor"),
     "08_duplo_indice": tuple(field for field in CalculationParameters.model_fields if field.startswith("duplo_indice_")),

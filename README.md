@@ -24,9 +24,58 @@ ChronologyReducer + OperationalPolicy
 revisão humana obrigatória
         ↓
 CalculationService → EngineFacade → judicial_calc
+        ↓
+cadastro do cálculo, versão de negócio e execução técnica
 ```
 
 A IA não executa fórmulas financeiras. Ela transforma conteúdo documental em sugestões estruturadas, sempre acompanhadas de evidência rastreável. O cálculo final só é liberado após revisão humana.
+
+
+## Contrato HTTP e erros públicos
+
+A rota canônica desta versão é `/api/v2`. Os prefixos `/api` e `/api/v1` existem apenas como aliases temporários de compatibilidade e não aparecem no OpenAPI. O health check retorna contrato `2.0.0`, e todas as respostas incluem `X-API-Version: 2.0.0`.
+
+Falhas esperadas usam um envelope estável para que o Angular não dependa do texto da mensagem:
+
+```json
+{
+  "code": "CALCULATION_VERSION_CONFLICT",
+  "message": "Mensagem segura para o usuário.",
+  "fields": [],
+  "retryable": false,
+  "request_id": "identificador-tecnico"
+}
+```
+
+O `request_id` é apropriado para suporte e correlação de logs; conteúdo dos PDFs, parâmetros sensíveis, tokens e cabeçalhos de autenticação não são incluídos no erro público.
+
+## Cadastro, versões e execuções dos cálculos
+
+Todo cálculo concluído é salvo automaticamente no histórico. Em cálculos documentais, o número do processo é normalizado para uma chave somente com dígitos; máscaras diferentes do mesmo processo apontam para o mesmo cadastro. Em cálculos manuais, a interface exige um identificador próprio antes da execução. A normalização é técnica e não substitui eventual validação jurídica do número CNJ.
+
+```text
+Processo / identificador manual
+            ↓
+          Cálculo
+            ├── V1 (estado de parâmetros + parcelas)
+            │     ├── Execução 1
+            │     └── Execução 2
+            ├── V2
+            │     └── Execução 3
+            └── VN
+```
+
+**Versão de negócio** e **execução técnica** são conceitos separados. Uma nova versão nasce somente quando parâmetros, parcelas ou `honorarios_sobre_danos_morais` mudam. Recalcular o mesmo estado não cria V2/V3: a versão existente é reutilizada e uma nova execução é registrada com seus próprios hashes, duração, resultado e Memória PDF.
+
+O backend usa hash canônico do estado versionável e uma transação `BEGIN IMMEDIATE`. `versao_base` identifica o snapshot que o usuário decidiu editar e pode apontar para qualquer versão histórica. Separadamente, `versao_atual_esperada` registra qual era a versão mais recente quando a edição foi aberta. Se outro usuário criar uma nova versão nesse intervalo, a gravação é rejeitada com conflito e deve ser recarregada antes de continuar. Assim é possível partir de V1 mesmo quando o cálculo está em V4 sem perder o controle otimista de concorrência.
+
+Cada versão preserva o request funcional e o diff contra a versão base. O resultado técnico fica em `calculation_executions`, e a memória de cálculo PDF fica em `calculation_artifacts`, ligada à execução por hash. Para reabrir uma versão, o backend resolve sua execução inicial e seu artefato sem recalcular o passado. Assim, reexecuções com índices ou motor diferentes permanecem rastreáveis sem criar uma versão funcional falsa.
+
+A tela **Histórico** usa paginação no backend e lazy loading das versões. Ela oferece busca e filtros por origem, estado, índice atual, usuário técnico e período, além de ordenação por processo/criação/atualização. Ao expandir um cálculo, as versões são buscadas sob demanda; as execuções de cada versão também são carregadas somente quando solicitadas. O Histórico expõe somente a **Memória PDF**; a opção de PDF auditável não faz parte da interface.
+
+O comparador permite selecionar duas versões do mesmo cálculo e mostra valores anteriores/novos dos parâmetros, diferenças por parcela e o impacto no total. O ciclo de vida do cálculo pode ser `ativo`, `arquivado` ou `cancelado`; arquivar/cancelar preserva integralmente o histórico e bloqueia novas execuções até reativação.
+
+Qualquer versão de um cálculo ativo pode ser aberta para edição pela interface. A confirmação humana anterior não é reaproveitada. Ao salvar uma mudança, a versão escolhida permanece como `versao_base`, enquanto `versao_atual_esperada` protege a operação contra alterações concorrentes ocorridas após a abertura da edição.
 
 ## Integração corporativa de IA
 
@@ -127,6 +176,18 @@ A aplicação registra apenas informações observáveis: número de chamadas, m
 
 ```text
 backend/
+  repository.py                 fachada retrocompatível, sem SQL
+  repositories/
+    calculation_repository.py   Cálculo → Versão → Execução → Artefato
+    document_repository.py      documentos e processos
+    extraction_repository.py    jobs/resultados de extração
+    audit_repository.py         trilha de auditoria
+    index_repository.py         estado da atualização de índices
+  persistence/
+    sqlite.py                   conexão/transações SQLite
+    schema.py                   schema, constraints e migrações
+  contracts/                    contratos separados por domínio
+  domain/calculation_parameters.py representação interna dos parâmetros
   services/bradesco_bridge.py   facade do módulo corporativo
   services/extraction.py        orquestrador da extração
   services/pdf_text_extractor.py leitura PyMuPDF + qualidade textual
@@ -141,6 +202,7 @@ config/
   calculation_policy.json       políticas operacionais
   extraction_tasks.json         limite de saída por tarefa
 frontend/                        Angular 21.2.19
+  src/app/history/               histórico e reabertura de versões
 prompts/                         prompts especializados
 src/judicial_calc/               motor financeiro determinístico
 gpt_bradesco.py                  cliente corporativo integrado
@@ -183,6 +245,7 @@ Os testes corporativos de integração usam dublês e não chamam rede real. A p
 - PDFs, texto extraído e prompts não são registrados nos logs técnicos;
 - os PDFs permanecem no armazenamento controlado do backend e não são enviados ao serviço de OCR;
 - evidências são revalidadas contra o texto extraído da página antes de chegar à revisão;
+- versões, execuções e artefatos são imutáveis e relacionam estado funcional, resultado técnico e memórias para rastreabilidade; o prazo de retenção deve ser definido institucionalmente;
 - qualquer interpretação jurídica, política de retenção ou uso de dados pessoais precisa de validação do Jurídico/Compliance e do DPO conforme o caso de uso.
 
 Consulte `docs/EXTRACAO_IA.md`, `docs/OPERACAO.md`, `docs/FLUXO_EXTRACAO_VISUAL.md`, `docs/MODEL_CARD.md` e `docs/VALIDACAO.md`.
@@ -222,7 +285,7 @@ continua dependente da estação/rede corporativa. O motor de cálculo não foi 
 
 A verificação de conexão do frontend agora aceita a versão `2.0.0` informada
 pelo backend deste pacote. Antes, exigia `1.0.0` e interrompia a inicialização
-antes de consultar `/api/indices`. O carregamento de índices também foi separado
+antes de consultar `/api/v2/indices`. O carregamento de índices também foi separado
 do resultado da busca de processos: uma falha nesta busca não descarta o catálogo.
 Quando não houver índices carregados, o painel informa a falha/carregamento e
 oferece **Tentar novamente**, mantendo o seletor indisponível até receber a lista.
@@ -237,7 +300,7 @@ As correções anteriores de conexão com text_generator estão incluídas.
 O seletor de índices não usa mais datas de cobertura escritas manualmente. O backend lê
 `src/judicial_calc/data/taxas_mensais.xlsx` e calcula, para cada coluna, a primeira e a
 última competência efetivamente preenchidas. O Angular recebe essas informações por
-`GET /api/indices` e mostra o intervalo observado no próprio arquivo instalado.
+`GET /api/v2/indices` e mostra o intervalo observado no próprio arquivo instalado.
 
 Para índices mensais de variação, como IPCA, INPC e IPCA-15, uma atualização no mês `M`
 usa a taxa até `M-1`. Portanto, se a última taxa disponível for `2026-04`, a maior
@@ -247,7 +310,7 @@ competência de atualização é a própria última competência existente na s�
 Quando mês e ano forem automáticos, o frontend consulta:
 
 ```text
-GET /api/calculos/padroes?indice=<chave_do_indice>
+GET /api/v2/calculos/padroes?indice=<chave_do_indice>
 ```
 
 e o backend limita a competência ao menor valor entre o mês corrente e o limite real da
@@ -269,3 +332,13 @@ conjunto anterior para evitar mistura de versões.
 ## Validação final desta entrega
 
 Consulte `docs/VALIDACAO_FINAL_2026-09-24.md` para os testes executados e os limites de validação.
+
+## Multa percentual ou fixa
+
+A multa comum aceita duas modalidades no mesmo bloco de parâmetros:
+
+- `Percentual`: aplica o valor informado sobre a base de incidência configurada;
+- `Valor fixo`: acrescenta o valor monetário uma única vez ao cálculo. O rateio técnico entre parcelas existe somente para manter a memória de cálculo consistente e preserva exatamente o total informado.
+
+O contrato novo usa `multa_valor` + `multa_tipo`. O backend aceita `multa_percentual` apenas como compatibilidade de entrada para cálculos/snapshots legados; novas telas e extrações usam os campos canônicos.
+

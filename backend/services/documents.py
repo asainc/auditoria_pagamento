@@ -11,18 +11,21 @@ from fastapi import UploadFile
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
+from backend.calculation_identity import display_process_number
 from backend.config import Settings
 from backend.errors import ServiceError
-from backend.models import DocumentMetadata
-from backend.repository import Repository
+from backend.contracts.document import DocumentMetadata
+from backend.repositories.audit_repository import AuditRepository
+from backend.repositories.document_repository import DocumentRepository
 
 
 class DocumentService:
     """Identifica o processo pelo nome exigido; conteúdo não altera a associação."""
-    def __init__(self, settings: Settings, repository: Repository):
+    def __init__(self, settings: Settings, repository: DocumentRepository, audit_repository: AuditRepository):
         """Recebe dependências explicitamente para manter configuração e testes isolados."""
         self.settings = settings
         self.repository = repository
+        self.audit_repository = audit_repository
         self.directory = settings.data_dir / "documents"
         self.directory.mkdir(parents=True, exist_ok=True)
 
@@ -52,12 +55,12 @@ class DocumentService:
                     raise ServiceError("PDF deve conter entre 1 e 2.000 páginas.")
             except (PdfReadError, ValueError, OSError) as exc:
                 raise ServiceError("PDF corrompido ou estrutura não suportada.") from exc
-            document = DocumentMetadata(identificador=uuid4().hex, numero_processo=match.group(1), nome=name, sha256=hashlib.sha256(content).hexdigest(), tamanho_bytes=len(content), paginas=pages, classificacao="a_classificar")
+            document = DocumentMetadata(identificador=uuid4().hex, numero_processo=display_process_number(match.group(1)), nome=name, sha256=hashlib.sha256(content).hexdigest(), tamanho_bytes=len(content), paginas=pages, classificacao="a_classificar")
             validated.append((document, content))
         documents: list[DocumentMetadata] = []
         names: dict[tuple[str, str], str] = {}
         for document, _ in validated:
-            for existing in self.repository.documents(document.numero_processo):
+            for existing in self.repository.list_for_process(document.numero_processo):
                 names[(existing.numero_processo, existing.nome)] = existing.sha256
         for document, _ in validated:
             key = (document.numero_processo, document.nome)
@@ -71,13 +74,13 @@ class DocumentService:
                 temporary = path.with_suffix("." + uuid4().hex + ".tmp")
                 temporary.write_bytes(content)
                 temporary.replace(path)
-            documents.append(self.repository.add_document(document))
-        self.repository.audit("upload_completed", {"files": len(documents), "bytes": sum(row.tamanho_bytes for row in documents)})
+            documents.append(self.repository.add(document))
+        self.audit_repository.append("upload_completed", {"files": len(documents), "bytes": sum(row.tamanho_bytes for row in documents)})
         return documents
 
     def path(self, identifier: str) -> tuple[Path, DocumentMetadata]:
         """Somente documento registrado pode ser obtido pelo identificador opaco."""
-        document = self.repository.document(identifier)
+        document = self.repository.get(identifier)
         if document is None:
             raise ServiceError("Documento não encontrado.", 404)
         path = self.directory / (document.sha256 + ".pdf")

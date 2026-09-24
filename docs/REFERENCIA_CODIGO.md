@@ -23,6 +23,26 @@ Publicação protegida por gateway autenticado; local usa apenas loopback.
 
 Cabeçalho é inserido pelo gateway, nunca enviado ao navegador como segredo.
 
+### `def technical_actor(request: Request) -> str`
+
+Deriva identificador técnico estável sem persistir a identidade pessoal em claro.
+
+## `backend/calculation_identity.py`
+
+Normalização determinística das identidades usadas no histórico de cálculos.
+
+### `def normalize_process_number(value: str) -> str`
+
+Retorna somente os dígitos para comparar processos sem depender de pontuação.
+
+### `def display_process_number(value: str) -> str`
+
+Aplica a máscara CNJ quando houver exatamente vinte dígitos.
+
+### `def normalize_manual_identifier(value: str) -> str`
+
+Normaliza o identificador manual para comparação sem alterar o rótulo exibido.
+
 ## `backend/calculation_policy.py`
 
 Catálogo e padrões centrais do cálculo.
@@ -86,206 +106,522 @@ Prioridade: ambiente > .env > JSON > padrões; segredos corporativos não são p
 
 ## `backend/container.py`
 
-Composição dos serviços por instância FastAPI, sem estado global de sessão.
+Composição explícita dos serviços e repositórios por domínio.
 
 ### `class Services`
 
-Proprietário das conexões curtas e executores da aplicação.
+Composition root: cada serviço recebe somente persistência do seu domínio.
 
-- `def __init__(self, settings: Settings, provider: ExtractionProvider | None=None)` — Cria os serviços da aplicação a partir de uma configuração validada e dependências opcionais.
-- `def close(self) -> None` — Finaliza os recursos pertencentes a esta instância.
+- `def __init__(self, settings: Settings, provider: ExtractionProvider | None=None)` — Sem descrição específica no código.
+- `def close(self) -> None` — Sem descrição específica no código.
 
 ### `def services(request: Request) -> Services`
 
-Injeção explicita facilita TestClient e evita dependências entre rotas.
+Sem descrição específica no código.
 
-## `backend/errors.py`
+## `backend/contracts/__init__.py`
 
-Falhas de domínio chegam às rotas sem expor arquivos ou dados internos.
+Exportações explícitas dos contratos por domínio.
 
-### `class ServiceError(Exception)`
+Este módulo não expõe classes ou funções de nível superior.
 
-Erro esperado, com mensagem operacional segura e código HTTP explícito.
+## `backend/contracts/audit.py`
 
-- `def __init__(self, message: str, status_code: int=422)` — Recebe dependências explicitamente para manter configuração e testes isolados.
-
-## `backend/models.py`
-
-Contratos oficiais: recusam campos desconhecidos e preservam decimais.
-
-### `class Contract(BaseModel)`
-
-Base fechada para impedir erros de digitação silenciosos nos contratos.
-
-
-### `class Installment(Contract)`
-
-Parcela informada/revisada com multiplicador explícito quando houver comando específico.
-
-
-### `class CalculationParameters(Contract)`
-
-Parâmetros normalizados que chegam ao motor de cálculo.
-
-- `def require_active_fields(self) -> CalculationParameters` — Valida completude; a decisão sobre aplicação de regras fica no motor.
-
-### `class CalculationDraft(Contract)`
-
-Entrada completa de um cálculo antes da confirmação humana definitiva.
-
-- `def apply_origin_defaults(cls, raw: object) -> object` — Aplica os padrões da origem antes de validar ``CalculationParameters``.
-- `def validate_origin_identity(self) -> 'CalculationDraft'` — Impede que o modo manual seja confundido com um processo documental.
-
-### `class CalculationRequest(CalculationDraft)`
-
-Execução e exportação exigem confirmação humana explícita.
-
-
-### `class DataTable(Contract)`
-
-Tabela de saída: colunas variam conforme recursos ativados no motor.
-
-
-### `class SummaryEntry(Contract)`
-
-Campo e valor tal como retornados pelo resumo do motor.
-
-
-### `class CalculationMetadata(Contract)`
-
-Identifica de forma reproduzível a entrada, política, motor e séries usadas.
-
-
-### `class CalculationResponse(Contract)`
-
-Saída oficial que o Angular apresenta sem recalcular valores.
-
-
-### `class DocumentMetadata(Contract)`
-
-Metadados públicos do arquivo, sem expor caminhos de servidor.
-
-
-### `class ProcessSummary(Contract)`
-
-Processo e contagem obtidos dos documentos persistidos.
-
-
-### `class AiUsage(Contract)`
-
-Telemetria técnica de uma chamada corporativa, sem conteúdo documental.
-
-
-### `class AiUsageSummary(Contract)`
-
-Resumo de chamadas; tokens/custo ficam nulos quando o serviço não os informa.
-
-
-### `class ExtractionRequest(Contract)`
-
-Identifica exclusivamente o processo cuja extração será iniciada.
-
-
-### `class ExtractionStatus(Contract)`
-
-Estado de negócio persistido para acompanhamento e recuperação.
-
-
-### `class ExtractionConfiguration(Contract)`
-
-Presença da configuração corporativa sem expor segredos ou testar credenciais.
-
-
-### `class UploadResponse(Contract)`
-
-Documentos recebidos e seus trabalhos de extração associados.
-
-
-### `class FieldEvidence(Contract)`
-
-Trecho rastreável enriquecido com papel processual e efeito cronológico.
-
-
-### `class OperationalAdjustment(Contract)`
-
-Regra configurada pelo operador; não é citação de documento.
-
-
-### `class CalculationDefaults(Contract)`
-
-Competência recomendada pelo backend, limitada pela série selecionada.
-
-
-### `class FeePreparation(Contract)`
-
-Recalcula somente a composição nominal autorizada, antes da revisão.
-
-
-### `class ChronologyDecision(Contract)`
-
-Resultado explicável da consolidação temporal de um parâmetro.
-
-
-### `class ExtractionResult(Contract)`
-
-Sugestões rastreáveis que ainda exigem conferência humana.
-
-
-### `class ParameterOption(Contract)`
-
-Opção de seleção exibida no frontend a partir do catálogo central.
-
-
-### `class ParameterCatalogItem(Contract)`
-
-Metadados oficiais de apresentação e uso de um parâmetro.
-
-
-### `class CalculationPolicyView(Contract)`
-
-Padrões e catálogo fornecidos pelo backend para uma origem de cálculo.
-
+Contratos da trilha de revisão humana.
 
 ### `class ParameterChangeInput(Contract)`
 
-Alteração de parâmetro enviada pela interface para trilha imutável de revisão.
+Sem descrição específica no código.
 
-- `def validate_change(self) -> 'ParameterChangeInput'` — Restringe eventos às chaves do catálogo e à identidade da origem.
+- `def validate_change(self) -> 'ParameterChangeInput'` — Sem descrição específica no código.
 
 ### `class ParameterChangeRecord(ParameterChangeInput)`
 
-Evento persistido com carimbo de tempo e origem documental resolvida no servidor.
+Sem descrição específica no código.
 
 
-### `class IndexOption(Contract)`
+## `backend/contracts/base.py`
 
-Chave registrada no motor e cobertura observada na planilha local.
+Tipos e contrato-base compartilhados entre os domínios da API.
+
+### `class Contract(BaseModel)`
+
+Base fechada para impedir campos desconhecidos e coerções silenciosas.
 
 
-### `class IndexStatus(Contract)`
+## `backend/contracts/batch.py`
 
-Estado observado da atualização e hashes dos arquivos existentes.
-
+Contratos de execução e importação em lote.
 
 ### `class BatchRequest(Contract)`
 
-Lote limitado de requisições integralmente validadas.
+Sem descrição específica no código.
 
 
 ### `class BatchItem(Contract)`
 
-Sucesso ou falha identificável por processo, sem descarte silencioso.
+Sem descrição específica no código.
 
 
 ### `class BatchResponse(Contract)`
 
-Resultados de cada processo do lote, incluindo falhas.
+Sem descrição específica no código.
 
 
 ### `class BatchImport(Contract)`
 
-Prévia que não representa execução ou confirmação de revisão.
+Sem descrição específica no código.
 
+
+## `backend/contracts/calculation.py`
+
+Fachada de compatibilidade para contratos do domínio de cálculo.
+
+Este módulo não expõe classes ou funções de nível superior.
+
+## `backend/contracts/calculation_history.py`
+
+Contratos de versionamento, execução, artefatos e histórico.
+
+### `class CalculationVersionRef(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationExecutionRef(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class VersionedCalculationResponse(CalculationResponse)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationFieldDiff(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class InstallmentDiff(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationDiff(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationExecutionSummary(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationExecutionsPage(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationVersionSummary(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationHistoryItem(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationHistoryPage(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationVersionsPage(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationVersionDetail(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationComparison(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationStateChange(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationStateResult(Contract)`
+
+Sem descrição específica no código.
+
+
+## `backend/contracts/calculation_input.py`
+
+Contratos de entrada de cálculo e preparação de parcelas.
+
+### `class Installment(Contract)`
+
+Parcela revisada e congelada dentro de uma versão.
+
+
+### `class CalculationDraft(Contract)`
+
+Entrada completa antes da confirmação humana definitiva.
+
+- `def apply_origin_defaults(cls, raw: object) -> object` — Normaliza identidade e aplica padrões oficiais antes da validação.
+- `def validate_origin_identity(self) -> 'CalculationDraft'` — Garante uma única identidade de negócio por origem.
+
+### `class CalculationRequest(CalculationDraft)`
+
+Sem descrição específica no código.
+
+
+### `class FeePreparation(Contract)`
+
+Sem descrição específica no código.
+
+
+## `backend/contracts/calculation_output.py`
+
+Contratos de saída do motor e recomendações operacionais.
+
+### `class DataTable(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class SummaryEntry(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationMetadata(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationResponse(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationDefaults(Contract)`
+
+Sem descrição específica no código.
+
+
+## `backend/contracts/calculation_parameters.py`
+
+Contratos dos parâmetros de cálculo, separados do transporte HTTP.
+
+### `class MonetaryUpdateParameters(Contract)`
+
+Atualização monetária e competência de cálculo.
+
+
+### `class CompensatoryInterestParameters(Contract)`
+
+Juros compensatórios.
+
+
+### `class MoratoryInterestParameters(Contract)`
+
+Juros moratórios.
+
+
+### `class PenaltyAndFeeParameters(Contract)`
+
+Multa, honorários e art. 523 com modalidade explicitamente tipada.
+
+
+### `class PrescriptionParameters(Contract)`
+
+Prescrição e referência temporal.
+
+
+### `class CompensationParameters(Contract)`
+
+Compensação percentual ou fixa.
+
+
+### `class DualIndexParameters(Contract)`
+
+Dois intervalos de correção monetária.
+
+
+### `class CalculationParameters(MonetaryUpdateParameters, CompensatoryInterestParameters, MoratoryInterestParameters, PenaltyAndFeeParameters, PrescriptionParameters, CompensationParameters, DualIndexParameters)`
+
+Contrato externo composto; o domínio interno usa uma representação aninhada.
+
+- `def require_active_fields(self) -> 'CalculationParameters'` — Valida apenas dependências estruturais dos grupos habilitados.
+
+## `backend/contracts/document.py`
+
+Contratos do domínio documental.
+
+### `class DocumentMetadata(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class ProcessSummary(Contract)`
+
+Sem descrição específica no código.
+
+
+## `backend/contracts/extraction.py`
+
+Contratos de extração, evidência e política de parâmetros.
+
+### `class AiUsage(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class AiUsageSummary(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class ExtractionRequest(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class ExtractionStatus(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class ExtractionConfiguration(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class UploadResponse(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class FieldEvidence(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class OperationalAdjustment(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class ChronologyDecision(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class ExtractionResult(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class ParameterOption(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class ParameterCatalogItem(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class CalculationPolicyView(Contract)`
+
+Sem descrição específica no código.
+
+
+## `backend/contracts/index.py`
+
+Contratos do catálogo e atualização de índices.
+
+### `class IndexOption(Contract)`
+
+Sem descrição específica no código.
+
+
+### `class IndexStatus(Contract)`
+
+Sem descrição específica no código.
+
+
+## `backend/domain/__init__.py`
+
+Modelos de domínio independentes dos contratos HTTP.
+
+Este módulo não expõe classes ou funções de nível superior.
+
+## `backend/domain/calculation_parameters.py`
+
+Modelo de domínio dos parâmetros jurídico-financeiros.
+
+### `class AmountRule`
+
+Valor percentual ou monetário com semântica explícita e mutuamente exclusiva.
+
+- `def build(cls, tipo: str | None, valor: Decimal | None) -> 'AmountRule | None'` — Converte o par legado tipo/valor sem misturar taxa e dinheiro no domínio.
+
+### `class MonetaryUpdateRule`
+
+Critério e competência de atualização monetária.
+
+
+### `class InterestRule`
+
+Regra de juros com todos os atributos que pertencem ao mesmo conceito.
+
+
+### `class PrescriptionRule`
+
+Configuração da prescrição; campos inativos permanecem nulos.
+
+
+### `class DualIndexSegment`
+
+Um intervalo fechado de uma regra de duplo índice.
+
+
+### `class DualIndexRule`
+
+Regra completa de dois índices com dois segmentos explícitos.
+
+
+### `class NormalizedCalculationParameters`
+
+Visão interna orientada ao domínio; não é serializada diretamente na API.
+
+
+### `def _decimal(value: object | None) -> Decimal | None`
+
+Normaliza numerais Pydantic para Decimal sem introduzir float.
+
+### `def normalize_parameters(parameters: CalculationParameters) -> NormalizedCalculationParameters`
+
+Converte o contrato plano em grupos coesos sem alterar a entrada do motor.
+
+## `backend/errors.py`
+
+Erros públicos estruturados, estáveis e sem conteúdo sensível.
+
+### `class ErrorField`
+
+Erro associado a um campo sem repetir o valor recebido.
+
+
+### `class ServiceError(Exception)`
+
+Falha esperada com código de máquina e mensagem segura para a interface.
+
+- `def __init__(self, message: str, status_code: int=422, *, code: str='DOMAIN_ERROR', fields: Iterable[ErrorField] | None=None, retryable: bool=False) -> None` — Sem descrição específica no código.
+- `def payload(self, request_id: str | None=None) -> dict[str, object]` — Serializa somente metadados públicos previamente controlados.
+
+## `backend/models.py`
+
+Compatibilidade de imports legados.
+
+Este módulo não expõe classes ou funções de nível superior.
+
+## `backend/persistence/__init__.py`
+
+Sem descrição específica no código.
+
+Este módulo não expõe classes ou funções de nível superior.
+
+## `backend/persistence/schema.py`
+
+Schema e migrações idempotentes do banco de negócio.
+
+### `def timestamp() -> str`
+
+UTC torna eventos comparáveis entre instalações.
+
+### `def _business_state(payload: dict) -> dict`
+
+Sem descrição específica no código.
+
+### `def business_hash(payload: dict) -> str`
+
+Hash canônico exclusivo do estado funcional do cálculo.
+
+### `def full_diff(previous: dict | None, current: dict) -> CalculationDiff`
+
+Diff completo entre parâmetros e parcelas de duas versões.
+
+### `def _changed_fields(diff: CalculationDiff) -> list[str]`
+
+Sem descrição específica no código.
+
+### `def _table_exists(connection: sqlite3.Connection, name: str) -> bool`
+
+Sem descrição específica no código.
+
+### `def _columns(connection: sqlite3.Connection, table: str) -> set[str]`
+
+Sem descrição específica no código.
+
+### `def _base_schema(connection: sqlite3.Connection) -> None`
+
+Sem descrição específica no código.
+
+### `def _parameter_changes_ddl(table: str='parameter_changes') -> str`
+
+Sem descrição específica no código.
+
+### `def _ensure_parameter_changes(connection: sqlite3.Connection) -> None`
+
+Sem descrição específica no código.
+
+### `def _ensure_calculation_records(connection: sqlite3.Connection) -> None`
+
+Sem descrição específica no código.
+
+### `def _create_normalized_calculation_tables(connection: sqlite3.Connection) -> None`
+
+Sem descrição específica no código.
+
+### `def _insert_artifact(connection: sqlite3.Connection, execution_id: str, kind: str, content: bytes, created_at: str) -> None`
+
+Sem descrição específica no código.
+
+### `def _normalize_calculation_storage(connection: sqlite3.Connection) -> None`
+
+Migra versões/execuções com BLOBs duplicados para execução + artefato.
+
+### `def _indexes(connection: sqlite3.Connection) -> None`
+
+Sem descrição específica no código.
+
+### `def migrate(database: SQLiteDatabase) -> None`
+
+Aplica migrações antes de os serviços iniciarem.
+
+## `backend/persistence/sqlite.py`
+
+Infraestrutura SQLite compartilhada pelos repositórios especializados.
+
+### `class SQLiteDatabase`
+
+Cria conexões curtas; nenhuma conexão é compartilhada entre threads.
+
+- `def __init__(self, data_dir: Path) -> None` — Sem descrição específica no código.
+- `def connect(self, *, isolation_level: str | None='DEFERRED', foreign_keys: bool=True) -> sqlite3.Connection` — Sem descrição específica no código.
+- `def connection(self) -> Iterator[sqlite3.Connection]` — Commit ou rollback integral da operação corrente.
+- `def immediate(self) -> Iterator[sqlite3.Connection]` — Serializa decisões concorrentes que dependem do estado mais recente.
 
 ## `backend/principal.py`
 
@@ -306,38 +642,145 @@ Logs estruturados contêm apenas metadados técnicos selecionados.
 
 Cria uma instância FastAPI com configuração e dependências explicitamente injetáveis.
 
+## `backend/repositories/__init__.py`
+
+Sem descrição específica no código.
+
+Este módulo não expõe classes ou funções de nível superior.
+
+## `backend/repositories/audit_repository.py`
+
+Persistência de auditoria técnica e revisão humana.
+
+### `class AuditRepository`
+
+Eventos imutáveis sem conteúdo documental bruto.
+
+- `def __init__(self, database: SQLiteDatabase) -> None` — Sem descrição específica no código.
+- `def append(self, event: str, payload: dict[str, str | int | float | bool]) -> None` — Sem descrição específica no código.
+- `def add_parameter_change(self, change: ParameterChangeInput, *, actor: str, extracted_value: object=None, extracted_source: str | None=None) -> ParameterChangeRecord` — Sem descrição específica no código.
+- `def parameter_changes(self, *, process: str | None=None, draft: str | None=None) -> list[ParameterChangeRecord]` — Sem descrição específica no código.
+
+## `backend/repositories/calculation_repository.py`
+
+Persistência do agregado Cálculo → Versão → Execução → Artefato.
+
+### `def _changed_fields(diff: CalculationDiff) -> list[str]`
+
+Sem descrição específica no código.
+
+### `def _record_identity(origin: str, identifier: str, process: str | None) -> tuple[str, str, str]`
+
+Sem descrição específica no código.
+
+### `def _total_difference(before: str | None, after: str | None) -> str | None`
+
+Sem descrição específica no código.
+
+### `def _artifact_hash(content: bytes) -> str`
+
+Sem descrição específica no código.
+
+### `class CalculationRepository`
+
+Repositório transacional do ciclo de vida de cálculos versionados.
+
+- `def __init__(self, database: SQLiteDatabase) -> None` — Sem descrição específica no código.
+- `def append_version(self, *, request: CalculationRequest, response: CalculationResponse, pdf: bytes, actor: str, calculation_id: str | None=None, base_version: int | None=None, expected_current_version: int | None=None) -> tuple[CalculationVersionRef, CalculationExecutionRef]` — Cria versão somente para novo estado funcional e sempre registra execução.
+- `def history(self, *, page: int=1, page_size: int=20, search: str | None=None, origin: str | None=None, state: CalculationState | None=None, index_name: str | None=None, created_by: str | None=None, updated_from: date | None=None, updated_to: date | None=None, sort: str='processo') -> CalculationHistoryPage` — Sem descrição específica no código.
+- `def versions(self, calculation_id: str, *, page: int=1, page_size: int=50) -> CalculationVersionsPage | None` — Sem descrição específica no código.
+- `def version(self, calculation_id: str, version: int) -> CalculationVersionDetail | None` — Sem descrição específica no código.
+- `def compare(self, calculation_id: str, version_from: int, version_to: int) -> CalculationComparison | None` — Sem descrição específica no código.
+- `def change_state(self, calculation_id: str, state: CalculationState, *, actor: str) -> CalculationStateResult | None` — Sem descrição específica no código.
+- `def executions(self, calculation_id: str, version: int, *, page: int=1, page_size: int=20) -> CalculationExecutionsPage | None` — Sem descrição específica no código.
+- `def version_pdf(self, calculation_id: str, version: int, *, audit: bool) -> bytes | None` — Lê artefato congelado; ``audit`` existe apenas para históricos legados.
+- `def execution_pdf(self, calculation_id: str, execution_id: str, *, audit: bool) -> bytes | None` — Lê a memória da execução; ``audit`` mantém somente compatibilidade legada.
+
+## `backend/repositories/document_repository.py`
+
+Persistência exclusiva de documentos e processos.
+
+### `def _process_sort_key(value: str) -> tuple[int, str, str]`
+
+Sem descrição específica no código.
+
+### `class DocumentRepository`
+
+CRUD documental sem conhecer extração, cálculo ou auditoria.
+
+- `def __init__(self, database: SQLiteDatabase) -> None` — Sem descrição específica no código.
+- `def add(self, document: DocumentMetadata) -> DocumentMetadata` — Sem descrição específica no código.
+- `def list_for_process(self, process: str) -> list[DocumentMetadata]` — Sem descrição específica no código.
+- `def get(self, identifier: str) -> DocumentMetadata | None` — Sem descrição específica no código.
+- `def classify(self, identifier: str, classification: str) -> None` — Sem descrição específica no código.
+- `def processes(self) -> list[ProcessSummary]` — Sem descrição específica no código.
+
+## `backend/repositories/extraction_repository.py`
+
+Persistência exclusiva do fluxo e fila de extração.
+
+### `class ExtractionRepository`
+
+Estado da extração e lease da fila durável.
+
+- `def __init__(self, database: SQLiteDatabase, documents: DocumentRepository) -> None` — Sem descrição específica no código.
+- `def start_job(self, status: ExtractionStatus, *, max_attempts: int=3) -> None` — Sem descrição específica no código.
+- `def claim_job(self, lease_seconds: int) -> tuple[str, str, int, int] | None` — Sem descrição específica no código.
+- `def retry_job(self, job: str, delay_seconds: float) -> None` — Sem descrição específica no código.
+- `def finish_job(self, job: str, *, success: bool) -> None` — Sem descrição específica no código.
+- `def update_job(self, status: ExtractionStatus, result: ExtractionResult | None=None) -> None` — Sem descrição específica no código.
+- `def status(self, process: str) -> ExtractionStatus | None` — Sem descrição específica no código.
+- `def result(self, process: str) -> ExtractionResult | None` — Sem descrição específica no código.
+- `def recover_jobs(self) -> None` — Sem descrição específica no código.
+
+## `backend/repositories/index_repository.py`
+
+Persistência mínima do estado do atualizador de índices.
+
+### `class IndexRepository`
+
+Sem descrição específica no código.
+
+- `def __init__(self, database: SQLiteDatabase) -> None` — Sem descrição específica no código.
+- `def status(self) -> IndexStatus | None` — Sem descrição específica no código.
+- `def save(self, status: IndexStatus) -> None` — Sem descrição específica no código.
+- `def start_if_idle(self, status: IndexStatus) -> IndexStatus` — Sem descrição específica no código.
+
 ## `backend/repository.py`
 
-Persistência transacional do estado de negócio; nenhum estado visual é salvo.
-
-### `def timestamp() -> str`
-
-Horário UTC torna eventos comparáveis em instalações distintas.
+Fachada de compatibilidade sobre repositórios especializados.
 
 ### `class Repository`
 
-SQLite com conexão curta por operação e compare-and-set para trabalhos.
+Composição retrocompatível; não contém SQL nem regra de persistência.
 
-- `def __init__(self, data_dir: Path)` — Recebe dependências explicitamente para manter configuração e testes isolados.
-- `def _parameter_changes_ddl(table: str='parameter_changes') -> str` — Retorna o DDL canônico da trilha de revisão humana.
-- `def _ensure_parameter_changes_schema(self, connection: sqlite3.Connection) -> None` — Migra versões antigas da tabela sem descartar o histórico original.
-- `def connection(self) -> Iterator[sqlite3.Connection]` — Commit ou rollback integral, sem conexões compartilhadas entre threads.
-- `def add_document(self, document: DocumentMetadata) -> DocumentMetadata` — A unicidade por processo e hash torna o reenvio idempotente.
-- `def documents(self, process: str) -> list[DocumentMetadata]` — Consulta documentos pelo processo com parâmetros SQL vinculados.
-- `def document(self, identifier: str) -> DocumentMetadata | None` — Resolve identificador opaco sem aceitar caminhos do usuário.
-- `def classify_document(self, identifier: str, classification: str) -> None` — Somente a classificação muda; hash e associação ao processo permanecem fixos.
-- `def processes(self) -> list[ProcessSummary]` — Deriva a lista de processos do estado documental persistido.
-- `def start_job(self, status: ExtractionStatus, *, max_attempts: int=3) -> None` — Registra a revisão vigente e enfileira trabalho durável de forma idempotente.
-- `def claim_extraction_job(self, lease_seconds: int) -> tuple[str, str, int, int] | None` — Reserva atomicamente o próximo job pronto e recupera leases expirados.
-- `def retry_extraction_job(self, job: str, delay_seconds: float) -> None` — Reagenda job após falha transitória sem criar uma nova revisão.
-- `def finish_extraction_job(self, job: str, *, success: bool) -> None` — Finaliza job; histórico técnico permanece no SQLite para diagnóstico.
-- `def update_job(self, status: ExtractionStatus, result: ExtractionResult | None=None) -> None` — Atualiza somente a revisão ainda vigente e rejeita retornos atrasados.
-- `def status(self, process: str) -> ExtractionStatus | None` — Consulta estado persistido; ausência é distinta de falha de processamento.
-- `def result(self, process: str) -> ExtractionResult | None` — Só disponibiliza resultado associado à revisão vigente.
-- `def recover_jobs(self) -> None` — Reinício recoloca jobs pendentes na fila em vez de exigir repetição manual.
-- `def add_parameter_change(self, change: ParameterChangeInput, *, actor: str, extracted_value: object=None, extracted_source: str | None=None) -> ParameterChangeRecord` — Persiste evento imutável de revisão e devolve o registro materializado.
-- `def parameter_changes(self, *, process: str | None=None, draft: str | None=None) -> list[ParameterChangeRecord]` — Consulta a trilha por processo real ou por rascunho manual, em ordem temporal.
-- `def audit(self, event: str, payload: dict[str, str | int | float | bool]) -> None` — Somente identificadores técnicos, contagens e hashes; nunca conteúdo documental.
+- `def __init__(self, data_dir: Path)` — Sem descrição específica no código.
+- `def connection(self)` — Sem descrição específica no código.
+- `def add_document(self, document)` — Sem descrição específica no código.
+- `def documents(self, process)` — Sem descrição específica no código.
+- `def document(self, identifier)` — Sem descrição específica no código.
+- `def classify_document(self, identifier, classification)` — Sem descrição específica no código.
+- `def processes(self)` — Sem descrição específica no código.
+- `def start_job(self, status, *, max_attempts=3)` — Sem descrição específica no código.
+- `def claim_extraction_job(self, lease_seconds)` — Sem descrição específica no código.
+- `def retry_extraction_job(self, job, delay_seconds)` — Sem descrição específica no código.
+- `def finish_extraction_job(self, job, *, success)` — Sem descrição específica no código.
+- `def update_job(self, status, result=None)` — Sem descrição específica no código.
+- `def status(self, process)` — Sem descrição específica no código.
+- `def result(self, process)` — Sem descrição específica no código.
+- `def recover_jobs(self)` — Sem descrição específica no código.
+- `def add_parameter_change(self, change, *, actor, extracted_value=None, extracted_source=None)` — Sem descrição específica no código.
+- `def parameter_changes(self, *, process=None, draft=None)` — Sem descrição específica no código.
+- `def audit(self, event, payload)` — Sem descrição específica no código.
+- `def append_calculation_version(self, **kwargs)` — Sem descrição específica no código.
+- `def calculation_history(self, **kwargs)` — Sem descrição específica no código.
+- `def calculation_versions(self, calculation_id, *, page=1, page_size=50)` — Sem descrição específica no código.
+- `def calculation_version(self, calculation_id, version)` — Sem descrição específica no código.
+- `def calculation_comparison(self, calculation_id, version_from, version_to)` — Sem descrição específica no código.
+- `def change_calculation_state(self, calculation_id, state, *, actor)` — Sem descrição específica no código.
+- `def calculation_executions(self, calculation_id, version, *, page=1, page_size=20)` — Sem descrição específica no código.
+- `def calculation_pdf(self, calculation_id, version, *, audit)` — Sem descrição específica no código.
+- `def execution_pdf(self, calculation_id, execution_id, *, audit)` — Sem descrição específica no código.
 
 ## `backend/routers/__init__.py`
 
@@ -348,10 +791,6 @@ Este módulo não expõe classes ou funções de nível superior.
 ## `backend/routers/audit.py`
 
 Endpoints de auditoria da revisão humana de parâmetros.
-
-### `def _technical_actor(request: Request) -> str`
-
-Deriva identificador técnico sem persistir identidade pessoal em claro.
 
 ### `def record_parameter_change(payload: ParameterChangeInput, request: Request, service: Dependency)`
 
@@ -369,13 +808,13 @@ Lotes reutilizam o mesmo serviço de cálculo e a confirmação humana.
 
 Importar apenas prepara a prévia; não executa nem confirma o lote.
 
-### `def run(payload: BatchRequest, service: Dependency)`
+### `def run(payload: BatchRequest, request: Request, service: Dependency)`
 
 Falhas são explícitas por processo; sucessos não são descartados.
 
 ## `backend/routers/calculations.py`
 
-Cálculo e exportações compartilham o mesmo contrato validado.
+Cálculo, histórico versionado, execuções e exportações compartilham contratos validados.
 
 ### `def defaults(indice: str | None=None)`
 
@@ -389,13 +828,45 @@ Expõe padrões e metadados oficiais sem duplicá-los no frontend.
 
 Mostra os valores nominais para revisão antes da chamada ao motor.
 
-### `def calculate(payload: CalculationRequest, service: Dependency)`
+### `def history(service: Dependency, pagina: int=Query(default=1, ge=1), tamanho_pagina: int=Query(default=20, ge=1, le=100), busca: str | None=Query(default=None, max_length=120), origem: CalculationOrigin | None=None, estado: CalculationState | None=None, indice: str | None=Query(default=None, max_length=120), criado_por: str | None=Query(default=None, max_length=120), atualizado_de: date | None=None, atualizado_ate: date | None=None, ordenacao: Literal['processo', 'atualizado_desc', 'atualizado_asc', 'criado_desc', 'criado_asc']='processo')`
 
-Calcula somente após a confirmação humana enviada no contrato.
+Lista cálculos paginados; as versões são carregadas somente após expansão.
 
-### `def memory_pdf(payload: CalculationRequest, service: Dependency, auditavel: bool=False, indices_sha256: str | None=None)`
+### `def versions(calculo_id: str, service: Dependency, pagina: int=Query(default=1, ge=1), tamanho_pagina: int=Query(default=50, ge=1, le=100))`
 
-Retorna bytes do PDF, sem template de interface nem arquivo temporário remanescente.
+Lazy loading das versões de um cálculo já localizado no histórico.
+
+### `def compare_versions(calculo_id: str, service: Dependency, versao_origem: int=Query(ge=1), versao_destino: int=Query(ge=1))`
+
+Compara parâmetros, parcelas e impacto no total entre duas versões.
+
+### `def change_state(calculo_id: str, payload: CalculationStateChange, request: Request, service: Dependency)`
+
+Arquiva, cancela ou reativa o cálculo sem excluir histórico.
+
+### `def executions(calculo_id: str, versao: int, service: Dependency, pagina: int=Query(default=1, ge=1), tamanho_pagina: int=Query(default=20, ge=1, le=100))`
+
+Pagina execuções técnicas sem carregar indefinidamente uma versão muito reexecutada.
+
+### `def version_detail(calculo_id: str, versao: int, service: Dependency)`
+
+Reabre o snapshot exato de uma versão sem executar o motor novamente.
+
+### `def version_pdf(calculo_id: str, versao: int, service: Dependency, auditavel: bool=False)`
+
+Baixa a memória congelada quando aquela versão de negócio foi criada.
+
+### `def execution_pdf(calculo_id: str, execucao_id: str, service: Dependency, auditavel: bool=False)`
+
+Baixa a memória da execução atual, mesmo quando a versão foi reutilizada.
+
+### `def calculate(payload: CalculationRequest, request: Request, service: Dependency, calculo_id: str | None=Query(default=None), versao_base: int | None=Query(default=None, ge=1), versao_atual_esperada: int | None=Query(default=None, ge=1))`
+
+Calcula e versiona com controle otimista, inclusive a partir de versões históricas.
+
+### `def memory_pdf(payload: CalculationRequest, service: Dependency, indices_sha256: str | None=None)`
+
+Exportação legada do request atual; não cria versão nem execução persistida.
 
 ## `backend/routers/documents.py`
 
@@ -489,7 +960,7 @@ Orquestração de lotes reaproveita o cálculo unitário, sem duplicar o motor.
 Execução sequencial limita memória e mantém erros separados por processo.
 
 - `def __init__(self, calculation: CalculationService)` — Recebe dependências explicitamente para manter configuração e testes isolados.
-- `def execute(self, payload: BatchRequest) -> BatchResponse` — Preserva os sucessos e informa explicitamente cada falha de domínio.
+- `def execute(self, payload: BatchRequest, *, actor: str='system') -> BatchResponse` — Preserva os sucessos e informa explicitamente cada falha de domínio.
 
 ## `backend/services/bradesco_bridge.py`
 
@@ -517,14 +988,14 @@ Facade restrita ao ``text_generator`` do módulo corporativo.
 
 ## `backend/services/calculation.py`
 
-Orquestra cálculo, exportação e auditoria fora das rotas HTTP.
+Orquestra cálculo, versionamento, exportação e auditoria fora das rotas HTTP.
 
 ### `class CalculationService`
 
 Uma execução coerente usa a mesma versão de índices até o fim.
 
-- `def __init__(self, repository: Repository, facade: EngineFacade)` — Recebe dependências explicitamente para manter configuração e testes isolados.
-- `def execute(self, payload: CalculationRequest, pdf: bool=False, audit: bool=False, expected_indices_hash: str | None=None) -> CalculationResponse | bytes` — Validação Pydantic antecede a fachada; falhas não expõem conteúdo sensível.
+- `def __init__(self, repository: CalculationRepository, audit_repository: AuditRepository, facade: EngineFacade)` — Recebe dependências explicitamente para manter configuração e testes isolados.
+- `def execute(self, payload: CalculationRequest, pdf: bool=False, expected_indices_hash: str | None=None, *, calculation_id: str | None=None, base_version: int | None=None, expected_current_version: int | None=None, actor: str='system', persist_version: bool=True) -> VersionedCalculationResponse | bytes` — Executa o motor e cadastra automaticamente a versão do cálculo.
 
 ## `backend/services/chronology.py`
 
@@ -556,7 +1027,7 @@ Upload validado, persistente e organizado exclusivamente no backend.
 
 Identifica o processo pelo nome exigido; conteúdo não altera a associação.
 
-- `def __init__(self, settings: Settings, repository: Repository)` — Recebe dependências explicitamente para manter configuração e testes isolados.
+- `def __init__(self, settings: Settings, repository: DocumentRepository, audit_repository: AuditRepository)` — Recebe dependências explicitamente para manter configuração e testes isolados.
 - `async def receive(self, files: list[UploadFile]) -> list[DocumentMetadata]` — Valida o lote completo antes de persistir; leitura limitada evita alocações ilimitadas.
 - `def path(self, identifier: str) -> tuple[Path, DocumentMetadata]` — Somente documento registrado pode ser obtido pelo identificador opaco.
 
@@ -586,7 +1057,7 @@ Isola o motor de cálculo dos contratos HTTP e das estruturas da interface.
 
 - `def __init__(self, settings: Settings)` — Recebe dependências explicitamente para manter configuração e testes isolados.
 - `def calculate(self, payload: CalculationRequest) -> ResultadoCalculo` — Converte a requisição validada para o formato esperado pelo motor e executa o cálculo.
-- `def pdf(self, result: ResultadoCalculo, audit: bool=False) -> bytes` — O arquivo é exportação de negócio; nenhum HTML é produzido no backend.
+- `def pdf(self, result: ResultadoCalculo) -> bytes` — Gera a única memória de cálculo PDF distribuída pela aplicação.
 - `def index_hash(self) -> str` — A versão das séries é capturada enquanto o cálculo detém o lock.
 
 ## `backend/services/engine_guidance.py`
@@ -640,7 +1111,7 @@ Fachada testável para PyMuPDF, roteamento de páginas e text_generator.
 
 Orquestra fila durável, prompts especializados, validação e persistência.
 
-- `def __init__(self, settings: Settings, repository: Repository, documents: DocumentService, provider: ExtractionProvider)` — Sem descrição específica no código.
+- `def __init__(self, settings: Settings, extraction_repository: ExtractionRepository, document_repository: DocumentRepository, audit_repository: AuditRepository, documents: DocumentService, provider: ExtractionProvider)` — Sem descrição específica no código.
 - `def start(self, process: str, new_upload: bool=False) -> ExtractionStatus` — Cria uma revisão e a persiste na fila; trabalhos ativos são compartilhados.
 - `def _handle_claimed_job(self, claimed: ClaimedExtractionJob) -> None` — Sem descrição específica no código.
 - `def _persist_failure(self, status: ExtractionStatus, code: str, message: str) -> None` — Sem descrição específica no código.
@@ -664,7 +1135,7 @@ Sem descrição específica no código.
 
 Workers locais que consomem jobs persistidos e recuperáveis após reinício.
 
-- `def __init__(self, repository: Repository, worker_count: int, handler: Callable[[ClaimedExtractionJob], None], *, lease_seconds: int=900, poll_seconds: float=0.25)` — Sem descrição específica no código.
+- `def __init__(self, repository: ExtractionRepository, worker_count: int, handler: Callable[[ClaimedExtractionJob], None], *, lease_seconds: int=900, poll_seconds: float=0.25)` — Sem descrição específica no código.
 - `def _loop(self) -> None` — Sem descrição específica no código.
 - `def wake(self) -> None` — Sinal sem estado; reduz latência após enqueue.
 - `def close(self) -> None` — Sem descrição específica no código.
@@ -753,7 +1224,7 @@ Converte a falha técnica do atualizador em orientação segura para a interface
 
 Uma atualização por vez, estado verificável e backup fornecido pelo motor.
 
-- `def __init__(self, settings: Settings, repository: Repository, facade: EngineFacade)` — Recebe dependências explicitamente para manter configuração e testes isolados.
+- `def __init__(self, settings: Settings, repository: IndexRepository | object, audit_repository: AuditRepository | object, facade: EngineFacade | None=None)` — Recebe repositórios especializados e preserva a assinatura legada dos testes.
 - `def options(self) -> list[IndexOption]` — Lista índices selecionáveis, inclusive séries históricas extintas conhecidas.
 - `def status(self) -> IndexStatus` — Checksum relata o arquivo real; não implica atualidade da série.
 - `def save(self, state: str, message: str) -> IndexStatus` — Persiste o estado de atualização para consultas e recuperação.
@@ -887,7 +1358,7 @@ Persistência e enriquecimento da trilha de revisão humana dos parâmetros.
 
 Registra eventos imutáveis sem depender do estado visual do Angular.
 
-- `def __init__(self, repository: Repository)` — Recebe o repositório que persiste os eventos imutáveis de revisão.
+- `def __init__(self, repository: AuditRepository, extraction_repository: ExtractionRepository)` — Recebe o repositório que persiste os eventos imutáveis de revisão.
 - `def record(self, change: ParameterChangeInput, actor: str) -> ParameterChangeRecord` — Enriquece o evento com o valor/origem extraídos que o servidor conhece.
 - `def list_for_process(self, process: str) -> list[ParameterChangeRecord]` — Retorna toda a trilha persistida do processo.
 - `def list_for_draft(self, draft: str) -> list[ParameterChangeRecord]` — Retorna a trilha do rascunho manual atual.
@@ -911,6 +1382,12 @@ Aceita variações estruturais seguras e valida o contrato canônico.
 - `def normalize(cls, decoded: dict[str, Any]) -> dict[str, Any]` — Sem descrição específica no código.
 - `def parse(self, text: str) -> WireExtractionFragment` — Sem descrição específica no código.
 - `def validation_summary(exc: ValidationError) -> str` — Sem descrição específica no código.
+
+## `backend/version.py`
+
+Versões oficiais da aplicação e do contrato HTTP.
+
+Este módulo não expõe classes ou funções de nível superior.
 
 ## `scripts/evaluate_extraction.py`
 
@@ -1174,82 +1651,15 @@ Sem descrição específica no código.
 
 Este módulo não expõe classes ou funções de nível superior.
 
-## `src/judicial_calc/data_sources/drcalc_updater.py`
+## `src/judicial_calc/data_sources/drcalc/__init__.py`
 
-Atualização diária das planilhas locais de índices a partir do DrCalc.
+Atualizador DrCalc dividido por responsabilidade.
 
-### `class DrCalcRecord`
+Este módulo não expõe classes ou funções de nível superior.
 
-Uma observação extraída de uma série do DrCalc.
+## `src/judicial_calc/data_sources/drcalc/client.py`
 
-
-### `class DrCalcSeries`
-
-Série histórica extraída de uma página do DrCalc.
-
-
-### `class DrCalcUpdateResult`
-
-Resultado auditável da tentativa de atualização.
-
-- `def to_dict(self) -> dict[str, Any]` — Serializa o resultado da atualização do DrCalc para um dicionário simples e auditável.
-
-### `class DrCalcUpdateError(RuntimeError)`
-
-Falha controlada da atualização das planilhas locais.
-
-
-### `def _today_str() -> str`
-
-Retorna a data corrente em formato ISO para gravação do estado do atualizador.
-
-### `def _data_dir(path: str | Path | None=None) -> Path`
-
-Resolve a pasta que contém as planilhas locais de índices.
-
-### `def _state_path(data_dir: Path) -> Path`
-
-Resolve o arquivo JSON usado para persistir o estado do atualizador.
-
-### `def _lock_path(data_dir: Path) -> Path`
-
-Resolve o arquivo de lock que impede duas atualizações simultâneas.
-
-### `def _load_state(data_dir: Path) -> dict[str, Any]`
-
-Lê o estado persistido do atualizador e retorna uma estrutura vazia quando não existe estado válido.
-
-### `def _write_state(data_dir: Path, result: DrCalcUpdateResult) -> None`
-
-Persiste o estado da atualização preservando o último sucesso.
-
-### `def _already_updated_today(data_dir: Path) -> bool`
-
-Verifica se já existe atualização bem-sucedida registrada para a data corrente.
-
-### `def _normalize_text(value: Any) -> str`
-
-Normaliza texto HTML para comparação de títulos e cabeçalhos de séries.
-
-### `def _decimal_from_ptbr(value: Any) -> Decimal | None`
-
-Converte números em formatos PT-BR/EN para Decimal.
-
-### `def _parse_date_like(value: Any) -> date | str | None`
-
-Normaliza datas/competências extraídas do HTML.
-
-### `def _periodicity(records: Iterable[DrCalcRecord]) -> str`
-
-Infere a periodicidade de uma série a partir dos períodos observados.
-
-### `def _competencia_from_period(periodo: date | str) -> str`
-
-Converte um período mensal para a competência canônica AAAA-MM.
-
-### `def _build_category_url(category_id: int) -> str`
-
-Monta a URL inicial de uma categoria do DrCalc.
+Cliente HTTP e parser de formulários/tabelas históricas do DrCalc.
 
 ### `class DrCalcClient`
 
@@ -1279,6 +1689,139 @@ Cliente simples para descobrir e baixar séries do DrCalc.
 - `def _extract_records_from_html(self, html: str, soup: BeautifulSoup, preferred_metric: str | None=None) -> tuple[list[DrCalcRecord], list[str]]` — Extrai registros temporais do HTML da série.
 - `def _records_from_table(self, df: pd.DataFrame, preferred_metric: str | None=None) -> list[DrCalcRecord]` — Converte uma tabela HTML em registros de período e valor.
 - `def _records_from_matrix_table(self, df: pd.DataFrame) -> list[DrCalcRecord]` — Interpreta tabelas históricas no formato ano x meses ou mês x anos.
+
+## `src/judicial_calc/data_sources/drcalc/lifecycle.py`
+
+Estado local, backup, restauração, cache e exclusão mútua do atualizador.
+
+### `def _today_str() -> str`
+
+Retorna a data corrente em formato ISO para gravação do estado do atualizador.
+
+### `def _data_dir(path: str | Path | None=None) -> Path`
+
+Resolve a pasta que contém as planilhas locais de índices.
+
+### `def _state_path(data_dir: Path) -> Path`
+
+Resolve o arquivo JSON usado para persistir o estado do atualizador.
+
+### `def _lock_path(data_dir: Path) -> Path`
+
+Resolve o arquivo de lock que impede duas atualizações simultâneas.
+
+### `def _load_state(data_dir: Path) -> dict[str, Any]`
+
+Lê o estado persistido do atualizador e retorna uma estrutura vazia quando não existe estado válido.
+
+### `def _write_state(data_dir: Path, result: DrCalcUpdateResult) -> None`
+
+Persiste o estado da atualização preservando o último sucesso.
+
+### `def _already_updated_today(data_dir: Path) -> bool`
+
+Verifica se já existe atualização bem-sucedida registrada para a data corrente.
+
+### `def _backup_planilhas(data_dir: Path) -> Path`
+
+Cria cópia de segurança das planilhas antes de substituí-las.
+
+### `def _atomic_replace(src: Path, dst: Path) -> None`
+
+Substitui um arquivo de destino de forma atômica após gravação temporária.
+
+### `def list_drcalc_backups(data_dir: str | Path | None=None) -> list[dict[str, Any]]`
+
+Lista backups locais das planilhas de índices.
+
+### `def restaurar_backup_drcalc(backup_id_or_path: str, *, data_dir: str | Path | None=None) -> DrCalcUpdateResult`
+
+Restaura as planilhas a partir de um backup criado pelo atualizador.
+
+### `def _clear_local_caches() -> None`
+
+Limpa caches de leitura de índices para que os próximos cálculos usem os arquivos atuais.
+
+### `def _acquire_lock(data_dir: Path, wait_seconds: int=20) -> bool`
+
+Adquire o lock de atualização e retorna o recurso usado para liberação posterior.
+
+### `def _release_lock(data_dir: Path) -> None`
+
+Libera o lock de atualização adquirido pelo processo.
+
+## `src/judicial_calc/data_sources/drcalc/models.py`
+
+Tipos e constantes compartilhados pela integração DrCalc.
+
+### `class DrCalcRecord`
+
+Uma observação extraída de uma série do DrCalc.
+
+
+### `class DrCalcSeries`
+
+Série histórica extraída de uma página do DrCalc.
+
+
+### `class DrCalcUpdateResult`
+
+Resultado auditável da tentativa de atualização.
+
+- `def to_dict(self) -> dict[str, Any]` — Serializa o resultado da atualização do DrCalc para um dicionário simples e auditável.
+
+### `class DrCalcUpdateError(RuntimeError)`
+
+Falha controlada da atualização das planilhas locais.
+
+
+## `src/judicial_calc/data_sources/drcalc/parsing.py`
+
+Normalização de texto, números, períodos e URLs da fonte DrCalc.
+
+### `def _normalize_text(value: Any) -> str`
+
+Normaliza texto HTML para comparação de títulos e cabeçalhos de séries.
+
+### `def _decimal_from_ptbr(value: Any) -> Decimal | None`
+
+Converte números em formatos PT-BR/EN para Decimal.
+
+### `def _parse_date_like(value: Any) -> date | str | None`
+
+Normaliza datas/competências extraídas do HTML.
+
+### `def _periodicity(records: Iterable[DrCalcRecord]) -> str`
+
+Infere a periodicidade de uma série a partir dos períodos observados.
+
+### `def _competencia_from_period(periodo: date | str) -> str`
+
+Converte um período mensal para a competência canônica AAAA-MM.
+
+### `def _build_category_url(category_id: int) -> str`
+
+Monta a URL inicial de uma categoria do DrCalc.
+
+## `src/judicial_calc/data_sources/drcalc/service.py`
+
+Orquestra download, staging, validação, promoção e fallback dos índices.
+
+### `def baixar_series_drcalc(timeout: int=30) -> list[DrCalcSeries]`
+
+Baixa as séries disponíveis nas três categorias alvo do DrCalc.
+
+### `def atualizar_planilhas_drcalc(*, data_dir: str | Path | None=None, timeout: int=30, series_list: list[DrCalcSeries] | None=None) -> DrCalcUpdateResult`
+
+Força atualização das três planilhas locais a partir do DrCalc.
+
+### `def atualizar_planilhas_drcalc_se_necessario(*, data_dir: str | Path | None=None, force: bool=False, timeout: int=30, strict: bool=False) -> DrCalcUpdateResult`
+
+Atualiza as planilhas apenas uma vez por dia.
+
+## `src/judicial_calc/data_sources/drcalc/workbook.py`
+
+Seleção, mesclagem e validação das planilhas de índices.
 
 ### `def _series_score(series_name: str, target_label: str, extra_aliases: Iterable[str]=()) -> int`
 
@@ -1332,14 +1875,6 @@ Combina a série diária baixada com a estrutura da planilha local.
 
 Valida se as planilhas produzidas possuem estrutura e conteúdo mínimos esperados.
 
-### `def _backup_planilhas(data_dir: Path) -> Path`
-
-Cria cópia de segurança das planilhas antes de substituí-las.
-
-### `def _atomic_replace(src: Path, dst: Path) -> None`
-
-Substitui um arquivo de destino de forma atômica após gravação temporária.
-
 ### `def _df_row_count(path: Path, *, daily: bool=False) -> int`
 
 Conta linhas úteis de uma planilha local de índices.
@@ -1368,37 +1903,11 @@ Lista somente séries cuja competência máxima realmente avançou.
 
 Gera checagens legíveis para a tela administrativa de índices.
 
-### `def list_drcalc_backups(data_dir: str | Path | None=None) -> list[dict[str, Any]]`
+## `src/judicial_calc/data_sources/drcalc_updater.py`
 
-Lista backups locais das planilhas de índices.
+Fachada retrocompatível do atualizador de índices.
 
-### `def restaurar_backup_drcalc(backup_id_or_path: str, *, data_dir: str | Path | None=None) -> DrCalcUpdateResult`
-
-Restaura as planilhas a partir de um backup criado pelo atualizador.
-
-### `def _clear_local_caches() -> None`
-
-Limpa caches de leitura de índices para que os próximos cálculos usem os arquivos atuais.
-
-### `def _acquire_lock(data_dir: Path, wait_seconds: int=20) -> bool`
-
-Adquire o lock de atualização e retorna o recurso usado para liberação posterior.
-
-### `def _release_lock(data_dir: Path) -> None`
-
-Libera o lock de atualização adquirido pelo processo.
-
-### `def baixar_series_drcalc(timeout: int=30) -> list[DrCalcSeries]`
-
-Baixa as séries disponíveis nas três categorias alvo do DrCalc.
-
-### `def atualizar_planilhas_drcalc(*, data_dir: str | Path | None=None, timeout: int=30, series_list: list[DrCalcSeries] | None=None) -> DrCalcUpdateResult`
-
-Força atualização das três planilhas locais a partir do DrCalc.
-
-### `def atualizar_planilhas_drcalc_se_necessario(*, data_dir: str | Path | None=None, force: bool=False, timeout: int=30, strict: bool=False) -> DrCalcUpdateResult`
-
-Atualiza as planilhas apenas uma vez por dia.
+Este módulo não expõe classes ou funções de nível superior.
 
 ## `src/judicial_calc/data_sources/http_client.py`
 
@@ -1929,18 +2438,6 @@ Monta o cabeçalho textual do PDF.
 
 Desenha numeração de páginas discreta.
 
-### `def _records_table(title: str, records: list[dict[str, Any]], styles: dict[str, ParagraphStyle], available_width: float, *, max_rows: int=80) -> list[Any]`
-
-Cria uma seção auditável em tabela simples.
-
-### `def _flatten_evidence_map(evidence_map: Any) -> list[dict[str, Any]]`
-
-Transforma evidence_map em linhas para PDF auditável.
-
-### `def salvar_resultado_pdf_auditavel(resultado: ResultadoCalculo, caminho: str | Path) -> None`
-
-Salva PDF auditável com memória sintética + evidências e alertas.
-
 ### `def salvar_resultado_pdf(resultado: ResultadoCalculo, caminho: str | Path) -> None`
 
 Salva a memória de cálculo em PDF no padrão de planilha judicial.
@@ -2081,6 +2578,14 @@ Aplica a opção 'incidir multa sobre parcelas a vencer'.
 
 Calcula a base da multa percentual informada pelo usuário.
 
+### `def _tipo_multa(params: dict[str, Any]) -> str`
+
+Normaliza o tipo da multa comum, preservando percentuais legados.
+
+### `def _valor_multa(params: dict[str, Any]) -> Decimal`
+
+Obtém o valor canônico da multa e aceita o campo percentual legado.
+
 ### `def _calcular_multa_linha(*, data_parcela, valor_atualizado: Decimal, juros_comp: Decimal, juros_mora: Decimal, cfg: CalculoParams, params: dict[str, Any]) -> MultaLinha`
 
 Calcula somente a multa percentual comum de uma parcela.
@@ -2088,6 +2593,10 @@ Calcula somente a multa percentual comum de uma parcela.
 ### `def _rateio_monetario(total: Decimal, pesos: list[Decimal]) -> list[Decimal]`
 
 Distribui um valor monetário entre linhas preservando a soma exata.
+
+### `def _aplicar_multa_fixa_na_memoria(memoria: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame`
+
+Rateia uma multa fixa uma única vez entre as parcelas elegíveis.
 
 ### `def _total_art_523(cfg: CalculoParams, base_art_523: Decimal) -> tuple[Decimal, Decimal]`
 
@@ -2293,6 +2802,12 @@ A seleção é vazia no início e mantém a busca sob controle do usuário.
 
 Símbolos exportados: `ProcessSelectorComponent`.
 
+## `frontend/src/app/calculation/result-calculation-summary.component.ts`
+
+Resumo operacional do cálculo exibido somente na guia Resultado.
+
+Símbolos exportados: `ResultCalculationSummaryComponent`.
+
 ## `frontend/src/app/calculation/result-panel.component.ts`
 
 Resultado e memória exibem apenas valores calculados pelo backend.
@@ -2315,13 +2830,13 @@ Símbolos exportados: `BatchApiService`.
 
 A interface envia parâmetros; nenhuma matemática jurídica é executada aqui.
 
-Símbolos exportados: `CalculationApiService`.
+Símbolos exportados: `CalculationHistoryFilters`, `CalculationApiService`.
 
 ## `frontend/src/app/core/calculation-mapper.ts`
 
 Único adaptador de formulário camelCase para os contratos snake_case.
 
-Símbolos exportados: `CalculationOrigin`, `ParameterForm`, `InstallmentForm`, `WorkspaceDraft`, `blankDraft`, `decimalText`, `missingFields`, `toCalculationRequest`, `applyExtraction`.
+Símbolos exportados: `CalculationOrigin`, `ParameterForm`, `InstallmentForm`, `WorkspaceDraft`, `blankDraft`, `draftFromCalculationVersion`, `decimalText`, `missingFields`, `toCalculationRequest`, `applyExtraction`.
 
 ## `frontend/src/app/core/config.ts`
 
@@ -2339,7 +2854,7 @@ Símbolos exportados: `ConnectionApiService`.
 
 Gerado de docs/openapi.json. Atualize por scripts/generate_contracts.py.
 
-Símbolos exportados: `AiUsage`, `AiUsageSummary`, `BatchImport`, `BatchItem`, `BatchRequest`, `BatchResponse`, `Body_import_batch_api_lotes_importar_post`, `Body_import_installments_api_documentos_parcelas_importar_post`, `Body_upload_api_documentos_upload_post`, `CalculationDefaults`, `CalculationDraft`, `CalculationMetadata`, `CalculationParameters_Input`, `CalculationParameters_Output`, `CalculationPolicyView`, `CalculationRequest`, `CalculationResponse`, `ChronologyDecision`, `DataTable`, `DocumentMetadata`, `ExtractionConfiguration`, `ExtractionRequest`, `ExtractionResult`, `ExtractionStatus`, `FeePreparation`, `FieldEvidence`, `HTTPValidationError`, `Health`, `IndexOption`, `IndexStatus`, `Installment_Input`, `Installment_Output`, `OperationalAdjustment`, `ParameterCatalogItem`, `ParameterChangeInput`, `ParameterChangeRecord`, `ParameterOption`, `ProcessSummary`, `SummaryEntry`, `UploadResponse`, `ValidationError`.
+Símbolos exportados: `AiUsage`, `AiUsageSummary`, `BatchImport`, `BatchItem`, `BatchRequest`, `BatchResponse`, `Body_import_batch_api_v2_lotes_importar_post`, `Body_import_installments_api_v2_documentos_parcelas_importar_post`, `Body_upload_api_v2_documentos_upload_post`, `CalculationComparison`, `CalculationDefaults`, `CalculationDiff`, `CalculationDraft`, `CalculationExecutionRef`, `CalculationExecutionSummary`, `CalculationExecutionsPage`, `CalculationFieldDiff`, `CalculationHistoryItem`, `CalculationHistoryPage`, `CalculationMetadata`, `CalculationParameters_Input`, `CalculationParameters_Output`, `CalculationPolicyView`, `CalculationRequest_Input`, `CalculationRequest_Output`, `CalculationResponse`, `CalculationStateChange`, `CalculationStateResult`, `CalculationVersionDetail`, `CalculationVersionRef`, `CalculationVersionSummary`, `CalculationVersionsPage`, `ChronologyDecision`, `DataTable`, `DocumentMetadata`, `ExtractionConfiguration`, `ExtractionRequest`, `ExtractionResult`, `ExtractionStatus`, `FeePreparation`, `FieldEvidence`, `HTTPValidationError`, `Health`, `IndexOption`, `IndexStatus`, `Installment_Input`, `Installment_Output`, `InstallmentDiff`, `OperationalAdjustment`, `ParameterCatalogItem`, `ParameterChangeInput`, `ParameterChangeRecord`, `ParameterOption`, `ProcessSummary`, `SummaryEntry`, `UploadResponse`, `ValidationError`, `VersionedCalculationResponse`, `CalculationParameters`, `CalculationRequest`, `Installment`.
 
 ## `frontend/src/app/core/document-api.service.ts`
 
@@ -2369,7 +2884,7 @@ Símbolos exportados: `Notifications`, `saveBlob`.
 
 Rótulos de apresentação: os valores são sempre os retornados pelo motor.
 
-Símbolos exportados: `summaryRows`, `finalTotal`.
+Símbolos exportados: `summaryRows`, `finalTotal`, `DamageCalculationSummary`, `damageCalculationSummaries`.
 
 ## `frontend/src/app/core/revision-audit-api.service.ts`
 
@@ -2406,6 +2921,36 @@ Símbolos exportados: `MANUAL_DRAFT_KEY`, `WorkspaceStateStore`.
 Fachada fina da área de trabalho; estado, extração, cálculo e auditoria vivem em stores específicos.
 
 Símbolos exportados: `WorkspaceStore`.
+
+## `frontend/src/app/history/calculation-history-page.component.ts`
+
+Página orquestradora do histórico; filtros, diff, comparação e execuções são componentes independentes.
+
+Símbolos exportados: `CalculationHistoryPageComponent`.
+
+## `frontend/src/app/history/history-diff.component.ts`
+
+Exibe diferenças entre versões sem conhecer carregamento, paginação ou estado da página.
+
+Símbolos exportados: `HistoryDiffComponent`.
+
+## `frontend/src/app/history/history-executions.component.ts`
+
+Execuções técnicas paginadas e carregadas apenas quando a versão é expandida.
+
+Símbolos exportados: `HistoryExecutionsComponent`.
+
+## `frontend/src/app/history/history-filters.component.ts`
+
+Filtros do histórico isolados da paginação e da consulta HTTP.
+
+Símbolos exportados: `HistoryFiltersComponent`.
+
+## `frontend/src/app/history/history-version-comparator.component.ts`
+
+Comparador isolado: carrega somente quando o usuário solicita a comparação.
+
+Símbolos exportados: `HistoryVersionComparatorComponent`.
 
 ## `frontend/src/app/indices/indices-page.component.ts`
 

@@ -1,5 +1,12 @@
 /** Único adaptador de formulário camelCase para os contratos snake_case. */
-import { CalculationParameters_Input, CalculationRequest, CalculationResponse, ExtractionResult, Installment_Input } from './contracts';
+import {
+  CalculationParameters_Input,
+  CalculationRequest,
+  CalculationVersionDetail,
+  ExtractionResult,
+  Installment_Input,
+  VersionedCalculationResponse,
+} from './contracts';
 import { MANUAL_DEFAULT_PARAMETERS, PARAM_FIELDS, ParameterKey, REQUIRED_PARAMETER_KEYS } from '../calculation/parameter-fields';
 
 export type CalculationOrigin = 'manual' | 'processo';
@@ -10,12 +17,17 @@ export interface WorkspaceDraft {
   calculationOrigin: CalculationOrigin;
   draftId: string;
   numeroProcesso: string;
+  identificadorCalculo: string;
   installments: InstallmentForm[];
   parameters: ParameterForm;
   humanReviewed: boolean;
   revision: number;
-  result: CalculationResponse | null;
+  result: VersionedCalculationResponse | null;
   confirmedRequest: CalculationRequest | null;
+  calculationId: string;
+  calculationVersion: number | null;
+  expectedCurrentVersion: number | null;
+  loadedFromHistory: boolean;
   extraction: ExtractionResult | null;
   appliedExtractionId: string;
   appliedExtractionAt: string;
@@ -42,17 +54,60 @@ export function blankDraft(process: string, origin: CalculationOrigin = 'process
     calculationOrigin: origin,
     draftId: newDraftId(),
     numeroProcesso: origin === 'processo' ? process : '',
+    identificadorCalculo: origin === 'processo' ? process : '',
     installments: [],
     parameters: origin === 'manual' ? {...MANUAL_DEFAULT_PARAMETERS} as ParameterForm : {},
     humanReviewed: false,
     revision: 0,
     result: null,
     confirmedRequest: null,
+    calculationId: '',
+    calculationVersion: null,
+    expectedCurrentVersion: null,
+    loadedFromHistory: false,
     extraction: null,
     appliedExtractionId: '',
     appliedExtractionAt: '',
     feesOnMoralDamages: false,
     automaticCompetence: false,
+  };
+}
+
+/** Reabre uma versão persistida como base editável, preservando seu resultado histórico. */
+export function draftFromCalculationVersion(detail: CalculationVersionDetail): WorkspaceDraft {
+  const request = detail.requisicao;
+  return {
+    calculationOrigin:detail.origem_calculo,
+    draftId:newDraftId(),
+    numeroProcesso:detail.numero_processo ?? '',
+    identificadorCalculo:detail.identificador_calculo,
+    installments:request.parcelas.map(row => ({
+      ...row,
+      valor_singelo:String(row.valor_singelo),
+    })),
+    parameters:{...request.parametros} as ParameterForm,
+    humanReviewed:false,
+    revision:0,
+    result:{
+      ...detail.resultado,
+      registro:{
+        calculo_id:detail.calculo_id,
+        versao:detail.versao,
+        versao_base:detail.versao_base ?? null,
+        criado_em:detail.criado_em,
+        criada:false,
+      },
+    },
+    confirmedRequest:request as CalculationRequest,
+    calculationId:detail.calculo_id,
+    calculationVersion:detail.versao,
+    expectedCurrentVersion:detail.versao_atual,
+    loadedFromHistory:true,
+    extraction:null,
+    appliedExtractionId:'',
+    appliedExtractionAt:'',
+    feesOnMoralDamages:Boolean(request.honorarios_sobre_danos_morais),
+    automaticCompetence:Boolean(request.competencia_automatica),
   };
 }
 
@@ -68,6 +123,7 @@ export function decimalText(value: string | number): string {
 export function missingFields(draft: WorkspaceDraft): string[] {
   const labels = REQUIRED_PARAMETER_KEYS.filter(key => !draft.parameters[key]).map(key => PARAM_FIELDS.find(field => field.key === key)?.label ?? key);
   if (draft.calculationOrigin === 'processo' && !draft.numeroProcesso) labels.push('Processo a calcular');
+  if (draft.calculationOrigin === 'manual' && !draft.identificadorCalculo.trim()) labels.push('Identificador do cálculo manual');
   if (!draft.installments.some(row => row.data || row.valor_singelo)) labels.push('Ao menos uma parcela');
   if (draft.installments.some(row => (row.data || row.valor_singelo || row.descricao) && (!row.data || !row.valor_singelo))) labels.push('Data e valor de todas as parcelas preenchidas');
   return labels;
@@ -89,6 +145,7 @@ export function toCalculationRequest(draft: WorkspaceDraft): CalculationRequest 
   return {
     origem_calculo: draft.calculationOrigin,
     numero_processo: draft.calculationOrigin === 'processo' ? draft.numeroProcesso : null,
+    identificador_calculo: draft.calculationOrigin === 'processo' ? draft.numeroProcesso : draft.identificadorCalculo.trim(),
     parcelas: draft.installments.filter(row => row.data || row.valor_singelo || row.descricao).map(row => ({...row, valor_singelo:decimalText(row.valor_singelo)})),
     parametros: params as CalculationParameters_Input,
     revisao_humana_confirmada:true,

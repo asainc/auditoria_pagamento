@@ -77,8 +77,7 @@ type ApplicationDescriptor = {
             @if (showOperationalNavigation()) {
               <nav aria-label="Navegação principal" class="top-level-nav">
                 <a routerLink="/auditoria-pagamentos/calculo" routerLinkActive="active">Cálculo</a>
-                <a routerLink="/auditoria-pagamentos/lotes" routerLinkActive="active">Execução em lote</a>
-                <a routerLink="/auditoria-pagamentos/indices" routerLinkActive="active">Índices</a>
+                <a routerLink="/auditoria-pagamentos/historico" routerLinkActive="active">Histórico</a>
               </nav>
             } @else {
               <div class="top-level-nav top-level-nav--placeholder">

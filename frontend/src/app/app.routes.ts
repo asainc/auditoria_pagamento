@@ -10,6 +10,10 @@ export const routes: Routes = [
         loadComponent: () => import('./calculation/calculation-page.component').then(module => module.CalculationPageComponent),
       },
       {
+        path: 'historico',
+        loadComponent: () => import('./history/calculation-history-page.component').then(module => module.CalculationHistoryPageComponent),
+      },
+      {
         path: 'lotes',
         loadComponent: () => import('./batches/batch-page.component').then(module => module.BatchPageComponent),
       },

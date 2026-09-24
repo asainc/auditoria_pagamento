@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {blankDraft, toCalculationRequest, applyExtraction, decimalText} = require('../.test-build/core/calculation-mapper.js');
+const {blankDraft, toCalculationRequest, applyExtraction, decimalText, draftFromCalculationVersion} = require('../.test-build/core/calculation-mapper.js');
 const {recurringDate} = require('../.test-build/calculation/installment-dates.js');
 const {PARAM_FIELDS, interestTypeOptions} = require('../.test-build/calculation/parameter-fields.js');
 
@@ -39,15 +39,15 @@ test('recorrência mensal não desloca o dia após fevereiro', () => {
 test('sugestões não sobrescrevem edição humana nem escolhem entre critérios conflitantes', () => {
   const value = draft();
   const source = {documento:'1001_1.pdf',pagina:1,trecho:'Sintético',escopo:'caso_concreto'};
-  const result = {numero_processo:'1001',campos:[{...source,campo:'parametros.indice',valor:'ipca_ibge'},{...source,campo:'parametros.multa_percentual',valor:'2'},{...source,campo:'parametros.multa_percentual',valor:'3'}],parcelas:[],alertas:[],versao_prompts:'teste'};
+  const result = {numero_processo:'1001',campos:[{...source,campo:'parametros.indice',valor:'ipca_ibge'},{...source,campo:'parametros.multa_valor',valor:'2'},{...source,campo:'parametros.multa_valor',valor:'3'}],parcelas:[],alertas:[],versao_prompts:'teste'};
   const applied = applyExtraction(value,result,'job');
   assert.equal(applied.parameters.indice,'sem_correcao');
-  assert.equal(applied.parameters.multa_percentual,undefined);
+  assert.equal(applied.parameters.multa_valor,undefined);
   assert.equal(applied.humanReviewed,false);
   assert.deepEqual(applied.installments,value.installments);
 });
 
-test('cálculo manual aceita rascunho independente sem processo documental', () => {
+test('cálculo manual exige identificador antes de calcular', () => {
   const base = blankDraft('', 'manual');
   const manual = {
     ...base,
@@ -55,9 +55,22 @@ test('cálculo manual aceita rascunho independente sem processo documental', () 
     parameters:{...base.parameters,mes_atualizacao:'março',ano_atualizacao:2026,indice:'sem_correcao'},
     installments:[{data:'2026-01-02',valor_singelo:'1000',descricao:'Entrada manual de teste',verba_tipo:'dano_material'}],
   };
+  assert.throws(() => toCalculationRequest(manual),/Identificador do cálculo manual/);
+});
+
+test('cálculo manual aceita rascunho independente sem processo documental', () => {
+  const base = blankDraft('', 'manual');
+  const manual = {
+    ...base,
+    identificadorCalculo:'MANUAL-UI-001',
+    humanReviewed:true,
+    parameters:{...base.parameters,mes_atualizacao:'março',ano_atualizacao:2026,indice:'sem_correcao'},
+    installments:[{data:'2026-01-02',valor_singelo:'1000',descricao:'Entrada manual de teste',verba_tipo:'dano_material'}],
+  };
   const payload = toCalculationRequest(manual);
   assert.equal(payload.origem_calculo,'manual');
   assert.equal(payload.numero_processo,null);
+  assert.equal(payload.identificador_calculo,'MANUAL-UI-001');
   assert.equal(payload.parametros.juros_moratorios_tipo,'sem_juros');
   assert.equal(payload.parametros.juros_compensatorios_tipo,'sem_juros');
   assert.equal(payload.parametros.art_523,'nao_aplicar');
@@ -143,4 +156,39 @@ test('decisão cronológica que afasta critério impede reaproveitar valor antig
   };
   const applied = applyExtraction(blankDraft('1001'),result,'job');
   assert.equal(applied.parameters.compensacao_valor,undefined);
+});
+
+
+test('versão histórica vira base editável do mesmo cálculo sem reaproveitar confirmação humana', () => {
+  const detail = {
+    calculo_id:'calc_0123456789abcdef0123456789abcdef',
+    origem_calculo:'processo',
+    identificador_calculo:'1001',
+    numero_processo:'1001',
+    versao:2,
+    versao_atual:4,
+    versao_base:1,
+    criado_em:'2026-09-24T12:00:00+00:00',
+    criado_por:'local',
+    campos_alterados:['parametros.indice'],
+    requisicao:{
+      origem_calculo:'processo',numero_processo:'1001',identificador_calculo:'1001',revisao_humana_confirmada:true,
+      parcelas:[{data:'2025-01-01',valor_singelo:'100.00',descricao:'Sintético',verba_tipo:'dano_material',origem:'informada'}],
+      parametros:{mes_atualizacao:'março',ano_atualizacao:2026,indice:'sem_correcao',juros_moratorios_tipo:'sem_juros',juros_compensatorios_tipo:'sem_juros'},
+      honorarios_sobre_danos_morais:false,competencia_automatica:false,
+    },
+    resultado:{
+      origem_calculo:'processo',numero_processo:'1001',identificador_calculo:'1001',memoria:{colunas:[],linhas:[]},resumo:[],
+      parametros:{mes_atualizacao:'março',ano_atualizacao:2026,indice:'sem_correcao',juros_moratorios_tipo:'sem_juros',juros_compensatorios_tipo:'sem_juros'},
+      metadata:{entrada_sha256:'a'.repeat(64),politica_sha256:'b'.repeat(64),motor_sha256:'c'.repeat(64),indices_sha256:'d'.repeat(64),duracao_ms:1,revisao_humana_confirmada:true},
+    },
+  };
+  const draft = draftFromCalculationVersion(detail);
+  assert.equal(draft.calculationId,detail.calculo_id);
+  assert.equal(draft.calculationVersion,2);
+  assert.equal(draft.expectedCurrentVersion,4);
+  assert.equal(draft.loadedFromHistory,true);
+  assert.equal(draft.humanReviewed,false);
+  assert.equal(draft.result.registro.versao,2);
+  assert.equal(draft.installments[0].valor_singelo,'100.00');
 });

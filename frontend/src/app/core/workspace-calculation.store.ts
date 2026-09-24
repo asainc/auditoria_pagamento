@@ -74,22 +74,52 @@ export class WorkspaceCalculationStore {
     this.calculating.set(true);
     try {
       const request = toCalculationRequest(draft);
-      const result = await firstValueFrom(this.api.calculate(request));
+      const result = await firstValueFrom(this.api.calculate(
+        request,
+        draft.calculationId,
+        draft.calculationVersion,
+        draft.expectedCurrentVersion,
+      ));
       if (this.state.draftKey() !== key || this.state.drafts()[key].revision !== draft.revision) {
         this.notices.show('Os dados mudaram durante o cálculo. Revise e calcule novamente.'); return;
       }
-      this.state.drafts.update(values => ({...values,[key]:{...values[key],result,confirmedRequest:request}}));
+      this.state.drafts.update(values => ({
+        ...values,
+        [key]:{
+          ...values[key],
+          result,
+          confirmedRequest:request,
+          calculationId:result.registro?.calculo_id ?? values[key].calculationId,
+          calculationVersion:result.registro?.versao ?? values[key].calculationVersion,
+          expectedCurrentVersion:result.registro?.criada
+            ? result.registro.versao
+            : values[key].expectedCurrentVersion,
+          loadedFromHistory:false,
+        },
+      }));
+      if (result.registro?.criada) {
+        this.notices.show(`Cálculo cadastrado como versão ${result.registro.versao}; a execução foi registrada separadamente.`);
+      } else if (result.registro) {
+        this.notices.show(`Parâmetros e parcelas não mudaram; a versão ${result.registro.versao} foi mantida e uma nova execução foi registrada.`);
+      }
     } catch(error) { this.notices.error(error); }
     finally { this.calculating.set(false); }
   }
 
-  async downloadPdf(audit: boolean): Promise<void> {
-    const request = this.state.active().confirmedRequest;
+  async downloadPdf(): Promise<void> {
+    const draft = this.state.active();
+    const request = draft.confirmedRequest;
     if (!request || this.exporting()) return;
     this.exporting.set(true);
-    const hash = this.state.active().result?.metadata.indices_sha256 ?? '';
     try {
-      saveBlob(await firstValueFrom(this.api.pdf(request, audit, hash)), audit ? 'memoria_auditavel.pdf' : 'memoria_calculo.pdf');
+      const registration = draft.result?.registro;
+      const execution = draft.result?.execucao;
+      const blob = registration && execution
+        ? await firstValueFrom(this.api.executionPdf(registration.calculo_id, execution.execucao_id, false))
+        : registration
+          ? await firstValueFrom(this.api.versionPdf(registration.calculo_id, registration.versao, false))
+          : await firstValueFrom(this.api.pdf(request, draft.result?.metadata.indices_sha256 ?? ''));
+      saveBlob(blob, 'memoria_calculo.pdf');
     } catch(error) { this.notices.error(error); }
     finally { this.exporting.set(false); }
   }

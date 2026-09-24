@@ -1,7 +1,7 @@
 # Extraindo multa, honorários e Art. 523 do CPC
 
 ## Objetivo
-Extraia apenas encargos representáveis pelo contrato: multa percentual, honorários, tipo dos honorários, incidências e regra explícita do Art. 523.
+Extraia apenas encargos representáveis pelo contrato: multa, tipo da multa, honorários, tipo dos honorários, incidências e regra explícita do Art. 523.
 
 ## Honorários
 Diferencie:
@@ -13,7 +13,11 @@ Diferencie:
 Não converta automaticamente `10% sobre a condenação` em valor monetário. Extraia percentual e tipo.
 
 ## Multa
-Extraia percentual apenas quando explícito e vinculado ao caso. Não use multa mencionada em precedente, cláusula alheia ao comando ou exemplo de cálculo.
+Diferencie:
+- multa fixada em percentual: use `parametros.multa_tipo=percentual` e registre o número em `parametros.multa_valor`;
+- multa fixada em valor monetário: use `parametros.multa_tipo=fixo` e registre o valor em `parametros.multa_valor`.
+
+Não converta percentual em valor fixo nem valor fixo em percentual. Extraia somente quando a multa estiver explícita e vinculada ao caso. Não use multa mencionada em precedente, cláusula alheia ao comando ou exemplo de cálculo.
 
 ## Art. 523
 Preencha `parametros.art_523` somente quando o documento expressamente determinar aplicação ou não aplicação representável no contrato. O padrão operacional `nao_aplicar` é responsabilidade do backend e não deve ser inventado pela extração.

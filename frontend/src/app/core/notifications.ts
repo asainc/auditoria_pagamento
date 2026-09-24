@@ -17,10 +17,16 @@ export class Notifications {
   error(error: unknown): void {
     let message = 'A operação não foi concluída. Tente novamente.';
     if (error instanceof HttpErrorResponse) {
-      if (error.status === 0 || [502,503,504].includes(error.status) || (error.status === 500 && !error.error?.detail)) message = connectionMessage(error.status);
-      else if (typeof error.error?.detail === 'string') {
-        message = error.error.detail;
-        if (Array.isArray(error.error?.campos)) message += ' ' + error.error.campos.map((item: {campo: string; mensagem: string}) => `${item.campo}: ${item.mensagem}`).join('; ');
+      const payload = error.error as {code?:string; message?:string; fields?:Array<{field:string; message:string}>; detail?:string; campos?:Array<{campo:string; mensagem:string}>} | null;
+      if (error.status === 0 || [502,503,504].includes(error.status) || (error.status === 500 && !payload?.message && !payload?.detail)) {
+        message = connectionMessage(error.status);
+      } else if (typeof payload?.message === 'string') {
+        message = payload.message;
+        if (Array.isArray(payload.fields) && payload.fields.length) message += ' ' + payload.fields.map(item => `${item.field}: ${item.message}`).join('; ');
+      } else if (typeof payload?.detail === 'string') {
+        // Compatibilidade temporária com respostas da API v1 durante a migração.
+        message = payload.detail;
+        if (Array.isArray(payload.campos)) message += ' ' + payload.campos.map(item => `${item.campo}: ${item.mensagem}`).join('; ');
       }
     } else if (error instanceof Error) message = error.message;
     this.show(message, 'error');

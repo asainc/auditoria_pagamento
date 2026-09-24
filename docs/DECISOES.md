@@ -68,7 +68,7 @@ Regras que expressem interpretação jurídica, sucessão de decisões, polític
 - O pacote `backend` prioriza explicitamente `<raiz>/src` no `sys.path` para que estações corporativas sem instalação editável carreguem o `judicial_calc` pertencente ao próprio projeto, e não uma cópia antiga do perfil do usuário.
 - `Repository` migra automaticamente versões antigas de `parameter_changes`; a tabela original é preservada como `parameter_changes_legacy_vN` antes da criação do contrato atual.
 - Falhas de persistência da trilha de revisão são retornadas como erro operacional 503 sanitizado, em vez de HTTP 500 genérico.
-- O fluxo de regressão cobre a mesma ordem da UI: registrar alteração manual, confirmar revisão e executar `/api/calculos` sem número de processo.
+- O fluxo de regressão cobre a mesma ordem da UI: registrar alteração manual, confirmar revisão e executar `/api/v2/calculos` sem número de processo.
 
 ## 2026-09-24 — Confiança TLS nativa do sistema operacional
 
@@ -127,3 +127,54 @@ Responsável pela alteração: assistente de engenharia; validação corporativa
 - A exceção corporativa transporta somente um código técnico sanitizado; conteúdo da resposta, prompt, PDFs e segredos permanecem fora dos logs e da UI.
 - O teste de conectividade usa mensagem sintética e existe separadamente do fluxo de documentos para reduzir risco operacional durante suporte.
 - A suíte automatizada valida o contrato local, mas a disponibilidade real do deployment, credenciais e rede precisa ser confirmada no ambiente corporativo.
+
+## 2026-09-24 — Cadastro automático e versionamento por conteúdo revisável
+
+- **Decisão:** todo cálculo concluído é cadastrado automaticamente. Processo real usa o número do processo como identificador canônico; cálculo manual exige um identificador informado pelo usuário.
+- **Motivo:** garantir rastreabilidade também para cálculos manuais e evitar que o usuário tenha de acionar uma etapa separada de “salvar”.
+- **Critério de nova versão:** nova versão é criada somente quando parâmetros de cálculo ou parcelas mudam em relação à versão de referência. `honorarios_sobre_danos_morais` é considerado parâmetro porque altera a execução do motor.
+- **Idempotência:** repetir o cálculo sem modificar parâmetros nem parcelas reutiliza a versão existente. Mudanças de metadados técnicos, política, motor ou snapshot de índices, isoladamente, não geram nova versão.
+- **Coerência do snapshot (decisão posteriormente evoluída):** a primeira implementação devolvia o snapshot persistido quando a versão era reutilizada. A decisão posterior de separar versão de negócio e execução técnica substitui esse comportamento: a versão continua imutável, enquanto o resultado/PDF da reexecução recebe um `execucao_id` próprio.
+- **Imutabilidade:** request, resultado e memória PDF permanecem congelados por execução. Downloads históricos não recalculam o passado.
+- **Relação entre versões:** `versao_base` registra qual snapshot foi reaberto; `campos_alterados` registra objetivamente as diferenças de parâmetros e/ou parcelas.
+- **Ordenação:** cálculos de processo aparecem primeiro, ordenados pelo número do processo; cálculos manuais aparecem em seguida, ordenados pelo identificador. Versões aparecem da mais recente para a mais antiga.
+- **Revisão humana:** reabrir uma versão invalida a confirmação anterior. Um novo cálculo exige nova confirmação humana.
+- **Retenção:** prazo de retenção, descarte e acesso aos snapshots deve ser validado por Jurídico/Compliance/DPO antes do uso institucional.
+
+## 2026-09-24 — Histórico avançado: identidade, concorrência, versões e execuções
+
+Responsável pela alteração: assistente de engenharia; validação operacional multiusuário pendente em ambiente corporativo.
+
+- **Identidade processual:** o número do processo é persistido com uma chave normalizada contendo somente dígitos. Máscaras diferentes do mesmo número não criam outro cálculo. A formatação CNJ é apenas de apresentação; esta regra não valida juridicamente o dígito verificador.
+- **Identidade de versão:** um `business_hash` SHA-256 é calculado somente sobre parâmetros, parcelas e `honorarios_sobre_danos_morais`. O mesmo estado funcional reutiliza a versão já cadastrada.
+- **Execução técnica:** toda execução concluída recebe `execucao_id`, mesmo quando não nasce uma versão. Hashes do motor, política, índices, entrada, duração e PDFs ficam ligados à execução para não transformar variação técnica em versão funcional.
+- **Concorrência:** `BEGIN IMMEDIATE` serializa a decisão de persistência no SQLite e `versao_base` implementa optimistic locking. Quando um novo estado parte de versão que deixou de ser atual, o backend retorna conflito e não cria versão parcial.
+- **Histórico linear:** a interface permite edição da versão atual. Versões antigas permanecem consultáveis/comparáveis, evitando ramificações silenciosas do histórico. Uma estratégia de branching só deverá ser introduzida se houver requisito jurídico/operacional explícito.
+- **Diff:** cada versão nova persiste diferenças escalares e diferenças completas das parcelas em relação à versão base. O comparador também calcula o diff diretamente entre duas versões escolhidas, sem alterar snapshots persistidos.
+- **Ciclo de vida:** cálculos podem estar `ativo`, `arquivado` ou `cancelado`. Arquivamento/cancelamento não remove versões ou execuções e impede novas execuções até reativação.
+- **Escalabilidade da consulta:** o histórico é paginado no backend. Versões e execuções são consultadas sob demanda, evitando transportar todo o histórico em uma única resposta.
+- **Filtros:** busca por processo/identificador, origem, estado, índice, criador, intervalo de atualização e ordenação são executados no backend.
+- **Migração:** bases antigas recebem colunas e tabelas novas de forma aditiva. Uma versão legada sem execução materializada recebe uma execução técnica correspondente ao snapshot histórico já existente; nenhum cálculo é reexecutado durante migração.
+## 2026-09-24 — Multa comum percentual ou fixa
+
+Responsável pela alteração: assistente de engenharia; validação jurídica do critério concreto permanece responsabilidade da revisão humana.
+
+- **Contrato:** `multa_valor` é o campo canônico e `multa_tipo` admite `percentual` ou `fixo`. `multa_percentual` é aceito somente como alias legado de entrada.
+- **Percentual:** mantém o comportamento anterior e calcula a multa sobre a base configurada pelas opções de incidência.
+- **Fixo:** representa um único valor monetário para todo o cálculo. O motor não replica o valor por parcela; ele o rateia entre parcelas elegíveis apenas para manter memória, subtotal e art. 523 consistentes linha a linha.
+- **Compatibilidade:** snapshots, fixtures e chamadas antigas continuam calculáveis por fallback explícito. Novas extrações e a interface usam apenas os campos canônicos.
+- **Interface:** a retirada de `Execução em lote` e `Índices` é somente de navegação principal, sem excluir endpoints/rotas. A alteração do título `Conferência do cálculo` restringe-se à família tipográfica.
+
+
+## 2026-09-24 — Refatoração estrutural da persistência e contratos
+
+Responsável pela alteração: assistente de engenharia; aprovação institucional permanece a cargo do processo corporativo de release.
+
+- **Repositórios por domínio:** código novo injeta repositórios especializados. `Repository` existe somente para compatibilidade e não contém SQL. Motivo: evitar que documentos, extrações, auditoria, índices e cálculos evoluam no mesmo objeto monolítico.
+- **Versão × execução × artefato:** versão representa estado funcional imutável; execução representa uma materialização técnica daquele estado; artefato representa arquivo produzido por uma execução. Motivo: reexecutar o mesmo estado com outra versão de índice/motor não cria versão de negócio falsa nem duplica PDFs na tabela de versões.
+- **Constraints como última barreira:** regras críticas de identidade, unicidade do hash e imutabilidade são aplicadas também pelo SQLite. Motivo: não depender exclusivamente da disciplina da camada Python.
+- **API canônica:** novos clientes usam `/api/v2`; aliases `/api` e `/api/v1` são transitórios e ocultos do OpenAPI. O contrato público usa `2.0.0`; a versão da aplicação é independente (`2.1.0`).
+- **Parâmetros:** a API plana permanece compatível, mas o backend converte os campos para grupos internos coesos e diferencia valor percentual de montante fixo. Motivo: reduzir estados semanticamente inválidos sem quebrar o motor estabilizado.
+- **DrCalc:** scraping, parsing, workbook, ciclo de vida e orquestração ficam em módulos distintos. O arquivo antigo permanece como fachada para imports existentes.
+- **Histórico Angular:** filtros, diff, comparação e execuções foram extraídos da página orquestradora. Execuções usam lazy loading e paginação independente.
+- **Erros públicos:** decisões de frontend devem usar `code`, não texto. `request_id` correlaciona suporte; valores recebidos não são ecoados.
