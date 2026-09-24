@@ -29,3 +29,19 @@
 ### Governança
 
 O responsável técnico e a aprovação institucional devem ser registrados pelo processo corporativo de merge/release. Regras jurídicas e de retenção continuam sujeitas à validação das áreas responsáveis.
+
+## 2026-09-24 — Conexão text_generator
+
+- Corrigida propagação de ambiente, CA, timeout e URLs configuradas no .env.
+- Preservado contrato mínimo para módulos corporativos legados.
+- Diferenciados erros de TLS, timeout e rede com mensagens sanitizadas.
+- Incluídos testes de transporte simulado e instruções de diagnóstico no README.
+
+## 2026-09-24 — Índices ausentes no seletor
+
+- Corrigida a verificação do frontend que rejeitava o backend 2.0.0.
+- Isolados os resultados do carregamento de processos e índices.
+- Incluídos estado de carregamento e tentativa manual no painel de parâmetros.
+- Validação: quatro testes de serviços TypeScript isolados e 30 testes Python
+  de catálogo/conexão e integração de cálculo aprovados. Sem teste em navegador
+  ou build Angular completo nesta revisão.

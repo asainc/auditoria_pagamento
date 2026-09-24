@@ -12,6 +12,8 @@ import importlib
 import inspect
 import logging
 import re
+
+import requests
 from typing import Any, Sequence
 
 from backend.config import Settings
@@ -76,7 +78,7 @@ class BradescoBridgeClient:
             )
 
         # Algumas versões do módulo disponibilizam configuração explícita. Ela é
-        # utilizada somente quando existe e há credenciais configuradas; versões
+        # utilizada quando existe, inclusive para ambiente e CA sem credenciais; versões
         # que autenticam internamente continuam funcionando sem adaptação.
         configure = getattr(module, "configure_iagen", None)
         if callable(configure):
@@ -87,8 +89,15 @@ class BradescoBridgeClient:
                 "token": self.settings.bradesco_authorization_token.get_secret_value(),
                 "ca_bundle": str(self.settings.bradesco_ca_bundle) if self.settings.bradesco_ca_bundle else "",
             }
-            if any(credentials[key] for key in ("identificador", "senha", "token")):
-                self._invoke_callable("configuração corporativa", configure, [(credentials,)])
+            # As opções adicionais pertencem ao cliente distribuído neste projeto.
+            # Módulos legados continuam recebendo somente o contrato anterior.
+            if getattr(module, "CONNECTION_CONFIG_VERSION", 0) == 1:
+                credentials.update({
+                    "timeout": self.settings.bradesco_timeout_seconds,
+                    "text_url": self.settings.bradesco_text_url,
+                    "identity_url": self.settings.bradesco_identity_url,
+                })
+            self._invoke_callable("configuração corporativa", configure, [(credentials,)])
 
         self._module = module
         return module
@@ -124,6 +133,22 @@ class BradescoBridgeClient:
 
     def _classify_error(self, exc: Exception, operation: str) -> BradescoBridgeError:
         """Traduz falhas externas sem ecoar prompt, documento ou credencial."""
+        # O cliente HTTP encapsula erros: percorremos as causas sem divulgar seu texto.
+        current: BaseException | None = exc
+        causes: list[BaseException] = []
+        while current is not None and all(current is not item for item in causes):
+            causes.append(current)
+            current = current.__cause__ or current.__context__
+        for error_type, code, message in (
+            (requests.exceptions.SSLError, "bradesco_certificado_invalido",
+             "Falha de certificado TLS. Configure BRADESCO_CA_BUNDLE com a CA corporativa confiável."),
+            (requests.exceptions.Timeout, "bradesco_tempo_esgotado",
+             "O serviço corporativo excedeu o timeout. Verifique a rede e BRADESCO_TIMEOUT_SECONDS."),
+            (requests.exceptions.ConnectionError, "bradesco_falha_rede",
+             "Falha de rede corporativa. Verifique VPN, DNS, proxy, ambiente e URLs de identidade e geração de texto."),
+        ):
+            if any(isinstance(item, error_type) for item in causes):
+                return BradescoBridgeError(code, message)
         status_code = self._safe_status_code(exc)
         request_id = self._safe_request_id(getattr(exc, "request_id", None))
         suffix = f" Referência técnica: {request_id}." if request_id else ""
@@ -131,7 +156,7 @@ class BradescoBridgeClient:
             return BradescoBridgeError(
                 "bradesco_requisicao_rejeitada",
                 "O serviço corporativo rejeitou os parâmetros da geração de texto (HTTP 400). "
-                "A calculadora usa o contrato mínimo compatível com gpt_bradesco.py; valide somente o deployment habilitado no ambiente." + suffix,
+                "A calculadora usa o contrato mínimo compatível com gpt_bradesco.py; valide o deployment e o contrato de parâmetros aceito pelo gateway." + suffix,
             )
         if status_code == 401:
             return BradescoBridgeError(
@@ -146,7 +171,7 @@ class BradescoBridgeClient:
         if status_code == 404:
             return BradescoBridgeError(
                 "bradesco_recurso_indisponivel",
-                "O deployment corporativo configurado não foi encontrado." + suffix,
+                "Recurso corporativo não encontrado. Verifique a URL do serviço, o ambiente e o deployment." + suffix,
             )
         if status_code == 429:
             return BradescoBridgeError(

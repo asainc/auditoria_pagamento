@@ -69,3 +69,36 @@ Regras que expressem interpretação jurídica, sucessão de decisões, polític
 - `Repository` migra automaticamente versões antigas de `parameter_changes`; a tabela original é preservada como `parameter_changes_legacy_vN` antes da criação do contrato atual.
 - Falhas de persistência da trilha de revisão são retornadas como erro operacional 503 sanitizado, em vez de HTTP 500 genérico.
 - O fluxo de regressão cobre a mesma ordem da UI: registrar alteração manual, confirmar revisão e executar `/api/calculos` sem número de processo.
+
+## 2026-09-24 — Correção de configuração do text_generator
+
+Responsável pela alteração: assistente de engenharia; validação corporativa pendente.
+
+- Aplicar configure_iagen mesmo sem credenciais em Settings: ambiente e CA são
+  necessários também quando a autenticação vem de variáveis do processo.
+- Encaminhar timeout e URLs de identidade/texto do .env ao módulo distribuído,
+  mediante CONNECTION_CONFIG_VERSION=1. Preservar os seis parâmetros da chamada
+  de geração para compatibilidade com módulos legados.
+- Aceitar BRADESCO_AMBIENTE e BRADESCO_TIMEOUT como aliases. Na mesma camada,
+  BRADESCO_IAGEN_AMBIENTE e BRADESCO_TIMEOUT_SECONDS têm precedência;
+  variáveis do processo continuam prevalecendo sobre .env.
+- Classificar causas encadeadas de TLS, timeout e rede sem propagar mensagens
+  externas. Manter validação TLS ativa e não alterar rotas ou payloads sem
+  documentação corporativa confirmada.
+
+## 2026-09-24 — Recuperação do catálogo de índices
+
+Responsável pela alteração: assistente de engenharia.
+
+- Alinhar o health check Angular ao backend 2.0.0, mantendo rejeição de versões
+  incompatíveis. A divergência anterior impedia a chamada ao catálogo.
+- Usar Promise.allSettled para não perder índices recebidos quando processos
+  falharem. Uma inicialização parcial continua permitindo nova tentativa.
+- Mostrar carregamento/indisponibilidade junto aos parâmetros e desabilitar
+  seletores dinâmicos vazios. Nenhum índice ou taxa é inventado no frontend.
+- Preservar o header X-API-Version e a rota legada /api/v1 existentes; corrigir
+  apenas a comparação com versao_api do health check.
+- Testes: `node --test tests/index-loading.test.cjs` (na pasta frontend, com
+  TypeScript instalado): 4 aprovados. `python -m pytest
+  tests/test_index_catalog_connection.py tests/test_calculation_integration.py -q`:
+  30 aprovados. Não executados build Angular completo nem validação no navegador.

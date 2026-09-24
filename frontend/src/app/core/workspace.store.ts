@@ -1,5 +1,5 @@
 /** Fachada fina da área de trabalho; estado, extração, cálculo e auditoria vivem em stores específicos. */
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ConnectionApiService } from './connection-api.service';
 import { DocumentApiService } from './document-api.service';
@@ -23,6 +23,7 @@ export class WorkspaceStore {
   readonly notices = inject(Notifications);
   readonly connection = inject(ConnectionApiService);
   private initialized = false;
+  readonly loadingCatalog = signal(false);
 
   // API pública preservada para os componentes existentes.
   readonly processes = this.state.processes;
@@ -45,18 +46,26 @@ export class WorkspaceStore {
   readonly reviewing = this.calculations.reviewing;
   readonly parameterChanges = this.audits.parameterChanges;
 
+  /** Carrega recursos independentes sem descartar os índices se a busca de processos falhar. */
   async initialize(force = false): Promise<void> {
-    if (this.initialized && !force) return;
-    if (!await this.connection.check()) return;
+    if (this.loadingCatalog() || (this.initialized && !force)) return;
+    this.loadingCatalog.set(true);
     try {
-      const [processes, indices] = await Promise.all([
+      if (!await this.connection.check()) return;
+      const [processes, indices] = await Promise.allSettled([
         firstValueFrom(this.documentsApi.processes()),
         firstValueFrom(this.indexApi.options()),
       ]);
-      this.processes.set(processes);
-      this.indices.set(indices);
-      this.initialized = true;
+      if (processes.status === 'fulfilled') this.processes.set(processes.value);
+      else this.notices.error(processes.reason);
+      if (indices.status === 'fulfilled' && indices.value.length > 0) {
+        this.indices.set(indices.value);
+      } else {
+        this.notices.error(indices.status === 'rejected' ? indices.reason : new Error('O servidor retornou uma lista de índices vazia.'));
+      }
+      this.initialized = processes.status === 'fulfilled' && indices.status === 'fulfilled' && indices.value.length > 0;
     } catch(error) { this.notices.error(error); }
+    finally { this.loadingCatalog.set(false); }
   }
 
   setMockMode(enabled: boolean): void {

@@ -8,6 +8,12 @@ import { DamageType, PARAM_FIELDS, ParamField, ParameterKey, SelectOption } from
   <div class="parameter-heading"><span class="eyebrow">Conferência</span><h2>Parâmetros do cálculo</h2><p>Preencha conforme os documentos e revise todos os critérios antes de calcular.</p>
     <label class="checkbox"><input type="checkbox" [ngModel]="showAll()" (ngModelChange)="showAll.set($event)"><span>Exibir todos os critérios</span></label>
   </div>
+  @if (!store.indices().length) {
+    <div role="status" aria-live="polite">
+      <p>{{ store.loadingCatalog() ? 'Carregando índices…' : 'Não foi possível carregar os índices de correção.' }}</p>
+      <button type="button" class="text-button" [disabled]="store.loadingCatalog()" (click)="store.initialize(true)">Tentar novamente</button>
+    </div>
+  }
   <div class="parameter-sections">
     @for (section of sections(); track section.title; let first = $first) {
       <details class="parameter-section" [open]="first">
@@ -25,7 +31,7 @@ import { DamageType, PARAM_FIELDS, ParamField, ParameterKey, SelectOption } from
             } @else {
               <label class="field">{{ field.label }}
                 @if (field.type === 'select') {
-                  <select [ngModel]="store.active().parameters[field.key] ?? ''" (ngModelChange)="set(field.key, $event)" [disabled]="!store.canEdit()">
+                  <select [ngModel]="store.active().parameters[field.key] ?? ''" (ngModelChange)="set(field.key, $event)" [disabled]="!store.canEdit() || (!field.options && !store.indices().length)">
                     @for (option of options(field); track option.value) {<option [ngValue]="option.value" [hidden]="option.hidden === true">{{ option.label }}</option>}
                   </select>
                 } @else {

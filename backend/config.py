@@ -42,6 +42,8 @@ class Settings(Contract):
     bradesco_senha: SecretStr = SecretStr("")
     bradesco_authorization_token: SecretStr = SecretStr("")
     bradesco_ca_bundle: Path | None = None
+    bradesco_text_url: str = ""
+    bradesco_identity_url: str = ""
     bradesco_timeout_seconds: int = Field(default=600, ge=10, le=1800)
 
     # Geração de texto usada por TODOS os prompts do projeto.
@@ -96,6 +98,10 @@ def load_settings() -> Settings:
     mapping = {
         "APP_ENV": "environment",
         "APP_DATA_DIR": "data_dir",
+        "BRADESCO_AMBIENTE": "bradesco_environment",
+        "BRADESCO_TIMEOUT": "bradesco_timeout_seconds",
+        "BRADESCO_TEXT_URL": "bradesco_text_url",
+        "BRADESCO_IDENTITY_URL": "bradesco_identity_url",
         "BRADESCO_IAGEN_AMBIENTE": "bradesco_environment",
         "BRADESCO_IDENTIFICADOR": "bradesco_identificador",
         "BRADESCO_SENHA": "bradesco_senha",

@@ -186,3 +186,42 @@ Os testes corporativos de integração usam dublês e não chamam rede real. A p
 - qualquer interpretação jurídica, política de retenção ou uso de dados pessoais precisa de validação do Jurídico/Compliance e do DPO conforme o caso de uso.
 
 Consulte `docs/EXTRACAO_IA.md`, `docs/OPERACAO.md`, `docs/FLUXO_EXTRACAO_VISUAL.md`, `docs/MODEL_CARD.md` e `docs/VALIDACAO.md`.
+
+## Correção da conexão com text_generator — 24/09/2026
+
+O backend agora encaminha ambiente e CA mesmo quando as credenciais vêm do
+processo. O cliente distribuído recebe o timeout definido no backend e aceita
+BRADESCO_TEXT_URL e BRADESCO_IDENTITY_URL no `.env` (URLs HTTPS completas,
+confirmadas pela equipe da API). Campos vazios preservam as rotas existentes.
+
+1. Extraia esta versão em uma pasta nova e mantenha seu `.env` local protegido.
+2. Confira `BRADESCO_IAGEN_AMBIENTE`, `BRADESCO_TEXT_MODEL` e autenticação:
+   token válido ou identificador e senha fornecidos pela equipe responsável.
+3. Confira `BRADESCO_CA_BUNDLE` se houver CA corporativa e
+   `BRADESCO_TIMEOUT_SECONDS` para o tempo máximo por requisição HTTP.
+4. Reinicie o backend e execute a extração de um PDF sintético pesquisável.
+5. Se persistir: envie somente a mensagem sanitizada/código HTTP, sem tokens,
+   credenciais, documentos reais ou cabeçalhos Authorization.
+
+Falhas TLS orientam a configuração da CA; falhas de rede orientam a verificação
+ de VPN, DNS, proxy e URLs; HTTP 401/403 exige revisar autenticação/permissões;
+HTTP 400 exige confirmar deployment e contrato; HTTP 404 pode indicar rota ou
+recurso incorreto. Presença de configuração não comprova conectividade.
+
+Validação desta correção usa transporte HTTP simulado. Não houve acesso ao
+serviço corporativo real; a causa específica do incidente depende da mensagem
+obtida no ambiente do usuário. O motor de cálculo não foi alterado.
+
+## Correção da lista de índices — 24/09/2026
+
+A verificação de conexão do frontend agora aceita a versão `2.0.0` informada
+pelo backend deste pacote. Antes, exigia `1.0.0` e interrompia a inicialização
+antes de consultar `/api/indices`. O carregamento de índices também foi separado
+do resultado da busca de processos: uma falha nesta busca não descarta o catálogo.
+Quando não houver índices carregados, o painel informa a falha/carregamento e
+oferece **Tentar novamente**, mantendo o seletor indisponível até receber a lista.
+
+Para aplicar, atualize o frontend com os arquivos deste pacote e reinicie o
+servidor Angular. Em instalações com build publicado, gere e publique novamente
+o frontend. Recarregue o navegador para remover a versão anterior da aplicação.
+As correções anteriores de conexão com text_generator estão incluídas.

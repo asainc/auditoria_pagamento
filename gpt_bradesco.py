@@ -33,6 +33,8 @@ _TOKEN_LOCK = threading.RLock()
 _TOKEN_CACHE: str | None = None
 # As credenciais existem apenas na memória do processo, nunca em logs ou artefatos.
 _AUTH_CONFIG: dict[str, Any] = {}
+# Permite ao backend reconhecer as opções locais sem alterar módulos legados.
+CONNECTION_CONFIG_VERSION = 1
 _ALLOWED_ENVIRONMENTS = {"dev", "homol", "prod"}
 
 # Hosts recuperados do arquivo Python anexado; caminhos de novos serviços
@@ -126,7 +128,8 @@ def _service_url(service: str, environment: str | None = None) -> str:
     if service not in _SERVICE_PATHS:
         raise ValueError(f"Serviço desconhecido: {service}.")
     selected = _environment(environment)
-    override = os.getenv(f"{_URL_OVERRIDES[service]}_{selected.upper()}")
+    override = _AUTH_CONFIG.get(f"{service}_url")
+    override = override or os.getenv(f"{_URL_OVERRIDES[service]}_{selected.upper()}")
     override = override or os.getenv(_URL_OVERRIDES[service])
     if override:
         return _validate_url(override)
@@ -153,7 +156,7 @@ def _tls_verify() -> bool | str:
 def _timeout(parameters: Mapping[str, Any] | None = None) -> float:
     """Permite ajustar timeout por operação, com fallback configurável."""
     source = parameters or {}
-    raw = source.get("timeout", os.getenv("BRADESCO_TIMEOUT", "120"))
+    raw = source.get("timeout", _AUTH_CONFIG.get("timeout") or os.getenv("BRADESCO_TIMEOUT_SECONDS") or os.getenv("BRADESCO_TIMEOUT", "120"))
     try:
         parsed = float(raw)
     except (TypeError, ValueError) as exc:
@@ -197,6 +200,12 @@ def configure_iagen(auth_parameter: Mapping[str, Any]) -> dict[str, Any]:
     # O arquivo do certificado, se configurado, deve existir antes do primeiro login.
     if config.get("ca_bundle") and not Path(config["ca_bundle"]).is_file():
         raise ValueError("ca_bundle deve apontar para um certificado CA existente.")
+    # Valida opções de transporte antes de substituir a configuração ativa.
+    for key in ("text_url", "identity_url"):
+        if config.get(key):
+            config[key] = _validate_url(config[key])
+    if "timeout" in config:
+        config["timeout"] = _positive_number(config["timeout"], "timeout")
     with _TOKEN_LOCK:
         _AUTH_CONFIG = {**config, "ambiente": environment}
         _TOKEN_CACHE = None
