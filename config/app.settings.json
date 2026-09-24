@@ -10,11 +10,13 @@
   "bradesco_environment": "dev",
   "bradesco_timeout_seconds": 600,
   "bradesco_text_model": "gpt-5.1",
-  "bradesco_text_reasoning_effort": "medium",
-  "bradesco_text_verbosity": "medium",
-  "bradesco_text_modalities": "text",
   "bradesco_text_temperature": 1.0,
   "bradesco_text_max_tokens": 16384,
   "bradesco_prompt_max_chars": 55000,
-  "index_timeout_seconds": 30
+  "index_timeout_seconds": 30,
+  "extraction_max_pages_per_task": 16,
+  "extraction_fallback_pages_per_document": 4,
+  "extraction_max_attempts": 3,
+  "extraction_retry_delay_seconds": 5,
+  "extraction_lease_seconds": 900
 }

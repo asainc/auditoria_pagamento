@@ -55,6 +55,14 @@ class CalculationService:
             raise ServiceError("Índices em atualização. Aguarde e tente novamente.", 503) from exc
         except (RequestException, FileNotFoundError) as exc:
             raise ServiceError("Não foi possível obter a série de índices necessária. Confira a disponibilidade dos índices.", 503) from exc
+        except (ModuleNotFoundError, ImportError) as exc:
+            # Em estações corporativas sem virtualenv, uma instalação antiga do
+            # motor no perfil do usuário não deve virar erro 500 sem diagnóstico.
+            logger.error("engine_import_error", extra={"error_type": type(exc).__name__})
+            raise ServiceError(
+                "O motor local não foi carregado corretamente. Reinicie o backend a partir da raiz do projeto atualizado.",
+                503,
+            ) from exc
         except (ValueError, KeyError, ArithmeticError) as exc:
             # A exceção do motor não é registrada integralmente para evitar ecoar valores de entrada nos logs.
             logger.warning("engine_validation", extra={"error_type": type(exc).__name__})

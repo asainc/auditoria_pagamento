@@ -172,3 +172,42 @@ dialog{padding:0;border:1px solid var(--line);border-radius:10px;width:min(570px
 .usage-summary > div { border:1px solid var(--border, #d9dde3); border-radius:10px; padding:10px 12px; background:var(--surface, #fff); min-width:0; }
 .usage-summary span { display:block; font-size:.76rem; color:var(--text-muted, #657080); margin-bottom:4px; }
 .usage-summary strong { display:block; font-size:.92rem; overflow-wrap:anywhere; }
+
+/* Revisão humana: evidencia extraído, valor corrente e origem sem esconder o contexto. */
+.evidence-comparison{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px 14px;
+  margin-top:7px;
+  font-size:.73rem;
+  color:var(--muted);
+}
+.evidence-comparison span{min-width:0;overflow-wrap:anywhere}
+.evidence-comparison strong{color:var(--ink);font-weight:650}
+
+/* O trecho selecionado permanece visível enquanto o visualizador navega para a página de origem. */
+.pdf-highlight-context{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:start;
+  gap:10px;
+  padding:9px 12px;
+  border-bottom:1px solid var(--line);
+  background:#fff8f9;
+  color:var(--ink);
+  font-size:.75rem;
+  line-height:1.4;
+}
+.pdf-highlight-context strong{white-space:nowrap;color:var(--accent)}
+.pdf-highlight-context span{min-width:0;overflow-wrap:anywhere}
+.pdf-highlight-context .text-button{align-self:start;white-space:nowrap}
+
+/* Multiplicador é explícito por parcela; dano não material permanece somente leitura em 1x. */
+.installments-table select[aria-label^="Multiplicador"]{min-width:112px;width:100%;max-width:150px}
+.readonly-cell{display:inline-flex;align-items:center;min-height:32px;padding:0 8px;color:var(--muted);font-family:var(--numbers);white-space:nowrap}
+
+@media(max-width:780px){
+  .evidence-comparison{grid-template-columns:1fr}
+  .pdf-highlight-context{grid-template-columns:1fr}
+  .pdf-highlight-context strong,.pdf-highlight-context .text-button{white-space:normal}
+}

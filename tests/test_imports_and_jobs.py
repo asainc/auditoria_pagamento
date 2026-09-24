@@ -69,7 +69,7 @@ def test_late_job_cannot_replace_new_revision(tmp_path):
     assert repository.status("1001").estado == "aguardando"
 
 
-def test_repository_survives_restart_and_marks_pending_jobs(tmp_path):
+def test_repository_survives_restart_and_recovers_pending_jobs(tmp_path):
     repository = Repository(tmp_path)
     document = DocumentMetadata(identificador="synthetic", numero_processo="1001", nome="1001_1.pdf", sha256="synthetic", tamanho_bytes=1, paginas=1, classificacao="outro")
     repository.add_document(document)
@@ -77,7 +77,7 @@ def test_repository_survives_restart_and_marks_pending_jobs(tmp_path):
     reopened = Repository(tmp_path)
     reopened.recover_jobs()
     assert reopened.documents("1001") == [document]
-    assert reopened.status("1001").estado == "interrompida"
+    assert reopened.status("1001").estado == "aguardando"
 
 
 def test_index_catalog_and_initial_status_are_real(client):

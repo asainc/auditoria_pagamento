@@ -13,6 +13,9 @@ import { Notifications, saveBlob } from '../core/notifications';
     </select></label>
     <button type="button" class="small-button" (click)="download()" [disabled]="!blob()">Baixar PDF</button>
   </div>
+  @if (store.pdfHighlight()) {
+    <div class="pdf-highlight-context" role="status"><strong>Trecho em conferência</strong><span>{{ store.pdfHighlight() }}</span><button type="button" class="text-button" (click)="store.pdfHighlight.set('')">Limpar destaque</button></div>
+  }
   <div class="pdf-surface">
     @if (loading()) { <div class="empty-state" role="status">Carregando documento…</div> }
     @else if (safeUrl()) { <iframe [src]="safeUrl()" title="Documento PDF para conferência"></iframe> }
@@ -27,7 +30,12 @@ export class PdfViewerComponent {
   readonly loading = signal(false);
   readonly blob = signal<Blob | null>(null);
   private readonly objectUrl = signal('');
-  readonly safeUrl = computed(() => this.objectUrl() ? this.sanitizer.bypassSecurityTrustResourceUrl(`${this.objectUrl()}#page=${this.store.pdfPage()}&view=FitH`) : null);
+  readonly safeUrl = computed(() => {
+    if (!this.objectUrl()) return null;
+    const search = this.store.pdfHighlight().trim();
+    const fragment = `#page=${this.store.pdfPage()}&view=FitH${search ? `&search=${encodeURIComponent(search.slice(0, 120))}` : ''}`;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(`${this.objectUrl()}${fragment}`);
+  });
 
   constructor() {
     effect(onCleanup => {
@@ -39,6 +47,6 @@ export class PdfViewerComponent {
       onCleanup(() => {subscription.unsubscribe(); if (url) URL.revokeObjectURL(url);});
     });
   }
-  select(id: string): void {this.store.selectedDocument.set(id); this.store.pdfPage.set(1);}
+  select(id: string): void {this.store.selectedDocument.set(id); this.store.pdfPage.set(1); this.store.pdfHighlight.set('');}
   download(): void { const blob = this.blob(); if (blob) saveBlob(blob, this.store.documents().find(item => item.identificador === this.store.selectedDocument())?.nome ?? 'documento.pdf'); }
 }

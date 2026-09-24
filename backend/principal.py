@@ -24,7 +24,7 @@ from backend.services.extraction import ExtractionProvider
 class Health(Contract):
     """Identifica disponibilidade da API e sua versão de contrato."""
     status: str = "ok"
-    versao_api: str = "1.0.0"
+    versao_api: str = "2.0.0"
 
 
 class AuditFormatter(logging.Formatter):
@@ -32,7 +32,7 @@ class AuditFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         """Seleciona metadados de auditoria sem serializar conteúdo de requisições."""
         payload = {"level": record.levelname, "event": record.getMessage()}
-        for key in ("request_id", "status_code", "duration_ms", "error_type"):
+        for key in ("request_id", "status_code", "duration_ms", "error_type", "job_id", "stage", "error_code", "attempt", "pages", "characters", "accepted", "rejected"):
             if hasattr(record, key):
                 payload[key] = getattr(record, key)
         return json.dumps(payload, ensure_ascii=False)
@@ -51,7 +51,7 @@ def create_app(settings: Settings | None = None, provider: ExtractionProvider | 
         finally:
             app.state.services.close()
 
-    app = FastAPI(title="Calculadora de Débitos Judiciais", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="Calculadora de Débitos Judiciais", version="2.0.0", lifespan=lifespan)
     app.state.settings = configuration
     logger = logging.getLogger("judicial")
     if not logger.handlers:

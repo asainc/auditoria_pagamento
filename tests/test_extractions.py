@@ -264,3 +264,62 @@ def test_double_value_flag_is_consolidated_from_document_evidence(client, pdf_by
     pdf_text = [PdfTextDocument(nome="1001_1.pdf", paginas=(PdfTextPage(1, "Parcela: 100.00."),))]
     consolidated = client.app.state.services.extractions.consolidate(result, documents, pdf_text)
     assert consolidated.parametros_consolidados["valor_dobrado_flag"] is True
+
+
+def test_structured_output_normalizes_aliases_without_second_llm_call():
+    """Aliases estruturais conhecidos são corrigidos localmente antes de gastar nova chamada."""
+    class AliasBridge:
+        configured = True
+        def __init__(self): self.calls = 0
+        def generate_text(self, payload: str, *, max_tokens: int) -> str:
+            self.calls += 1
+            return '{"fields":[],"installments":[],"warnings":[]}'
+
+    bridge = AliasBridge()
+    provider = ExtractionProvider(Settings(bradesco_text_model="gpt-5.1"), bridge=bridge)  # type: ignore[arg-type]
+    result = provider.extract(
+        "Prompt sintético",
+        [PdfTextDocument(nome="1001_1.pdf", paginas=(PdfTextPage(1, "Texto sintético suficientemente longo para a tarefa."),))],
+        stage="teste_alias",
+        max_output_tokens=1024,
+    )
+    assert result.fragmento.campos == []
+    assert bridge.calls == 1
+
+
+def test_prompt_router_reduces_context_to_relevant_pages():
+    from backend.services.prompt_router import PromptPageRouter
+    documents = [
+        PdfTextDocument(
+            nome="1001_1.pdf",
+            paginas=tuple(
+                PdfTextPage(index, text)
+                for index, text in enumerate([
+                    "capa e qualificação processual",
+                    "texto genérico sem juros",
+                    "juros de mora de 1% ao mês desde a citação",
+                    "outro texto genérico",
+                    "mais texto sem relação",
+                ], start=1)
+            ),
+        )
+    ]
+    selection = PromptPageRouter(max_pages_per_task=2).select("03_moratorios", documents)
+    assert selection.paginas == 1
+    assert selection.documentos[0].paginas[0].numero == 3
+
+
+def test_pymupdf_quality_blocks_image_only_text_before_ai():
+    from backend.services.pdf_text_extractor import PdfTextExtractor, PdfTextDocument, PdfTextPage, PdfPageQuality
+    from backend.errors import ServiceError
+    extractor = PdfTextExtractor(Settings())
+    document = PdfTextDocument(
+        nome="1001_1.pdf",
+        paginas=(PdfTextPage(1, "", PdfPageQuality(0,0,0,0,0,0,"inutilizavel")),),
+    )
+    try:
+        extractor.assert_usable([document])
+    except ServiceError as exc:
+        assert exc.status_code == 422
+    else:
+        raise AssertionError("PDF sem texto deveria ser bloqueado antes do text_generator")

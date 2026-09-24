@@ -11,7 +11,7 @@ A suíte cobre motor, contratos, cronologia, política operacional, imports e in
 
 ### Integração corporativa
 
-`tests/test_bradesco_bridge.py` simula upload, OCR assíncrono, consulta de workflow, limpeza remota e geração de texto. O teste verifica que a aplicação chama as funções do módulo corporativo sem executar HTTP real.
+`tests/test_bradesco_bridge.py` simula a geração de texto corporativa sem executar HTTP real. A leitura de PDF é validada separadamente com PyMuPDF e fixtures sintéticas.
 
 Uma validação end-to-end real precisa ocorrer na rede autorizada e deve começar com PDF sintético.
 
@@ -35,4 +35,4 @@ A validação impede reintrodução de Streamlit, acesso direto do frontend ao m
 - 28 testes do frontend aprovados; 4 testes de governança dependentes de lockfile corporativo ficaram ignorados, como previsto.
 - `validate_architecture.py` aprovado.
 - O build Angular não foi concluído nesta sessão porque o projeto deliberadamente não inclui um `package-lock.json` corporativo; o `prebuild` bloqueou a compilação antes de instalar dependências fora do fluxo autorizado.
-- Não houve chamada real aos serviços corporativos; OCR e geração de texto foram validados com dublês de teste.
+- Não houve chamada real aos serviços corporativos; a geração de texto foi validada com dublês e a leitura local com PDFs sintéticos.

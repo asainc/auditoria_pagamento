@@ -19,11 +19,18 @@ import { InstallmentBatchComponent } from './installment-batch.component';
     @for (type of types; track type.key) { <button type="button" [class.active]="damageType() === type.key" [attr.aria-pressed]="damageType() === type.key" (click)="damageType.set(type.key)">{{ type.label }}</button> }
   </div>
   <div class="installment-scroll" tabindex="0" aria-label="Parcelas com rolagem própria"><table class="installment-table">
-    <thead><tr><th scope="col">Item</th><th scope="col">Data</th><th scope="col">Valor original (R$)</th><th scope="col">Descrição</th><th scope="col">Ação</th></tr></thead>
+    <thead><tr><th scope="col">Item</th><th scope="col">Data</th><th scope="col">Valor original (R$)</th><th scope="col">Multiplicador</th><th scope="col">Descrição</th><th scope="col">Ação</th></tr></thead>
     <tbody>@for (row of rows(); track $index; let index = $index) {
       <tr><td class="numeric">{{ index + 1 }}</td>
         <td><input type="date" [ngModel]="row.data" (ngModelChange)="edit(index, 'data', $event)" [disabled]="!store.canEdit()" [attr.aria-label]="'Data da parcela ' + (index + 1)"></td>
         <td><input inputmode="decimal" [ngModel]="row.valor_singelo" (ngModelChange)="edit(index, 'valor_singelo', $event)" [disabled]="!store.canEdit()" placeholder="0,00" [attr.aria-label]="'Valor da parcela ' + (index + 1)"></td>
+        <td>
+          @if (damageType() === 'dano_material') {
+            <select [ngModel]="row.multiplicador ?? ''" (ngModelChange)="editMultiplier(index, $event)" [disabled]="!store.canEdit()" [attr.aria-label]="'Multiplicador da parcela ' + (index + 1)">
+              <option value="">Padrão global</option><option [ngValue]="1">1x</option><option [ngValue]="2">2x</option>
+            </select>
+          } @else { <span class="readonly-cell">1x</span> }
+        </td>
         <td><input [ngModel]="row.descricao" (ngModelChange)="edit(index, 'descricao', $event)" [disabled]="!store.canEdit()" placeholder="Digite para adicionar" maxlength="500" [attr.aria-label]="'Descrição da parcela ' + (index + 1)"></td>
         <td><button type="button" class="row-remove" (click)="remove(index)" [disabled]="index === activeRows().length || !store.canEdit()" [attr.aria-label]="'Remover parcela ' + (index + 1)">×</button></td></tr>
     }</tbody>
@@ -39,12 +46,18 @@ export class InstallmentEditorComponent {
   readonly importing = signal(false);
   readonly types: {key:DamageType;label:string}[] = [{key:'dano_material',label:'Dano material'},{key:'dano_moral',label:'Dano moral'},{key:'honorarios',label:'Honorários'},{key:'custas',label:'Custas'}];
   readonly activeRows = computed(() => this.store.active().installments.filter(row => row.verba_tipo === this.damageType()));
-  readonly rows = computed(() => [...this.activeRows(), {data:'',valor_singelo:'',descricao:'',verba_tipo:this.damageType()}]);
+  readonly rows = computed(() => [...this.activeRows(), {data:'',valor_singelo:'',descricao:'',verba_tipo:this.damageType(),multiplicador:null}]);
 
   /** A linha virtual vira parcela somente ao receber algum conteúdo. */
   edit(index: number, key: 'data' | 'valor_singelo' | 'descricao', value: string): void {
     const row = this.activeRows()[index];
     this.store.update(draft => ({...draft, installments:row ? draft.installments.map(item => item === row ? {...item,[key]:value} : item) : [...draft.installments,{...this.rows()[index],[key]:value}]}));
+  }
+  editMultiplier(index: number, value: number | string | null): void {
+    const row = this.activeRows()[index];
+    if (!row) return;
+    const multiplier = value === 1 || value === '1' ? 1 : value === 2 || value === '2' ? 2 : null;
+    this.store.update(draft => ({...draft,installments:draft.installments.map(item => item === row ? {...item,multiplicador:multiplier} : item)}));
   }
   remove(index: number): void { const row = this.activeRows()[index]; this.store.update(draft => ({...draft,installments:draft.installments.filter(item => item !== row)})); }
   clear(): void { this.store.update(draft => ({...draft,installments:[]})); }

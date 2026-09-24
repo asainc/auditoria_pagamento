@@ -25,7 +25,7 @@ def configuration(service: Dependency):
             else "Configure BRADESCO_TEXT_MODEL e mantenha gpt_bradesco.py com text_generator funcional no backend."
         ),
         # Campo mantido no contrato da API para compatibilidade com o frontend atual.
-        ocr_workflow="pymupdf_local_text",
+        leitura_documental="pymupdf_local_text",
         tokens_disponiveis=False,
         custo_disponivel=False,
     )

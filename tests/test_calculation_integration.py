@@ -28,6 +28,28 @@ def test_manual_calculation_runs_without_process_context(client, payload):
     assert {row["campo"]: row["valor"] for row in body["resumo"]}["total_geral"] == "1234.56"
 
 
+
+def test_manual_ui_flow_audits_parameter_before_calculation(client, payload):
+    """Reproduz a ordem real da UI: auditoria pendente e depois cálculo manual."""
+    audit = client.post(
+        "/api/auditoria/parametros",
+        json={
+            "origem_calculo": "manual",
+            "numero_processo": None,
+            "rascunho_id": "manualdraftintegration",
+            "campo": "indice",
+            "valor_anterior": None,
+            "valor_novo": payload["parametros"]["indice"],
+            "extracao_id": None,
+        },
+    )
+    assert audit.status_code == 200, audit.text
+    payload["origem_calculo"] = "manual"
+    payload["numero_processo"] = None
+    response = client.post("/api/calculos", json=payload)
+    assert response.status_code == 200, response.text
+    assert response.json()["origem_calculo"] == "manual"
+
 def test_angular_payload_runs_real_engine(client, payload):
     response = client.post("/api/calculos", json=payload)
     assert response.status_code == 200
@@ -163,3 +185,37 @@ def test_policy_endpoint_exposes_defaults_by_origin(client):
     assert manual.status_code == process.status_code == 200
     assert manual.json()["parametros_padrao"]["juros_moratorios_tipo"] == "sem_juros"
     assert process.json()["parametros_padrao"]["juros_moratorios_tipo"] == "taxa_legal_12_aa_6_aa"
+
+
+def test_installment_multiplier_overrides_global_double_flag(client, payload):
+    """Multiplicador específico prevalece sobre a flag global e permite exceções."""
+    payload["parametros"]["valor_dobrado_flag"] = True
+    payload["parcelas"] = [
+        {
+            "data": "2025-01-01",
+            "valor_singelo": "100.00",
+            "descricao": "Devolução simples expressa",
+            "verba_tipo": "dano_material",
+            "multiplicador": 1,
+        },
+        {
+            "data": "2025-02-01",
+            "valor_singelo": "200.00",
+            "descricao": "Devolução em dobro expressa",
+            "verba_tipo": "dano_material",
+            "multiplicador": 2,
+        },
+        {
+            "data": "2025-03-01",
+            "valor_singelo": "50.00",
+            "descricao": "Herda a regra global",
+            "verba_tipo": "dano_material",
+        },
+    ]
+    response = client.post("/api/calculos", json=payload)
+    assert response.status_code == 200, response.text
+    memory = response.json()["memoria"]
+    value_index = memory["colunas"].index("valor_singelo")
+    multiplier_index = memory["colunas"].index("multiplicador_aplicado")
+    assert [row[value_index] for row in memory["linhas"]] == ["100.00", "400.00", "100.00"]
+    assert [row[multiplier_index] for row in memory["linhas"]] == [1, 2, 2]

@@ -1,6 +1,6 @@
 /** Gerado de docs/openapi.json. Atualize por scripts/generate_contracts.py. */
 
-export type AiUsage = { "etapa": string; "modelo": string; "tokens_entrada"?: number | null; "tokens_entrada_cache"?: number | null; "tokens_saida"?: number | null; "tokens_total"?: number | null; "custo_estimado_usd"?: string | null; "duracao_ms": number };
+export type AiUsage = { "etapa": string; "modelo": string; "tokens_entrada"?: number | null; "tokens_entrada_cache"?: number | null; "tokens_saida"?: number | null; "tokens_total"?: number | null; "custo_estimado_usd"?: string | null; "duracao_ms": number; "paginas_contexto"?: number | null; "caracteres_entrada"?: number | null; "correcao_estrutural"?: boolean };
 
 export type AiUsageSummary = { "chamadas": number; "tokens_entrada"?: number | null; "tokens_entrada_cache"?: number | null; "tokens_saida"?: number | null; "tokens_total"?: number | null; "custo_estimado_usd"?: string | null; "duracao_total_ms"?: number; "detalhamento"?: Array<AiUsage> };
 
@@ -40,7 +40,7 @@ export type DataTable = { "colunas": Array<string>; "linhas": Array<Array<string
 
 export type DocumentMetadata = { "identificador": string; "numero_processo": string; "nome": string; "sha256": string; "tamanho_bytes": number; "paginas": number; "classificacao": string };
 
-export type ExtractionConfiguration = { "provedor"?: "bradesco_iagen"; "configurada": boolean; "modelo": string; "mensagem": string; "ocr_workflow": string; "tokens_disponiveis"?: boolean; "custo_disponivel"?: boolean };
+export type ExtractionConfiguration = { "provedor"?: "bradesco_iagen"; "configurada": boolean; "modelo": string; "mensagem": string; "leitura_documental": string; "tokens_disponiveis"?: boolean; "custo_disponivel"?: boolean };
 
 export type ExtractionRequest = { "numero_processo": string };
 
@@ -60,9 +60,9 @@ export type IndexOption = { "chave": string; "nome": string };
 
 export type IndexStatus = { "estado": "nao_verificado" | "atualizado" | "falha" | "executando"; "mensagem": string; "atualizado_em"?: string | null; "arquivos_sha256": Record<string, string> };
 
-export type Installment_Input = { "data": string; "valor_singelo": number | string; "descricao"?: string; "verba_tipo": "dano_material" | "dano_moral" | "honorarios" | "custas"; "origem"?: "informada" | "honorarios_dano_moral" };
+export type Installment_Input = { "data": string; "valor_singelo": number | string; "descricao"?: string; "verba_tipo": "dano_material" | "dano_moral" | "honorarios" | "custas"; "multiplicador"?: 1 | 2 | null; "origem"?: "informada" | "honorarios_dano_moral" };
 
-export type Installment_Output = { "data": string; "valor_singelo": string; "descricao"?: string; "verba_tipo": "dano_material" | "dano_moral" | "honorarios" | "custas"; "origem"?: "informada" | "honorarios_dano_moral" };
+export type Installment_Output = { "data": string; "valor_singelo": string; "descricao"?: string; "verba_tipo": "dano_material" | "dano_moral" | "honorarios" | "custas"; "multiplicador"?: 1 | 2 | null; "origem"?: "informada" | "honorarios_dano_moral" };
 
 export type OperationalAdjustment = { "campo": string; "valor": string | number | number | boolean | null; "motivo": string };
 

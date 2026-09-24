@@ -36,6 +36,6 @@
   "src/judicial_calc/services/calculation_parameters.py": "e200cd87f9c11ddee31d97db2c7d52427fc858fc8c34fa920cfd46a282f03b0a",
   "src/judicial_calc/services/calculation_penalties.py": "bee42954f17197a0a34b708a83cd496d05ddd2becbf07f61687ae80e150dc9c2",
   "src/judicial_calc/services/calculation_prescription.py": "8796f8d2e3886d7aefb18b3cd963b1339b2f566dcd9961408b3e7216991aa5ff",
-  "src/judicial_calc/services/calculation_service.py": "74eacb8261d7ade73acc21bb71330a81b9318a1a94c1332551194d3c08c5fff1",
+  "src/judicial_calc/services/calculation_service.py": "8d1f8017a45d5dbb93429bba80a7478783f40f18becbf392fdf03f19c915f409",
   "src/judicial_calc/services/calculation_summary.py": "2c1e1aa7d3b105259368f225c30c2e912367d30ccb7b453d8e5d2638ba7e59f2"
 }

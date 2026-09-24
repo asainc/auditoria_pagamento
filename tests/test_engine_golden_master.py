@@ -40,7 +40,7 @@ def _frame_records(frame) -> list[dict[str, Any]]:
 
 def test_engine_matches_golden_master_after_structural_refactor():
     fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
-    assert fixture["version"] == 1
+    assert fixture["version"] == 2
 
     for scenario in fixture["scenarios"]:
         result = calcular_debitos(scenario["parcelas"], **scenario["params"])

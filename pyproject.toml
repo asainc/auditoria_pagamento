@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "judicial-calculator-web"
-version = "1.0.0"
+version = "2.0.0"
 description = "API FastAPI e frontend Angular para o motor de cálculo judicial existente."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Calculadora de Débitos Judiciais",
-    "version": "1.0.0"
+    "version": "2.0.0"
   },
   "paths": {
     "/api/saude": {
@@ -957,6 +957,35 @@
             "type": "number",
             "minimum": 0.0,
             "title": "Duracao Ms"
+          },
+          "paginas_contexto": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paginas Contexto"
+          },
+          "caracteres_entrada": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caracteres Entrada"
+          },
+          "correcao_estrutural": {
+            "type": "boolean",
+            "title": "Correcao Estrutural",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -2765,9 +2794,9 @@
             "type": "string",
             "title": "Mensagem"
           },
-          "ocr_workflow": {
+          "leitura_documental": {
             "type": "string",
-            "title": "Ocr Workflow"
+            "title": "Leitura Documental"
           },
           "tokens_disponiveis": {
             "type": "boolean",
@@ -2786,7 +2815,7 @@
           "configurada",
           "modelo",
           "mensagem",
-          "ocr_workflow"
+          "leitura_documental"
         ],
         "title": "ExtractionConfiguration",
         "description": "Presença da configuração corporativa sem expor segredos ou testar credenciais."
@@ -3123,7 +3152,7 @@
           "versao_api": {
             "type": "string",
             "title": "Versao Api",
-            "default": "1.0.0"
+            "default": "2.0.0"
           }
         },
         "additionalProperties": false,
@@ -3232,6 +3261,21 @@
             ],
             "title": "Verba Tipo"
           },
+          "multiplicador": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "enum": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multiplicador"
+          },
           "origem": {
             "type": "string",
             "enum": [
@@ -3250,7 +3294,7 @@
           "verba_tipo"
         ],
         "title": "Installment",
-        "description": "Parcela informada ou revisada; sem identificadores pessoais."
+        "description": "Parcela informada/revisada com multiplicador explícito quando houver comando específico."
       },
       "Installment-Output": {
         "properties": {
@@ -3280,6 +3324,21 @@
             ],
             "title": "Verba Tipo"
           },
+          "multiplicador": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "enum": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multiplicador"
+          },
           "origem": {
             "type": "string",
             "enum": [
@@ -3298,7 +3357,7 @@
           "verba_tipo"
         ],
         "title": "Installment",
-        "description": "Parcela informada ou revisada; sem identificadores pessoais."
+        "description": "Parcela informada/revisada com multiplicador explícito quando houver comando específico."
       },
       "OperationalAdjustment": {
         "properties": {

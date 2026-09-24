@@ -40,7 +40,7 @@
 | Parser histórico aceita formatos longos e matrizes por ano/mês | Aumenta a resiliência a tabelas ASP antigas sem depender de um único layout HTML. |
 | Estado da atualização usa `DrCalcUpdateResult.success` como fonte de verdade | Evita falso negativo causado por inferência baseada em texto de mensagem ou no campo `executed`. |
 | Eventos financeiros deixam de integrar o contrato de cálculo | O fluxo específico de depósitos/pagamentos/levantamentos foi removido da aplicação e do motor para reduzir ambiguidade e manter apenas os ajustes explicitamente suportados. |
-| Valor em dobro é uma flag explícita e restrita a dano material | Quando o título determinar restituição/devolução em dobro, o motor duplica somente o valor nominal das parcelas de dano material antes dos demais encargos; dano moral, honorários e custas não são duplicados. |
+| Valor em dobro é resolvido por parcela de dano material | `multiplicador=1|2` explícito na parcela prevalece; `valor_dobrado_flag` permanece como fallback/atalho global. Dano moral, honorários e custas permanecem em 1x. |
 | Tabelas de log têm viewport mínimo com rolagem nos dois eixos | Mantém pelo menos cinco linhas visíveis e permite inspecionar colunas largas sem comprimir o conteúdo. |
 
 Regras que expressem interpretação jurídica, sucessão de decisões, política de encargos ou retenção de dados devem ser validadas pelas áreas responsáveis antes de uso institucional.
@@ -53,3 +53,19 @@ Regras que expressem interpretação jurídica, sucessão de decisões, polític
 - **Instalação corporativa:** os `.tgz` obtidos pelo fluxo autorizado podem ser validados e carregados no cache local sem transformar o projeto em uma distribuição baseada em `file:`.
 - **Limite:** disponibilidade técnica no Nexus não equivale a homologação de licença, vulnerabilidade ou política interna.
 
+
+
+## 2026-09-24 — consolidação técnica da extração e do cálculo
+
+- **Motivo:** reduzir acoplamento, chamadas desnecessárias ao `text_generator`, perda de trabalho em reinícios e ambiguidade da restituição em dobro.
+- **Decisões:** o valor em dobro aceita `multiplicador` por parcela; a flag global permanece somente como fallback/atalho; jobs de extração são persistidos com lease/retry; contexto de IA é selecionado deterministicamente por tarefa; saídas estruturais são normalizadas localmente antes de eventual reparo por IA; a revisão humana navega para a página/trecho de evidência.
+- **Validação técnica:** suíte automatizada, golden masters do motor, contratos gerados e validação arquitetural.
+- **Benchmark:** benchmark real da extração foi explicitamente excluído deste marco a pedido do solicitante.
+- **Responsável técnico:** deve ser preenchido no repositório corporativo pelo responsável pela aprovação/merge desta versão; o artefato gerado não presume identidade ou aprovação institucional.
+
+## 2026-09-24 — Compatibilidade de execução manual sem virtualenv e migração SQLite
+
+- O pacote `backend` prioriza explicitamente `<raiz>/src` no `sys.path` para que estações corporativas sem instalação editável carreguem o `judicial_calc` pertencente ao próprio projeto, e não uma cópia antiga do perfil do usuário.
+- `Repository` migra automaticamente versões antigas de `parameter_changes`; a tabela original é preservada como `parameter_changes_legacy_vN` antes da criação do contrato atual.
+- Falhas de persistência da trilha de revisão são retornadas como erro operacional 503 sanitizado, em vez de HTTP 500 genérico.
+- O fluxo de regressão cobre a mesma ordem da UI: registrar alteração manual, confirmar revisão e executar `/api/calculos` sem número de processo.

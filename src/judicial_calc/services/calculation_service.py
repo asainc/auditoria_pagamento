@@ -383,8 +383,17 @@ def _linha_memoria(row: dict[str, Any], cfg: CalculoParams, params: dict[str, An
     indice_linha, valor_duplo_indice, faixa_duplo_indice = _indice_correcao_linha(data_parcela, cfg)
     valor_original = moeda(valor_duplo_indice if valor_duplo_indice is not None else row["valor_singelo"])
     verba_tipo = str(row.get("verba_tipo", "dano_material"))
-    aplica_valor_dobrado = cfg.valor_dobrado_flag and verba_tipo == "dano_material"
-    valor_singelo = moeda(valor_original * Decimal("2")) if aplica_valor_dobrado else valor_original
+    multiplicador_configurado = row.get("multiplicador")
+    if verba_tipo != "dano_material":
+        multiplicador_aplicado = 1
+    elif multiplicador_configurado in {1, 2, "1", "2"}:
+        multiplicador_aplicado = int(multiplicador_configurado)
+    else:
+        # A flag global é apenas um atalho/fallback. Uma parcela com multiplicador
+        # explícito sempre prevalece, permitindo exceções dentro do mesmo processo.
+        multiplicador_aplicado = 2 if cfg.valor_dobrado_flag else 1
+    aplica_valor_dobrado = multiplicador_aplicado == 2
+    valor_singelo = moeda(valor_original * Decimal(multiplicador_aplicado))
 
     fator = obter_fator_correcao(
         indice=indice_linha,
@@ -477,11 +486,12 @@ def _linha_memoria(row: dict[str, Any], cfg: CalculoParams, params: dict[str, An
         "compensacao_linha": Decimal("0.00"),
         "total_liquido_apos_compensacao": total,
     }
-    if cfg.valor_dobrado_flag:
-        # A repetição em dobro incide apenas sobre parcelas de dano material.
-        # Dano moral, custas e honorários permanecem com o valor nominal próprio.
-        linha["valor_original"] = valor_original
-        linha["valor_dobrado_flag"] = aplica_valor_dobrado
+    # A memória sempre explicita o multiplicador efetivo para auditoria, inclusive
+    # quando veio da parcela e não da flag global.
+    linha["valor_original"] = valor_original
+    linha["multiplicador_configurado"] = multiplicador_configurado
+    linha["multiplicador_aplicado"] = multiplicador_aplicado
+    linha["valor_dobrado_flag"] = aplica_valor_dobrado
     return linha
 
 

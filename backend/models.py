@@ -27,11 +27,13 @@ class Contract(BaseModel):
 
 
 class Installment(Contract):
-    """Parcela informada ou revisada; sem identificadores pessoais."""
+    """Parcela informada/revisada com multiplicador explícito quando houver comando específico."""
     data: date
     valor_singelo: Money
     descricao: str = Field(default="", max_length=500)
     verba_tipo: DamageType
+    # ``None`` herda a flag global; 1 força valor simples; 2 força repetição em dobro.
+    multiplicador: Literal[1, 2] | None = None
     origem: Literal["informada", "honorarios_dano_moral"] = "informada"
 
 
@@ -212,6 +214,9 @@ class AiUsage(Contract):
     tokens_total: int | None = Field(default=None, ge=0)
     custo_estimado_usd: Decimal | None = Field(default=None, ge=0, decimal_places=6)
     duracao_ms: float = Field(ge=0)
+    paginas_contexto: int | None = Field(default=None, ge=0)
+    caracteres_entrada: int | None = Field(default=None, ge=0)
+    correcao_estrutural: bool = False
 
 
 class AiUsageSummary(Contract):
@@ -248,7 +253,7 @@ class ExtractionConfiguration(Contract):
     configurada: bool
     modelo: str
     mensagem: str
-    ocr_workflow: str
+    leitura_documental: str
     tokens_disponiveis: bool = False
     custo_disponivel: bool = False
 

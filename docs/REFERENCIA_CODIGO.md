@@ -11,7 +11,7 @@ Use esta referência para localizar responsabilidades. Para entender a sequênci
 
 ## `backend/__init__.py`
 
-API HTTP da calculadora; a experiência visual pertence ao Angular.
+Inicialização mínima do pacote backend para execução corporativa sem virtualenv.
 
 Este módulo não expõe classes ou funções de nível superior.
 
@@ -120,7 +120,7 @@ Base fechada para impedir erros de digitação silenciosos nos contratos.
 
 ### `class Installment(Contract)`
 
-Parcela informada ou revisada; sem identificadores pessoais.
+Parcela informada/revisada com multiplicador explícito quando houver comando específico.
 
 
 ### `class CalculationParameters(Contract)`
@@ -319,17 +319,22 @@ Horário UTC torna eventos comparáveis em instalações distintas.
 SQLite com conexão curta por operação e compare-and-set para trabalhos.
 
 - `def __init__(self, data_dir: Path)` — Recebe dependências explicitamente para manter configuração e testes isolados.
+- `def _parameter_changes_ddl(table: str='parameter_changes') -> str` — Retorna o DDL canônico da trilha de revisão humana.
+- `def _ensure_parameter_changes_schema(self, connection: sqlite3.Connection) -> None` — Migra versões antigas da tabela sem descartar o histórico original.
 - `def connection(self) -> Iterator[sqlite3.Connection]` — Commit ou rollback integral, sem conexões compartilhadas entre threads.
 - `def add_document(self, document: DocumentMetadata) -> DocumentMetadata` — A unicidade por processo e hash torna o reenvio idempotente.
 - `def documents(self, process: str) -> list[DocumentMetadata]` — Consulta documentos pelo processo com parâmetros SQL vinculados.
 - `def document(self, identifier: str) -> DocumentMetadata | None` — Resolve identificador opaco sem aceitar caminhos do usuário.
 - `def classify_document(self, identifier: str, classification: str) -> None` — Somente a classificação muda; hash e associação ao processo permanecem fixos.
 - `def processes(self) -> list[ProcessSummary]` — Deriva a lista de processos do estado documental persistido.
-- `def start_job(self, status: ExtractionStatus) -> None` — Registra a revisão vigente do trabalho e permite rejeitar resultados de outra revisão.
+- `def start_job(self, status: ExtractionStatus, *, max_attempts: int=3) -> None` — Registra a revisão vigente e enfileira trabalho durável de forma idempotente.
+- `def claim_extraction_job(self, lease_seconds: int) -> tuple[str, str, int, int] | None` — Reserva atomicamente o próximo job pronto e recupera leases expirados.
+- `def retry_extraction_job(self, job: str, delay_seconds: float) -> None` — Reagenda job após falha transitória sem criar uma nova revisão.
+- `def finish_extraction_job(self, job: str, *, success: bool) -> None` — Finaliza job; histórico técnico permanece no SQLite para diagnóstico.
 - `def update_job(self, status: ExtractionStatus, result: ExtractionResult | None=None) -> None` — Atualiza somente a revisão ainda vigente e rejeita retornos atrasados.
 - `def status(self, process: str) -> ExtractionStatus | None` — Consulta estado persistido; ausência é distinta de falha de processamento.
 - `def result(self, process: str) -> ExtractionResult | None` — Só disponibiliza resultado associado à revisão vigente.
-- `def recover_jobs(self) -> None` — Reinício não simula conclusão: trabalhos pendentes ficam disponíveis para repetição.
+- `def recover_jobs(self) -> None` — Reinício recoloca jobs pendentes na fila em vez de exigir repetição manual.
 - `def add_parameter_change(self, change: ParameterChangeInput, *, actor: str, extracted_value: object=None, extracted_source: str | None=None) -> ParameterChangeRecord` — Persiste evento imutável de revisão e devolve o registro materializado.
 - `def parameter_changes(self, *, process: str | None=None, draft: str | None=None) -> list[ParameterChangeRecord]` — Consulta a trilha por processo real ou por rascunho manual, em ordem temporal.
 - `def audit(self, event: str, payload: dict[str, str | int | float | bool]) -> None` — Somente identificadores técnicos, contagens e hashes; nunca conteúdo documental.
@@ -504,6 +509,7 @@ Facade restrita ao ``text_generator`` do módulo corporativo.
 - `def configured(self) -> bool` — A configuração local exige apenas um deployment de geração de texto.
 - `def _load(self) -> Any` — Importa o módulo corporativo somente na primeira chamada de prompt.
 - `def _safe_request_id(value: Any) -> str | None` — Aceita somente identificadores técnicos curtos em mensagens de erro.
+- `def _safe_status_code(exc: Exception) -> int | None` — Recupera apenas o código HTTP sem propagar corpo de resposta ou documento.
 - `def _classify_error(self, exc: Exception, operation: str) -> BradescoBridgeError` — Traduz falhas externas sem ecoar prompt, documento ou credencial.
 - `def _binds(function: Any, args: Sequence[Any]) -> bool` — Confere a assinatura antes da chamada para evitar tentativa por exceção.
 - `def _invoke_callable(self, operation: str, function: Any, variants: Sequence[Sequence[Any]]) -> Any` — Executa a primeira assinatura conhecida compatível com a função.
@@ -595,9 +601,73 @@ Formata os campos do erro usando a mesma nomenclatura exibida na interface.
 
 Retorna orientação para correção sem analisar nem devolver o texto da exceção.
 
+## `backend/services/evidence_validator.py`
+
+Validação de evidências contra o texto local e consolidação cronológica.
+
+### `class EvidenceValidator`
+
+Mantém somente evidências rastreáveis e calcula métricas de aceitação.
+
+- `def __init__(self, reducer: ChronologyReducer | None=None)` — Sem descrição específica no código.
+- `def consolidate(self, result: ExtractionResult, documents: list[DocumentMetadata], pdf_documents: list[PdfTextDocument] | None=None) -> tuple[ExtractionResult, int, int]` — Sem descrição específica no código.
+
 ## `backend/services/extraction.py`
 
-Extração documental usando exclusivamente os serviços corporativos configurados.
+Orquestração de extração documental com leitura local, seleção de páginas e fila durável.
+
+### `class ExtractionProviderError(ServiceError)`
+
+Erro público estável; nunca inclui corpo da resposta, prompt ou credencial.
+
+- `def __init__(self, code: str, message: str, status_code: int=502, retryable: bool=False)` — Sem descrição específica no código.
+
+### `class ExtractionProvider`
+
+Fachada testável para PyMuPDF, roteamento de páginas e text_generator.
+
+- `def __init__(self, settings: Settings, bridge: BradescoBridgeClient | None=None)` — Sem descrição específica no código.
+- `def configured(self) -> bool` — Sem descrição específica no código.
+- `def read_documents(self, files: list[tuple[str, bytes, int]]) -> list[PdfTextDocument]` — Sem descrição específica no código.
+- `def extract_with_metrics(self, prompt: str, documents: list[PdfTextDocument], *, stage: str, max_output_tokens: int) -> tuple[ProviderResult, PromptExecutionMetrics]` — Executa a tarefa e devolve métricas sem quebrar provedores de teste legados.
+- `def extract(self, prompt: str, documents: list[PdfTextDocument], *, stage: str, max_output_tokens: int) -> ProviderResult` — Compatibilidade para testes e integrações que não consomem métricas detalhadas.
+
+### `class ExtractionService`
+
+Orquestra fila durável, prompts especializados, validação e persistência.
+
+- `def __init__(self, settings: Settings, repository: Repository, documents: DocumentService, provider: ExtractionProvider)` — Sem descrição específica no código.
+- `def start(self, process: str, new_upload: bool=False) -> ExtractionStatus` — Cria uma revisão e a persiste na fila; trabalhos ativos são compartilhados.
+- `def _handle_claimed_job(self, claimed: ClaimedExtractionJob) -> None` — Sem descrição específica no código.
+- `def _persist_failure(self, status: ExtractionStatus, code: str, message: str) -> None` — Sem descrição específica no código.
+- `def _run_once(self, status: ExtractionStatus, documents: list[DocumentMetadata], attempt: int) -> None` — Sem descrição específica no código.
+- `def run(self, status: ExtractionStatus, documents: list[DocumentMetadata]) -> None` — Compatibilidade de teste: executa uma tentativa síncrona fora da fila.
+- `def _sum_optional(values: list[int | None]) -> int | None` — Sem descrição específica no código.
+- `def _summarize_usage(cls, usages: list[AiUsage]) -> AiUsageSummary` — Sem descrição específica no código.
+- `def consolidate(self, result: ExtractionResult, documents: list[DocumentMetadata], pdf_documents: list[PdfTextDocument] | None=None) -> ExtractionResult` — Compatibilidade pública para testes de consolidação.
+- `def close(self) -> None` — Sem descrição específica no código.
+
+## `backend/services/extraction_jobs.py`
+
+Fila durável de extração baseada no repositório de negócio.
+
+### `class ClaimedExtractionJob`
+
+Sem descrição específica no código.
+
+
+### `class DurableExtractionWorkers`
+
+Workers locais que consomem jobs persistidos e recuperáveis após reinício.
+
+- `def __init__(self, repository: Repository, worker_count: int, handler: Callable[[ClaimedExtractionJob], None], *, lease_seconds: int=900, poll_seconds: float=0.25)` — Sem descrição específica no código.
+- `def _loop(self) -> None` — Sem descrição específica no código.
+- `def wake(self) -> None` — Sinal sem estado; reduz latência após enqueue.
+- `def close(self) -> None` — Sem descrição específica no código.
+
+## `backend/services/extraction_types.py`
+
+Tipos internos da extração; separados da orquestração para evitar acoplamento.
 
 ### `class ExtractionFragment(Contract)`
 
@@ -608,52 +678,6 @@ Fragmento especializado já validado pelo contrato interno.
 
 Fragmento estruturado e telemetria observável das chamadas corporativas.
 
-
-### `class PdfTextPage`
-
-Texto de uma página extraído localmente pelo PyMuPDF.
-
-
-### `class PdfTextDocument`
-
-Texto paginado do PDF e alertas de qualidade da camada textual.
-
-- `def texto_prompt(self) -> str` — Converte todas as páginas em uma única string rastreável pelo prompt.
-
-### `class ExtractionProviderError(ServiceError)`
-
-Erro público estável; nunca inclui corpo da resposta, prompt ou credencial.
-
-- `def __init__(self, code: str, message: str, status_code: int=502)` — Sem descrição específica no código.
-
-### `class ExtractionProvider`
-
-Lê PDFs com PyMuPDF e executa prompts pelo ``text_generator`` corporativo.
-
-- `def __init__(self, settings: Settings, bridge: BradescoBridgeClient | None=None)` — Sem descrição específica no código.
-- `def configured(self) -> bool` — Indica se o deployment de geração de texto foi configurado.
-- `def _translate_error(exc: Exception) -> ExtractionProviderError` — Sem descrição específica no código.
-- `def read_documents(self, files: list[tuple[str, bytes, int]]) -> list[PdfTextDocument]` — Lê PDFs localmente com PyMuPDF e devolve texto paginado em memória.
-- `def _split_large_block(header: str, text: str, max_chars: int) -> list[str]` — Divide uma página muito grande por parágrafos sem perder referência de página.
-- `def _pack_text(self, documents: list[PdfTextDocument]) -> list[str]` — Agrupa o texto paginado em strings limitadas, sem descartar conteúdo.
-- `def _json_object(text: str) -> dict` — Aceita JSON puro, bloco cercado ou um objeto embrulhado por chave técnica.
-- `def _validation_summary(exc: ValidationError) -> str` — Resume somente localização e tipo dos erros, sem registrar dados do processo.
-- `def _validate_or_repair(self, response: str, *, stage: str, max_output_tokens: int) -> tuple[WireExtractionFragment, AiUsage | None]` — Valida a saída e faz uma única correção estrutural pelo ``text_generator``.
-- `def _shift_evidence(field: FieldEvidence, parcel_offset: int) -> FieldEvidence` — Reindexa referências ao combinar respostas de múltiplos chunks.
-- `def _deduplicate_fields(fields: list[FieldEvidence]) -> list[FieldEvidence]` — Remove duplicatas exatas sem resolver conflitos materiais.
-- `def extract(self, prompt: str, documents: list[PdfTextDocument], *, stage: str, max_output_tokens: int) -> ProviderResult` — Executa o prompt especializado por ``text_generator`` sobre texto extraído do PDF.
-
-### `class ExtractionService`
-
-Orquestra leitura local do PDF, prompts, consolidação e persistência.
-
-- `def __init__(self, settings: Settings, repository: Repository, documents: DocumentService, provider: ExtractionProvider)` — Sem descrição específica no código.
-- `def start(self, process: str, new_upload: bool=False) -> ExtractionStatus` — Retentativa explícita compartilha trabalho ativo; novo upload cria revisão nova.
-- `def run(self, status: ExtractionStatus, documents: list[DocumentMetadata]) -> None` — Lê cada PDF com PyMuPDF antes de executar os prompts especializados.
-- `def _sum_optional(values: list[int | None]) -> int | None` — Soma somente quando todas as chamadas realmente forneceram a métrica.
-- `def _summarize_usage(cls, usages: list[AiUsage]) -> AiUsageSummary` — Não estima tokens ou custo quando o contrato corporativo não os retorna.
-- `def consolidate(self, result: ExtractionResult, documents: list[DocumentMetadata], pdf_documents: list[PdfTextDocument] | None=None) -> ExtractionResult` — Valida evidências contra o texto do PDF e mantém conflitos rastreáveis.
-- `def close(self) -> None` — Desliga a fila sem perder o status persistido dos trabalhos pendentes.
 
 ## `backend/services/extraction_wire.py`
 
@@ -666,7 +690,7 @@ Evidência recebida do gerador com defaults somente para metadados de classifica
 
 ### `class WireInstallment(Contract)`
 
-Parcela no transporte; descrição é opcional e não participa do cálculo.
+Parcela no transporte; multiplicador só é informado com suporte documental específico.
 
 
 ### `class WireExtractionFragment(Contract)`
@@ -752,6 +776,38 @@ Aplica os padrões após conferir evidências, separando-os dos fatos extraídos
 - `def __init__(self, configuration: OperationalSettings | None=None)` — Configuração central permite alterar seleção sem editar o motor.
 - `def apply(self, extracted: ExtractionResult, today: date | None=None) -> ExtractionResult` — Aplica padrões somente quando a evidência do caso concreto não informa o campo.
 
+## `backend/services/pdf_text_extractor.py`
+
+Leitura local de PDFs com score explícito de qualidade da camada textual.
+
+### `class PdfPageQuality`
+
+Métricas técnicas da camada textual; nunca contém o texto da página.
+
+
+### `class PdfTextPage`
+
+Texto de uma página e sua qualidade observada localmente.
+
+
+### `class PdfTextDocument`
+
+Texto paginado do PDF e alertas de qualidade da camada textual.
+
+- `def paginas_utilizaveis(self) -> tuple[PdfTextPage, ...]` — Retorna somente páginas com texto suficientemente confiável para IA.
+- `def caracteres_utilizaveis(self) -> int` — Sem descrição específica no código.
+- `def requer_fonte_alternativa(self) -> bool` — Sem descrição específica no código.
+- `def texto_prompt(self) -> str` — Converte páginas utilizáveis em string rastreável pelo prompt.
+
+### `class PdfTextExtractor`
+
+Extrai texto localmente e bloqueia chamadas de IA sem conteúdo minimamente útil.
+
+- `def __init__(self, settings: Settings)` — Sem descrição específica no código.
+- `def _quality(text: str) -> PdfPageQuality` — Sem descrição específica no código.
+- `def read(self, files: list[tuple[str, bytes, int]]) -> list[PdfTextDocument]` — Lê PDFs com PyMuPDF e devolve texto paginado em memória.
+- `def assert_usable(documents: list[PdfTextDocument]) -> None` — Evita gastar chamadas corporativas quando nenhum PDF tem texto utilizável.
+
 ## `backend/services/prompt_context.py`
 
 Monta contexto enxuto e específico por tarefa para reduzir tokens repetidos.
@@ -769,6 +825,52 @@ Pré-calcula dados estáveis e evita repetir o schema integral em todas as chama
 - `def __init__(self, base_path: Path | None=None)` — Sem descrição específica no código.
 - `def build(self, process: str, documents: list[DocumentMetadata]) -> PromptContext` — Materializa apenas cronologia e catálogo; o subcontrato entra por tarefa.
 
+## `backend/services/prompt_executor.py`
+
+Execução de prompts corporativos sobre páginas previamente selecionadas.
+
+### `class PromptExecutionError(RuntimeError)`
+
+Erro sanitizado do provedor corporativo.
+
+- `def __init__(self, code: str, message: str, status_code: int=502, retryable: bool=False)` — Sem descrição específica no código.
+
+### `class PromptExecutionMetrics`
+
+Métricas observáveis de uma tarefa, sem conteúdo documental.
+
+
+### `class PromptExecutor`
+
+Seleciona páginas, limita payload, chama text_generator e valida a saída.
+
+- `def __init__(self, settings: Settings, bridge: BradescoBridgeClient, router: PromptPageRouter | None=None)` — Sem descrição específica no código.
+- `def _translate_error(exc: Exception) -> PromptExecutionError` — Sem descrição específica no código.
+- `def _split_large_block(header: str, text: str, max_chars: int) -> list[str]` — Sem descrição específica no código.
+- `def _pack_text(self, documents: tuple[PdfTextDocument, ...]) -> list[str]` — Sem descrição específica no código.
+- `def _shift_evidence(field: FieldEvidence, parcel_offset: int) -> FieldEvidence` — Sem descrição específica no código.
+- `def _deduplicate_fields(fields: list[FieldEvidence]) -> list[FieldEvidence]` — Sem descrição específica no código.
+- `def _parse_or_repair(self, response: str, *, stage: str, max_output_tokens: int) -> tuple[WireExtractionFragment, AiUsage | None, bool]` — Normaliza deterministicamente; usa IA apenas se o contrato continuar inválido.
+- `def execute(self, prompt: str, documents: list[PdfTextDocument], *, stage: str, max_output_tokens: int) -> tuple[ProviderResult, PromptExecutionMetrics]` — Sem descrição específica no código.
+
+## `backend/services/prompt_router.py`
+
+Seleção determinística de páginas para reduzir payload sem usar outro modelo.
+
+### `class PromptSelection`
+
+Contexto selecionado e métricas observáveis da decisão determinística.
+
+
+### `class PromptPageRouter`
+
+Roteia somente páginas candidatas a cada tarefa especializada.
+
+- `def __init__(self, max_pages_per_task: int=16, fallback_pages_per_document: int=4)` — Sem descrição específica no código.
+- `def _score(text: str, keywords: tuple[str, ...]) -> int` — Sem descrição específica no código.
+- `def _representative(pages: tuple[PdfTextPage, ...], limit: int) -> list[PdfTextPage]` — Sem descrição específica no código.
+- `def select(self, stage: str, documents: list[PdfTextDocument]) -> PromptSelection` — Seleciona páginas por palavras-chave e aplica fallback representativo.
+
 ## `backend/services/revision_audit.py`
 
 Persistência e enriquecimento da trilha de revisão humana dos parâmetros.
@@ -781,6 +883,26 @@ Registra eventos imutáveis sem depender do estado visual do Angular.
 - `def record(self, change: ParameterChangeInput, actor: str) -> ParameterChangeRecord` — Enriquece o evento com o valor/origem extraídos que o servidor conhece.
 - `def list_for_process(self, process: str) -> list[ParameterChangeRecord]` — Retorna toda a trilha persistida do processo.
 - `def list_for_draft(self, draft: str) -> list[ParameterChangeRecord]` — Retorna a trilha do rascunho manual atual.
+
+## `backend/services/structured_output.py`
+
+Normalização determinística da saída do text_generator antes de qualquer reparo por IA.
+
+### `class StructuredOutputError(ValueError)`
+
+Falha estrutural sem ecoar conteúdo documental.
+
+
+### `class StructuredOutputParser`
+
+Aceita variações estruturais seguras e valida o contrato canônico.
+
+- `def _decode(text: str) -> dict[str, Any]` — Sem descrição específica no código.
+- `def _unwrap(cls, decoded: dict[str, Any]) -> dict[str, Any]` — Sem descrição específica no código.
+- `def _rename(source: dict[str, Any], aliases: dict[str, str]) -> dict[str, Any]` — Sem descrição específica no código.
+- `def normalize(cls, decoded: dict[str, Any]) -> dict[str, Any]` — Sem descrição específica no código.
+- `def parse(self, text: str) -> WireExtractionFragment` — Sem descrição específica no código.
+- `def validation_summary(exc: ValidationError) -> str` — Sem descrição específica no código.
 
 ## `scripts/evaluate_extraction.py`
 
@@ -2218,9 +2340,33 @@ Trilha de revisão humana; nenhum cálculo é executado neste serviço.
 
 Símbolos exportados: `RevisionAuditApiService`.
 
+## `frontend/src/app/core/workspace-audit.store.ts`
+
+Trilha de revisão humana isolada do restante da área de trabalho.
+
+Símbolos exportados: `WorkspaceAuditStore`.
+
+## `frontend/src/app/core/workspace-calculation.store.ts`
+
+Revisão, cálculo e exportação ficam separados da navegação e extração.
+
+Símbolos exportados: `WorkspaceCalculationStore`.
+
+## `frontend/src/app/core/workspace-extraction.store.ts`
+
+Upload, polling e aplicação de extração vivem isolados do restante da UI.
+
+Símbolos exportados: `WorkspaceExtractionStore`.
+
+## `frontend/src/app/core/workspace-state.store.ts`
+
+Estado puro da área de trabalho; não executa HTTP nem regras de negócio remotas.
+
+Símbolos exportados: `MANUAL_DRAFT_KEY`, `WorkspaceStateStore`.
+
 ## `frontend/src/app/core/workspace.store.ts`
 
-Estado visual e rascunhos vivem no Angular; SQLite recebe somente estado de negócio.
+Fachada fina da área de trabalho; estado, extração, cálculo e auditoria vivem em stores específicos.
 
 Símbolos exportados: `WorkspaceStore`.
 

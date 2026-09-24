@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "scenarios": [
     {
       "name": "base_sem_juros",
@@ -64,7 +64,11 @@
             "total_art_523": "0.00",
             "total_com_honorarios_e_art_523": "1234.56",
             "compensacao_linha": "0.00",
-            "total_liquido_apos_compensacao": "1234.56"
+            "total_liquido_apos_compensacao": "1234.56",
+            "valor_original": "1234.56",
+            "multiplicador_configurado": null,
+            "multiplicador_aplicado": 1,
+            "valor_dobrado_flag": false
           }
         ],
         "resumo": [
@@ -284,7 +288,11 @@
             "total_art_523": "254.80",
             "total_com_honorarios_e_art_523": "1528.80",
             "compensacao_linha": "0.00",
-            "total_liquido_apos_compensacao": "1528.80"
+            "total_liquido_apos_compensacao": "1528.80",
+            "valor_original": "1000.00",
+            "multiplicador_configurado": null,
+            "multiplicador_aplicado": 1,
+            "valor_dobrado_flag": false
           }
         ],
         "resumo": [
@@ -508,7 +516,11 @@
             "total_art_523": "0.00",
             "total_com_honorarios_e_art_523": "1200.00",
             "compensacao_linha": "120.00",
-            "total_liquido_apos_compensacao": "1080.00"
+            "total_liquido_apos_compensacao": "1080.00",
+            "valor_original": "1200.00",
+            "multiplicador_configurado": null,
+            "multiplicador_aplicado": 1,
+            "valor_dobrado_flag": false
           },
           {
             "item": 2,
@@ -552,7 +564,11 @@
             "total_art_523": "0.00",
             "total_com_honorarios_e_art_523": "300.00",
             "compensacao_linha": "30.00",
-            "total_liquido_apos_compensacao": "270.00"
+            "total_liquido_apos_compensacao": "270.00",
+            "valor_original": "300.00",
+            "multiplicador_configurado": null,
+            "multiplicador_aplicado": 1,
+            "valor_dobrado_flag": false
           }
         ],
         "resumo": [
@@ -780,7 +796,11 @@
             "total_art_523": "0.00",
             "total_com_honorarios_e_art_523": "100.00",
             "compensacao_linha": "0.00",
-            "total_liquido_apos_compensacao": "100.00"
+            "total_liquido_apos_compensacao": "100.00",
+            "valor_original": "100.00",
+            "multiplicador_configurado": null,
+            "multiplicador_aplicado": 1,
+            "valor_dobrado_flag": false
           },
           {
             "item": 2,
@@ -824,7 +844,11 @@
             "total_art_523": "0.00",
             "total_com_honorarios_e_art_523": "200.00",
             "compensacao_linha": "0.00",
-            "total_liquido_apos_compensacao": "200.00"
+            "total_liquido_apos_compensacao": "200.00",
+            "valor_original": "200.00",
+            "multiplicador_configurado": null,
+            "multiplicador_aplicado": 1,
+            "valor_dobrado_flag": false
           }
         ],
         "resumo": [

@@ -1,6 +1,9 @@
 """Persistência e enriquecimento da trilha de revisão humana dos parâmetros."""
 from __future__ import annotations
 
+import sqlite3
+
+from backend.errors import ServiceError
 from backend.models import ParameterChangeInput, ParameterChangeRecord
 from backend.repository import Repository
 
@@ -42,12 +45,21 @@ class RevisionAuditService:
                     if len(values) == 1 and evidences:
                         extracted_value = evidences[-1].valor
                         extracted_source = f"{evidences[-1].documento} · página {evidences[-1].pagina}"
-        return self.repository.add_parameter_change(
-            change,
-            actor=actor,
-            extracted_value=extracted_value,
-            extracted_source=extracted_source,
-        )
+        try:
+            return self.repository.add_parameter_change(
+                change,
+                actor=actor,
+                extracted_value=extracted_value,
+                extracted_source=extracted_source,
+            )
+        except sqlite3.DatabaseError as exc:
+            # A revisão precisa ser persistida antes do cálculo, mas falhas do
+            # SQLite devem chegar à interface como erro operacional acionável,
+            # nunca como HTTP 500 genérico.
+            raise ServiceError(
+                "Não foi possível registrar a trilha de revisão. Reinicie o backend para aplicar a migração local e tente novamente.",
+                503,
+            ) from exc
 
     def list_for_process(self, process: str) -> list[ParameterChangeRecord]:
         """Retorna toda a trilha persistida do processo."""

@@ -1,4 +1,6 @@
 """Contrato externo tolerante a omissões seguras; limites permanecem no contrato interno."""
+from typing import Literal
+
 from backend.models import (
     Contract,
     DamageType,
@@ -22,12 +24,13 @@ class WireEvidence(FieldEvidence):
 
 
 class WireInstallment(Contract):
-    """Parcela no transporte; descrição é opcional e não participa do cálculo."""
+    """Parcela no transporte; multiplicador só é informado com suporte documental específico."""
 
     data: str
     valor_singelo: str
     descricao: str = ""
     verba_tipo: DamageType
+    multiplicador: Literal[1, 2] | None = None
 
 
 class WireExtractionFragment(Contract):

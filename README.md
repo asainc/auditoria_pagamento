@@ -45,8 +45,6 @@ Parâmetros principais:
 ```text
 BRADESCO_IAGEN_AMBIENTE=dev
 BRADESCO_TEXT_MODEL=gpt-5.1
-BRADESCO_TEXT_REASONING_EFFORT=medium
-BRADESCO_TEXT_VERBOSITY=medium
 BRADESCO_TEXT_TEMPERATURE=1
 BRADESCO_TEXT_MAX_TOKENS=16384
 BRADESCO_PROMPT_MAX_CHARS=55000
@@ -87,6 +85,12 @@ python -c "import judicial_calc.data; import gpt_bradesco; print('Imports OK')"
 
 O projeto inclui `src/judicial_calc/data/` com as planilhas exigidas pelo motor.
 
+### Atualização sobre instalações anteriores
+
+Ao iniciar o backend, o repositório SQLite aplica migrações locais antes de criar os índices. Isso permite abrir uma base `business.sqlite3` criada por versões anteriores, inclusive quando a tabela `parameter_changes` ainda não possuía `draft` e `origin`. A tabela anterior é preservada como `parameter_changes_legacy_vN` antes da materialização do contrato atual.
+
+O pacote `backend` também coloca `<raiz>/src` no início do caminho de importação. Esse comportamento evita que computadores corporativos sem ambiente virtual carreguem acidentalmente outra instalação de `judicial_calc` presente no perfil do usuário.
+
 ## Frontend corporativo
 
 Baseline utilizado:
@@ -113,18 +117,24 @@ Os prompts ficam em `prompts/`:
 - `08_duplo_indice.md`: períodos com índices diferentes;
 - `09_valor_dobrado.md`: restituição/devolução em dobro determinada pelo título, aplicada somente às parcelas de dano material.
 
-O backend envia somente o subcontrato de parâmetros necessário a cada tarefa. Se o texto extraído pelo PyMuPDF ultrapassar o limite configurado por chamada, ele é dividido por documento/página sem descartar conteúdo. Cada parte continua sendo processada por `text_generator`, e o backend reindexa as parcelas antes da consolidação.
+O backend envia somente o subcontrato de parâmetros necessário a cada tarefa. Antes da chamada ao `text_generator`, o `PromptPageRouter` seleciona deterministicamente as páginas mais relevantes para aquela tarefa e preserva páginas representativas como fallback. O empacotamento respeita limites de caracteres sem cortar páginas silenciosamente; a telemetria registra quantas páginas e caracteres foram enviados para permitir auditoria da seleção.
 
 ## Telemetria
 
-A aplicação registra apenas informações observáveis: número de chamadas, modelo/serviço e duração. O contrato corporativo atualmente usado pelo projeto não devolve contagem de tokens nem cobrança; por isso esses campos ficam `null` e a interface mostra “Não disponibilizado”. Nenhum valor é estimado sem fonte verificável.
+A aplicação registra apenas informações observáveis: número de chamadas, modelo/serviço, duração, páginas de contexto, caracteres enviados, uso de reparo estrutural, hashes dos prompts e contagem de evidências aceitas/rejeitadas. O contrato corporativo atualmente usado pelo projeto não devolve contagem de tokens nem cobrança; por isso esses campos ficam `null` e nenhum valor financeiro é estimado sem fonte verificável. Conteúdo documental, prompt integral e credenciais não são persistidos nos logs técnicos.
 
 ## Estrutura principal
 
 ```text
 backend/
   services/bradesco_bridge.py   facade do módulo corporativo
-  services/extraction.py        PyMuPDF, prompts e consolidação
+  services/extraction.py        orquestrador da extração
+  services/pdf_text_extractor.py leitura PyMuPDF + qualidade textual
+  services/prompt_router.py     seleção determinística de páginas
+  services/prompt_executor.py   execução e métricas do text_generator
+  services/structured_output.py normalização estrutural local
+  services/evidence_validator.py validação e consolidação de evidências
+  services/extraction_jobs.py   workers da fila durável
   services/ai_usage.py          telemetria conservadora
 config/
   app.settings.json             configuração não secreta

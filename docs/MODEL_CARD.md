@@ -6,33 +6,39 @@ Sugerir parâmetros estruturados a partir de documentos judiciais e bancários p
 
 ## Componentes
 
-- OCR híbrido corporativo via `gpt_bradesco.ocr_hibrido` (com fallback compatível para `ocr_generator`/`ocr`);
-- geração de texto via `gpt_bradesco.text_generator`;
+- leitura textual local por PyMuPDF, sem OCR no fluxo principal;
+- score de qualidade da camada textual por página;
+- seleção determinística de páginas por tarefa;
+- geração de texto exclusivamente via `gpt_bradesco.text_generator`;
 - prompts especializados versionados em `prompts/`;
-- validação estrutural Pydantic;
-- consolidação cronológica determinística em Python.
+- normalização estrutural determinística e validação Pydantic;
+- validação literal das evidências contra a página de origem;
+- consolidação cronológica determinística em Python;
+- revisão humana obrigatória antes do cálculo.
 
 ## Deployment
 
-O deployment de texto é configurável por `BRADESCO_TEXT_MODEL`. Os modelos usados em figuras e tabelas do OCR também são configuráveis. A disponibilidade precisa ser validada no ambiente corporativo; o projeto não assume que um nome de modelo habilitado em um ambiente exista em outro.
+O deployment de texto é configurável por `BRADESCO_TEXT_MODEL`. A disponibilidade precisa ser validada no ambiente corporativo; o projeto não assume que um nome habilitado em um ambiente exista em outro.
 
 ## Limitações
 
-- OCR pode perder ou reorganizar texto de digitalizações ruins;
-- tabelas complexas podem exigir revisão visual;
-- se o OCR não devolver paginação detalhada, a evidência recebe alerta;
+- PyMuPDF depende de camada textual existente; PDF formado apenas por imagens exige outra versão pesquisável do documento;
+- tabelas complexas podem perder relações visuais durante extração textual;
+- seleção de páginas é heurística e determinística, portanto ainda pode omitir uma página relevante em documentos atípicos;
 - modelos generativos podem omitir ou interpretar incorretamente fatos;
-- saída nunca deve substituir decisão jurídica humana;
-- token e custo não são estimados quando o serviço não os fornece.
+- a correção estrutural não valida mérito jurídico;
+- token e custo ficam nulos quando o serviço não os fornece.
 
 ## Uso proibido
 
 - cálculo financeiro diretamente pelo modelo;
 - decisão automática com impacto sobre pessoas;
 - uso sem revisão humana;
-- uso de credenciais pessoais embutidas no código;
-- envio de documentos para ambientes não autorizados.
+- credenciais ou tokens embutidos no código;
+- envio de documentos a ambientes não autorizados.
 
 ## Monitoramento
 
-Acompanhar taxa de falhas por etapa, duração, quantidade de chamadas, campos descartados por evidência inválida, divergências e alterações humanas posteriores. Acurácia deve ser validada em benchmark rotulado antes de qualquer conclusão de qualidade.
+Acompanhar falhas por etapa, duração, quantidade de chamadas, páginas e caracteres enviados, correções estruturais, evidências aceitas/rejeitadas, retentativas e alterações humanas posteriores.
+
+A implementação de benchmark real rotulado foi deliberadamente deixada fora desta versão; qualquer conclusão de acurácia continua exigindo validação específica futura.

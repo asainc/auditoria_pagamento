@@ -9,17 +9,18 @@ Transformar PDFs judiciais em parâmetros revisáveis sem utilizar OCR. A camada
 1. O upload valida e persiste o PDF no backend.
 2. `PyMuPDF` abre o arquivo a partir dos bytes já persistidos.
 3. Cada página é lida com `page.get_text("text", sort=True)`.
-4. O backend cria uma string com marcadores `DOCUMENTO` e `PAGINA`.
-5. Quando a string ultrapassa `BRADESCO_PROMPT_MAX_CHARS`, ela é particionada sem remover conteúdo.
-6. Cada prompt especializado é combinado com a string correspondente.
-7. Toda execução de prompt chama exclusivamente `gpt_bradesco.text_generator`.
-8. A resposta precisa ser JSON válido e aderente ao contrato Pydantic.
-9. As evidências são conferidas novamente contra o texto extraído da página.
-10. A interface recebe os parâmetros consolidados para revisão humana antes do cálculo.
+4. Cada página recebe score de qualidade; páginas inutilizáveis não são enviadas à IA.
+5. `PromptPageRouter` seleciona páginas candidatas por tarefa de forma determinística e auditável.
+6. O backend cria strings com marcadores `DOCUMENTO` e `PAGINA` somente para as páginas selecionadas.
+7. Quando o contexto ultrapassa `BRADESCO_PROMPT_MAX_CHARS`, ele é particionado sem remover o conteúdo selecionado.
+8. Toda execução de prompt chama exclusivamente `gpt_bradesco.text_generator`.
+9. A resposta passa primeiro por normalização estrutural local e depois pelo contrato Pydantic.
+10. As evidências são conferidas novamente contra o texto extraído da página.
+11. A interface recebe os parâmetros consolidados para revisão humana antes do cálculo.
 
 ## PDFs sem camada de texto
 
-PyMuPDF não é OCR. PDFs formados apenas por imagens podem devolver páginas vazias. Nessa situação o backend adiciona um alerta explícito e não tenta preencher parâmetros com conteúdo inexistente. A decisão sobre um eventual fluxo separado de OCR precisa ser validada antes de ser incorporada novamente.
+PyMuPDF não é OCR. O backend avalia quantidade de caracteres, proporção imprimível, proporção alfanumérica e caracteres de substituição. Se nenhum documento tiver página textual minimamente utilizável, a extração é bloqueada antes do `text_generator` e a interface pede outra versão digital pesquisável do documento.
 
 ## Payload para text_generator
 
@@ -44,7 +45,7 @@ Os logs técnicos registram etapa, modelo, duração e identificadores operacion
 
 ## Correção automática de estrutura da resposta
 
-A integração usa `message_format={"type": "json_object"}`, mas esse modo garante apenas um objeto JSON; ele não garante sozinho aderência completa ao contrato da calculadora. O backend valida cada resposta com Pydantic. Se houver apenas incompatibilidade estrutural ou de tipos, executa **uma única chamada adicional ao `text_generator`** para reformatar a resposta anterior, sem reler o caso e sem permitir inclusão de fatos novos. Se a segunda validação também falhar, nenhuma sugestão parcial é aplicada e a extração termina com erro explícito.
+A integração usa o contrato mínimo compatível do `text_generator` e exige JSON no próprio prompt. Antes de qualquer segunda chamada, o backend normaliza wrappers, aliases e defaults estruturais seguros localmente. Se a saída ainda permanecer incompatível com Pydantic, executa **uma única chamada adicional ao `text_generator`** para reformatar a resposta anterior, sem reler o caso e sem permitir inclusão de fatos novos. Se a segunda validação também falhar, nenhuma sugestão parcial é aplicada.
 
 O contrato de transporte aceita omissões que possuem defaults conservadores equivalentes aos contratos internos (por exemplo, `natureza=indeterminado`, `efeito=informa` e descrição vazia de parcela). Valores financeiros, datas calculáveis e evidências continuam sujeitos às validações rígidas do backend e à revisão humana.
 

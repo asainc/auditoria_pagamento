@@ -23,6 +23,15 @@ Exemplos sintéticos que devem ser reconhecidos:
 ## Dano moral
 Diferencie valor pedido de valor efetivamente arbitrado. Prefira o comando decisório vigente para o montante. Se houver valor individual por beneficiário, crie parcelas distintas apenas quando a individualização estiver clara.
 
+## Multiplicador por parcela
+O campo `multiplicador` representa uma regra específica daquela parcela:
+- use `2` apenas quando houver evidência inequívoca de que aquela parcela/lançamento deve ser restituído em dobro;
+- use `1` apenas quando houver comando inequívoco de restituição simples para aquela parcela em contexto onde outras possam ter tratamento diferente;
+- deixe `null` quando não houver determinação específica daquela parcela. Nesse caso, a flag global `parametros.valor_dobrado_flag` poderá funcionar como atalho/fallback no motor.
+
+Nunca altere `valor_singelo` para aplicar a dobra. `valor_singelo` é sempre o valor nominal documental.
+Quando `multiplicador` for `1` ou `2`, crie também evidência para `parcelas.<índice>.multiplicador` com o trecho decisório que sustenta essa regra.
+
 ## Não transformar em parcela
 Não inclua saldo de conta, limite, valor total de contrato, taxa percentual, depósito judicial, pagamento parcial, levantamento, estorno ou compensação como parcelas calculáveis, salvo quando o próprio título condenatório os definir como valor principal a restituir.
 
@@ -31,12 +40,13 @@ Para cada item de `parcelas`:
 - `data`: `AAAA-MM-DD`;
 - `valor_singelo`: decimal textual sem símbolo monetário;
 - `descricao`: curta e sem dados pessoais desnecessários;
-- `verba_tipo`: `dano_material`, `dano_moral`, `honorarios` ou `custas`.
+- `verba_tipo`: `dano_material`, `dano_moral`, `honorarios` ou `custas`;
+- `multiplicador`: `1`, `2` ou `null` conforme as regras acima.
 
-Crie evidências para `parcelas.<índice>.data`, `.valor_singelo` e `.verba_tipo`, usando o mesmo índice da lista.
+Crie evidências para `parcelas.<índice>.data`, `.valor_singelo` e `.verba_tipo`, usando o mesmo índice da lista. Crie evidência de `.multiplicador` quando o valor não for `null`.
 
 ## Limites
-Não faça rateio, dobra, soma inferida ou percentual que não esteja materializado quando isso alterar a quantia da parcela. Se o documento trouxer regra não representável pelo contrato, extraia o fato verificável e gere alerta para revisão humana.
+Não faça rateio, soma inferida ou percentual que não esteja materializado quando isso alterar a quantia da parcela. Se o documento trouxer regra não representável pelo contrato, extraia o fato verificável e gere alerta para revisão humana.
 
 ## Cobertura adicional
 Procure também por expressões como prejuízo, débito, restituição, ressarcimento, condenação, indenização, dano emergente, cobrança indevida, lançamento, transferência, saque, PIX, TED, DOC, boleto, tarifa, compra, parcela, mensalidade e total parcial. Quando houver tabela, extraia cada linha economicamente autônoma com sua própria data e valor; totais, subtotais e saldos não viram nova parcela se apenas agregarem linhas já extraídas. Valores por extenso e valores numéricos conflitantes devem gerar alerta.

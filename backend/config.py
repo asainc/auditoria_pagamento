@@ -46,12 +46,14 @@ class Settings(Contract):
 
     # Geração de texto usada por TODOS os prompts do projeto.
     bradesco_text_model: str = Field(default="", max_length=100)
-    bradesco_text_reasoning_effort: Literal["none", "low", "medium", "high"] = "medium"
-    bradesco_text_verbosity: Literal["low", "medium", "high"] = "medium"
-    bradesco_text_modalities: Literal["text"] = "text"
     bradesco_text_temperature: float = Field(default=1.0, ge=0, le=2)
     bradesco_text_max_tokens: int = Field(default=16384, ge=1024, le=65536)
     bradesco_prompt_max_chars: int = Field(default=55000, ge=10000, le=250000)
+    extraction_max_pages_per_task: int = Field(default=16, ge=2, le=100)
+    extraction_fallback_pages_per_document: int = Field(default=4, ge=1, le=20)
+    extraction_max_attempts: int = Field(default=3, ge=1, le=5)
+    extraction_retry_delay_seconds: int = Field(default=5, ge=1, le=300)
+    extraction_lease_seconds: int = Field(default=900, ge=60, le=3600)
 
     gateway_token: SecretStr = SecretStr("")
     index_timeout_seconds: int = Field(default=30, ge=1, le=60)
@@ -101,11 +103,14 @@ def load_settings() -> Settings:
         "BRADESCO_CA_BUNDLE": "bradesco_ca_bundle",
         "BRADESCO_TIMEOUT_SECONDS": "bradesco_timeout_seconds",
         "BRADESCO_TEXT_MODEL": "bradesco_text_model",
-        "BRADESCO_TEXT_REASONING_EFFORT": "bradesco_text_reasoning_effort",
-        "BRADESCO_TEXT_VERBOSITY": "bradesco_text_verbosity",
         "BRADESCO_TEXT_TEMPERATURE": "bradesco_text_temperature",
         "BRADESCO_TEXT_MAX_TOKENS": "bradesco_text_max_tokens",
         "BRADESCO_PROMPT_MAX_CHARS": "bradesco_prompt_max_chars",
+        "EXTRACTION_MAX_PAGES_PER_TASK": "extraction_max_pages_per_task",
+        "EXTRACTION_FALLBACK_PAGES_PER_DOCUMENT": "extraction_fallback_pages_per_document",
+        "EXTRACTION_MAX_ATTEMPTS": "extraction_max_attempts",
+        "EXTRACTION_RETRY_DELAY_SECONDS": "extraction_retry_delay_seconds",
+        "EXTRACTION_LEASE_SECONDS": "extraction_lease_seconds",
         "GATEWAY_TOKEN": "gateway_token",
     }
     # O ambiente tem precedência mesmo quando usa o nome alternativo da chave.
