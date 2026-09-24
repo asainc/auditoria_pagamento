@@ -1,5 +1,25 @@
 # Changelog
 
+
+## 2026-09-24 — TLS corporativo via repositório nativo do SO
+
+- Corrigido o cliente HTTPS para usar a cadeia de confiança nativa do sistema operacional quando `BRADESCO_CA_BUNDLE` estiver vazio.
+- No Windows, a integração passa a aproveitar as CAs corporativas instaladas no Windows Certificate Store, sem desabilitar verificação TLS.
+- Mantido suporte a bundle PEM explícito para ambientes que exigem CA dedicada.
+- Adicionado diagnóstico `tls_origem_confianca` ao script `scripts/test_text_generator_connection.py`.
+- Mensagens de falha TLS agora distinguem store do sistema de bundle corporativo inválido/incompleto.
+- O motor de cálculo e os prompts de extração não foram alterados.
+
+
+## 2026-09-24 — Diagnóstico da geração de texto corporativa
+
+- Corrigida a classificação de falhas do `text_generator` que antes podiam aparecer apenas como `bradesco_indisponivel`.
+- Credencial ausente agora informa de forma explícita a necessidade de `BRADESCO_AUTHORIZATION_TOKEN` ou `BRADESCO_IDENTIFICADOR` + `BRADESCO_SENHA`.
+- Respostas incompatíveis do gateway (`JSON` inválido ou ausência de `response.output_text`) agora possuem código operacional próprio.
+- Adicionado `scripts/test_text_generator_connection.py`, que envia somente texto sintético e não lê PDFs.
+- Atualizado `.env.example` para documentar corretamente a autenticação exigida pelo `gpt_bradesco.py` distribuído.
+- Validação local: 129 testes aprovados; nenhuma chamada real ao ambiente corporativo foi executada.
+
 ## 2.0.0 — 2026-09-24
 
 ### Corrigido

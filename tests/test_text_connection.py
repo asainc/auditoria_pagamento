@@ -27,7 +27,7 @@ def transport(monkeypatch):
         response._content = b'{"response":{"output_text":"{}"}}'
         return response
 
-    monkeypatch.setattr(corporate.requests, 'request', request)
+    monkeypatch.setattr(corporate, '_request', request)
     return calls
 
 
@@ -41,7 +41,7 @@ def test_transport_receives_environment_timeout_and_ca_without_settings_credenti
     _, url, arguments = transport[0]
     assert url.startswith(corporate._BASE_URLS['homol'])
     assert arguments['timeout'] == 345
-    assert arguments['verify'] == str(ca)
+    assert corporate._tls_trust_mode() == 'bundle_corporativo'
 
 
 def test_env_file_custom_urls_reach_transport(transport, monkeypatch, tmp_path):
@@ -71,9 +71,75 @@ def test_wrapped_transport_errors_are_actionable_and_sanitized(transport, monkey
         """Simula falha antes de receber uma resposta do servidor."""
         raise failure('conteudo-que-nao-pode-aparecer')
 
-    monkeypatch.setattr(corporate.requests, 'request', request)
+    monkeypatch.setattr(corporate, '_request', request)
     client = BradescoBridgeClient(Settings(bradesco_text_model='synthetic-model'))
     with pytest.raises(BradescoBridgeError) as caught:
         client.generate_text('Mensagem sintética', max_tokens=1024)
     assert caught.value.code == code
     assert 'conteudo-que-nao-pode-aparecer' not in caught.value.message
+
+
+def test_missing_credentials_is_reported_explicitly(monkeypatch):
+    """Credencial ausente não pode aparecer como indisponibilidade genérica."""
+    monkeypatch.setattr(corporate, '_AUTH_CONFIG', {})
+    monkeypatch.setattr(corporate, '_TOKEN_CACHE', None)
+    for name in ('BRADESCO_AUTHORIZATION_TOKEN', 'BRADESCO_IDENTIFICADOR', 'BRADESCO_SENHA'):
+        monkeypatch.delenv(name, raising=False)
+
+    client = BradescoBridgeClient(Settings(bradesco_text_model='synthetic-model'))
+    with pytest.raises(BradescoBridgeError) as caught:
+        client.generate_text('Mensagem sintética', max_tokens=1024)
+
+    assert caught.value.code == 'bradesco_credencial_ausente'
+    assert 'BRADESCO_AUTHORIZATION_TOKEN' in caught.value.message
+    assert 'synthetic' not in caught.value.message
+
+
+def test_invalid_text_envelope_is_reported_explicitly(monkeypatch):
+    """Envelope inesperado do gateway deve ser distinguido de erro de rede."""
+    monkeypatch.setattr(corporate, '_AUTH_CONFIG', {})
+    monkeypatch.setattr(corporate, '_TOKEN_CACHE', None)
+    monkeypatch.setenv('BRADESCO_AUTHORIZATION_TOKEN', secrets.token_urlsafe(24))
+
+    def request(method, url, **kwargs):
+        response = requests.Response()
+        response.status_code = 200
+        response._content = b'{"response":{"unexpected":"value"}}'
+        return response
+
+    monkeypatch.setattr(corporate, '_request', request)
+    client = BradescoBridgeClient(Settings(bradesco_text_model='synthetic-model'))
+    with pytest.raises(BradescoBridgeError) as caught:
+        client.generate_text('Mensagem sintética', max_tokens=1024)
+
+    assert caught.value.code == 'bradesco_resposta_incompativel'
+    assert 'response.output_text' in caught.value.message
+
+
+def test_system_operating_store_is_default_tls_source(monkeypatch):
+    """Sem bundle explícito, o contexto deve usar a confiança nativa com TLS obrigatório."""
+    import ssl
+
+    monkeypatch.setattr(corporate, '_AUTH_CONFIG', {})
+    monkeypatch.delenv('BRADESCO_CA_BUNDLE', raising=False)
+
+    context = corporate._build_ssl_context()
+
+    assert corporate._tls_trust_mode() == 'sistema_operacional'
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True
+
+
+def test_explicit_ca_bundle_remains_supported(monkeypatch):
+    """Um bundle PEM explícito continua sendo aceito sem reduzir a validação TLS."""
+    import ssl
+    import certifi
+
+    monkeypatch.setattr(corporate, '_AUTH_CONFIG', {'ca_bundle': certifi.where()})
+    monkeypatch.delenv('BRADESCO_CA_BUNDLE', raising=False)
+
+    context = corporate._build_ssl_context()
+
+    assert corporate._tls_trust_mode() == 'bundle_corporativo'
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True

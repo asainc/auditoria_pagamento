@@ -32,3 +32,12 @@ python -c "import pymupdf; print(pymupdf.__version__)"
 Se todas as páginas vierem sem texto, verifique se o PDF é apenas imagem digitalizada. PyMuPDF lê a camada textual existente; ele não executa OCR.
 
 Se a geração falhar, valide separadamente a importação de `gpt_bradesco.py`, a função `text_generator` e o deployment configurado. Não imprima prompts, PDFs, tokens ou conteúdo processual real em logs de suporte.
+
+## Diagnóstico do text_generator
+
+Antes de testar com PDFs reais, execute `python scripts/test_text_generator_connection.py`.
+O script envia somente uma mensagem sintética e informa, sem exibir segredos, se a falha
+é de configuração local, credencial ausente, autenticação/permissão, TLS/rede ou contrato
+da resposta. Para o `gpt_bradesco.py` distribuído no projeto, configure um token válido em
+`BRADESCO_AUTHORIZATION_TOKEN` ou o par `BRADESCO_IDENTIFICADOR` + `BRADESCO_SENHA`.
+

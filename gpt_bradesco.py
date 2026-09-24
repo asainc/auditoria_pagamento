@@ -6,8 +6,9 @@ de ambiente ou por ``configure_iagen`` e nunca são gravados no repositório.
 
 A calculadora usa ``text_generator`` como único ponto de execução de prompts e
 ``ocr_hibrido``/``ocr_generator`` para transformar PDFs em texto antes da
-extração estruturada. Todas as requisições usam HTTPS com validação TLS padrão
-ou CA corporativa explicitamente configurada.
+extração estruturada. Todas as requisições usam HTTPS com validação TLS obrigatória. Sem um
+bundle explícito, a confiança vem do repositório nativo do sistema operacional;
+com BRADESCO_CA_BUNDLE, a cadeia fica restrita ao arquivo corporativo informado.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import binascii
 import logging
 import mimetypes
 import os
+import ssl
 import threading
 import time
 from pathlib import Path
@@ -26,11 +28,13 @@ from typing import Any, Mapping
 from urllib.parse import quote, urlparse
 
 import requests
+from requests.adapters import HTTPAdapter
 
 
 _LOGGER = logging.getLogger(__name__)
 _TOKEN_LOCK = threading.RLock()
 _TOKEN_CACHE: str | None = None
+_HTTP_LOCAL = threading.local()
 # As credenciais existem apenas na memória do processo, nunca em logs ou artefatos.
 _AUTH_CONFIG: dict[str, Any] = {}
 # Permite ao backend reconhecer as opções locais sem alterar módulos legados.
@@ -71,11 +75,14 @@ class BridgeAPIError(RuntimeError):
 
     def __init__(
         self, message: str, *, status_code: int | None = None,
-        request_id: str | None = None,
+        request_id: str | None = None, code: str | None = None,
     ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.request_id = request_id
+        # Código técnico curto e sem dados sensíveis para a camada chamadora
+        # distinguir autenticação, contrato e transporte sem inspecionar o corpo.
+        self.code = code
 
 
 def _log(event: str, **fields: Any) -> None:
@@ -142,15 +149,110 @@ def _service_url(service: str, environment: str | None = None) -> str:
     return _BASE_URLS[selected] + _SERVICE_PATHS[service]
 
 
-def _tls_verify() -> bool | str:
-    """Usa a cadeia de confiança padrão ou a CA interna fornecida pela equipe."""
+def _tls_ca_bundle_path() -> Path | None:
+    """Resolve uma CA explícita sem desabilitar a validação de certificados."""
     ca_bundle = _AUTH_CONFIG.get("ca_bundle") or os.getenv("BRADESCO_CA_BUNDLE")
     if not ca_bundle:
-        return True
+        return None
     path = Path(ca_bundle).expanduser()
     if not path.is_file():
         raise ValueError("BRADESCO_CA_BUNDLE aponta para um arquivo inexistente.")
-    return str(path)
+    return path.resolve()
+
+
+def _tls_trust_mode() -> str:
+    """Informa a origem da cadeia de confiança sem expor caminho local completo."""
+    return "bundle_corporativo" if _tls_ca_bundle_path() else "sistema_operacional"
+
+
+def _tls_signature() -> tuple[str, int | None, int | None]:
+    """Detecta mudança do bundle para reconstruir a sessão da thread com segurança."""
+    path = _tls_ca_bundle_path()
+    if path is None:
+        return ("sistema_operacional", None, None)
+    stat = path.stat()
+    return (str(path), stat.st_mtime_ns, stat.st_size)
+
+
+def _build_ssl_context() -> ssl.SSLContext:
+    """Cria contexto TLS usando a confiança nativa do SO ou o bundle informado.
+
+    Decisão técnica:
+        ``requests`` normalmente utiliza o ``certifi``. Em estações Windows
+        corporativas, a CA de inspeção HTTPS costuma existir apenas no repositório
+        de certificados do Windows. ``ssl.create_default_context()`` usa as raízes
+        confiáveis nativas do sistema operacional; por isso ele é a opção padrão
+        quando ``BRADESCO_CA_BUNDLE`` não foi informado.
+    """
+    path = _tls_ca_bundle_path()
+    try:
+        # Com bundle explícito, a confiança fica restrita ao arquivo autorizado.
+        # Sem bundle, Python carrega o repositório de confiança do SO (no Windows,
+        # os stores ROOT/CA), evitando depender somente do certifi do requests.
+        context = ssl.create_default_context(cafile=str(path) if path else None)
+    except (OSError, ssl.SSLError) as exc:
+        raise BridgeAPIError(
+            "Não foi possível carregar a cadeia de confiança TLS configurada. "
+            "Valide se BRADESCO_CA_BUNDLE aponta para um bundle PEM de CA válido.",
+            code="tls_configuration_error",
+        ) from exc
+    # Garante que nenhuma refatoração futura transforme este contexto em modo inseguro.
+    context.check_hostname = True
+    context.verify_mode = ssl.CERT_REQUIRED
+    return context
+
+
+class _NativeTrustStoreAdapter(HTTPAdapter):
+    """Adapter HTTPS que preserva o contexto SSL já carregado com a CA correta."""
+
+    def __init__(self, ssl_context: ssl.SSLContext, *args: Any, **kwargs: Any) -> None:
+        self._ssl_context = ssl_context
+        super().__init__(*args, **kwargs)
+
+    def init_poolmanager(self, connections: int, maxsize: int, block: bool = False, **pool_kwargs: Any) -> None:
+        """Injeta o SSLContext tanto em conexões diretas quanto no pool reutilizável."""
+        pool_kwargs["ssl_context"] = self._ssl_context
+        super().init_poolmanager(connections, maxsize, block=block, **pool_kwargs)
+
+    def proxy_manager_for(self, proxy: str, **proxy_kwargs: Any) -> Any:
+        """Mantém a mesma cadeia de confiança quando a rede exige proxy corporativo."""
+        proxy_kwargs["ssl_context"] = self._ssl_context
+        return super().proxy_manager_for(proxy, **proxy_kwargs)
+
+    def cert_verify(self, conn: Any, url: str, verify: bool | str, cert: Any) -> None:
+        """Evita que Requests substitua o contexto nativo pelo bundle do certifi.
+
+        O contexto fornecido já está com ``CERT_REQUIRED`` e hostname checking
+        ativos. O projeto não usa certificado cliente neste canal.
+        """
+        if verify is False:
+            raise ValueError("A validação TLS não pode ser desativada.")
+        if cert:
+            raise ValueError("Certificado cliente não faz parte do contrato desta integração.")
+
+
+def _http_session() -> requests.Session:
+    """Mantém uma sessão HTTPS por thread sem compartilhar cookies entre workers."""
+    signature = _tls_signature()
+    session = getattr(_HTTP_LOCAL, "session", None)
+    current_signature = getattr(_HTTP_LOCAL, "tls_signature", None)
+    if session is not None and current_signature == signature:
+        return session
+    if session is not None:
+        session.close()
+    session = requests.Session()
+    session.trust_env = True  # Preserva proxy corporativo configurado pelo sistema/ambiente.
+    session.mount("https://", _NativeTrustStoreAdapter(_build_ssl_context()))
+    _HTTP_LOCAL.session = session
+    _HTTP_LOCAL.tls_signature = signature
+    return session
+
+
+def _request(method: str, url: str, **kwargs: Any) -> requests.Response:
+    """Executa HTTPS sempre com validação TLS ativa e cadeia de confiança explícita."""
+    if kwargs.pop("verify", True) is False:
+        raise ValueError("A validação TLS não pode ser desativada.")
+    return _http_session().request(method, url, verify=True, **kwargs)
 
 
 def _timeout(parameters: Mapping[str, Any] | None = None) -> float:
@@ -228,6 +330,7 @@ def auth_diagnostics() -> dict[str, Any]:
         "senha_configurada": bool(_AUTH_CONFIG.get("senha") or os.getenv("BRADESCO_SENHA")),
         "ca_corporativa_configurada": bool(_AUTH_CONFIG.get("ca_bundle")
                                           or os.getenv("BRADESCO_CA_BUNDLE")),
+        "tls_origem_confianca": _tls_trust_mode(),
         "observacao": "Presença de token não comprova validade nem permissão na API.",
     }
 
@@ -256,40 +359,49 @@ def get_token_iagen(force_refresh: bool = False) -> str:
             if force_refresh and provided:
                 raise BridgeAPIError(
                     "Não é possível renovar um token informado manualmente sem "
-                    "identificador e senha. Solicite um novo token ao provedor."
+                    "identificador e senha. Solicite um novo token ao provedor.",
+                    code="auth_refresh_unavailable",
                 )
             raise BridgeAPIError(
                 "Faltam credenciais: configure_iagen(AUTH_PARAMETERS) com identificador "
                 "e senha, ou forneça BRADESCO_AUTHORIZATION_TOKEN. "
-                "Não inclua credenciais em logs ou mensagens de suporte."
+                "Não inclua credenciais em logs ou mensagens de suporte.",
+                code="auth_missing",
             )
         url = _service_url("identity")
         try:
-            response = requests.request(
+            response = _request(
                 "POST", url,
                 headers={"Accept": "application/json"},
                 json={"identificador": identifier, "senha": password},
-                timeout=_timeout(), verify=_tls_verify(),
+                timeout=_timeout(),
             )
         except requests.exceptions.SSLError as exc:
             raise BridgeAPIError(
-                "Falha de certificado TLS no login: configure BRADESCO_CA_BUNDLE "
-                "com uma CA corporativa confiável; não desative a validação TLS."
+                "Falha de certificado TLS no login. Sem BRADESCO_CA_BUNDLE, a aplicação usa "
+                "o repositório confiável do sistema operacional; com a variável preenchida, "
+                "valide o bundle PEM corporativo. Não desative a validação TLS.",
+                code="tls_error",
             ) from exc
         except requests.exceptions.Timeout as exc:
             raise BridgeAPIError(
                 "Tempo de conexão excedido no login: confirme VPN/rede interna, "
-                "ambiente e URL da API de identidade."
+                "ambiente e URL da API de identidade.",
+                code="timeout",
             ) from exc
         except requests.RequestException as exc:
             raise BridgeAPIError(
-                "Falha de rede no login: confirme VPN, DNS e URL da API de identidade."
+                "Falha de rede no login: confirme VPN, DNS e URL da API de identidade.",
+                code="network_error",
             ) from exc
         _check_status(response, "identity.login")
         result = _json_response(response, "identity.login")
         token = result.get("token")
         if not isinstance(token, str) or not token:
-            raise BridgeAPIError("Autenticação não retornou o campo token esperado.")
+            raise BridgeAPIError(
+                "Autenticação não retornou o campo token esperado.",
+                code="auth_response_invalid",
+            )
         _TOKEN_CACHE = token
         # Disponibiliza o token às chamadas subsequentes do mesmo processo.
         os.environ["BRADESCO_AUTHORIZATION_TOKEN"] = token
@@ -346,9 +458,15 @@ def _json_response(response: requests.Response, operation: str) -> dict[str, Any
     try:
         result = response.json()
     except (ValueError, requests.exceptions.JSONDecodeError) as exc:
-        raise BridgeAPIError(f"{operation}: resposta não é um JSON válido.") from exc
+        raise BridgeAPIError(
+            f"{operation}: resposta não é um JSON válido.",
+            code="invalid_json_response",
+        ) from exc
     if not isinstance(result, dict):
-        raise BridgeAPIError(f"{operation}: a resposta deve ser um objeto JSON.")
+        raise BridgeAPIError(
+            f"{operation}: a resposta deve ser um objeto JSON.",
+            code="invalid_json_response",
+        )
     return result
 
 
@@ -362,9 +480,9 @@ def _call(
     verified_url = _validate_url(url)
     started_at = time.monotonic()
     try:
-        response = requests.request(
+        response = _request(
             method, verified_url, headers=_headers(), json=payload, params=query,
-            timeout=_timeout(parameters), verify=_tls_verify(),
+            timeout=_timeout(parameters),
         )
     except requests.RequestException as exc:
         _log("bridge.connection_error", operation=operation)
@@ -382,9 +500,9 @@ def _stream_call(
     """Lê JSON Lines ou SSE do gerador de texto, respeitando [DONE]."""
     chunks: list[str] = []
     try:
-        with requests.request(
+        with _request(
             "POST", _validate_url(url), headers=_headers(), json=payload,
-            timeout=_timeout(parameters), verify=_tls_verify(), stream=True,
+            timeout=_timeout(parameters), stream=True,
         ) as response:
             _check_status(response, operation)
             for raw_line in response.iter_lines():
@@ -421,7 +539,10 @@ def _extract_output_text(response: Mapping[str, Any]) -> str:
     nested = response.get("response")
     result = nested.get("output_text") if isinstance(nested, Mapping) else None
     if not isinstance(result, str):
-        raise BridgeAPIError("Gerador de texto: response.output_text ausente ou inválido.")
+        raise BridgeAPIError(
+            "Gerador de texto: response.output_text ausente ou inválido.",
+            code="invalid_text_response",
+        )
     return result
 
 
@@ -609,11 +730,11 @@ def file_manager_upload(
     mime_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
     try:
         with path.open("rb") as file_object:
-            response = requests.request(
+            response = _request(
                 "POST", _validate_url(_service_url("files") + "/upload"),
                 headers=_headers(json_body=False), data=data,
                 files={"file": (name, file_object, mime_type)},
-                timeout=_timeout(), verify=_tls_verify(),
+                timeout=_timeout(),
             )
     except OSError as exc:
         raise BridgeAPIError("Não foi possível ler o arquivo para upload.") from exc
@@ -663,9 +784,9 @@ def file_manager_get_download_url(
     url = (_service_url("files", config.get("ambiente")) + "/"
            + quote(identifier, safe="") + "/filedownload")
     try:
-        result = requests.request(
+        result = _request(
             "GET", _validate_url(url), headers=_headers(),
-            timeout=_timeout(config), verify=_tls_verify(),
+            timeout=_timeout(config),
         )
     except requests.RequestException as exc:
         raise BridgeAPIError("Falha de conexão ao solicitar URL de download.") from exc
@@ -685,9 +806,8 @@ def file_manager_delete(file_id: str) -> str:
     file_id = _require_text(file_id, "file_id")
     url = _service_url("files") + "/" + quote(file_id, safe="")
     try:
-        response = requests.request("DELETE", _validate_url(url),
-                                    headers=_headers(), timeout=_timeout(),
-                                    verify=_tls_verify())
+        response = _request("DELETE", _validate_url(url),
+                                    headers=_headers(), timeout=_timeout())
     except requests.RequestException as exc:
         raise BridgeAPIError("Falha de conexão ao excluir arquivo.") from exc
     _check_status(response, "files.delete")
@@ -945,11 +1065,11 @@ def file_manager_upload_file(payload: dict, file_parameter: dict | None = None) 
     mimetype = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     try:
         with path.open("rb") as stream:
-            response = requests.request(
+            response = _request(
                 "POST", _validate_url(_service_url("files", config.get("ambiente")) + "/upload"),
                 headers=_headers(json_body=False), data=data,
                 files={"file": (filename, stream, mimetype)},
-                timeout=_timeout(config), verify=_tls_verify(),
+                timeout=_timeout(config),
             )
     except OSError as exc:
         raise BridgeAPIError("Não foi possível ler o arquivo para upload.") from exc
@@ -974,8 +1094,8 @@ def file_manager_delete_file(payload: dict, file_parameter: dict | None = None) 
     file_id = _require_text(body.get("file_id"), "file_id")
     url = _service_url("files", config.get("ambiente")) + "/" + quote(file_id, safe="")
     try:
-        response = requests.request("DELETE", _validate_url(url), headers=_headers(),
-                                    timeout=_timeout(config), verify=_tls_verify())
+        response = _request("DELETE", _validate_url(url), headers=_headers(),
+                                    timeout=_timeout(config))
     except requests.RequestException as exc:
         raise BridgeAPIError("Falha de conexão ao excluir arquivo.") from exc
     _check_status(response, "files.delete")

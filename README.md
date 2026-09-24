@@ -197,20 +197,26 @@ confirmadas pela equipe da API). Campos vazios preservam as rotas existentes.
 1. Extraia esta versão em uma pasta nova e mantenha seu `.env` local protegido.
 2. Confira `BRADESCO_IAGEN_AMBIENTE`, `BRADESCO_TEXT_MODEL` e autenticação:
    token válido ou identificador e senha fornecidos pela equipe responsável.
-3. Confira `BRADESCO_CA_BUNDLE` se houver CA corporativa e
-   `BRADESCO_TIMEOUT_SECONDS` para o tempo máximo por requisição HTTP.
-4. Reinicie o backend e execute a extração de um PDF sintético pesquisável.
-5. Se persistir: envie somente a mensagem sanitizada/código HTTP, sem tokens,
+3. Para TLS, deixe `BRADESCO_CA_BUNDLE` vazio quando a CA corporativa já estiver
+   instalada no Windows: esta versão usa o repositório confiável do sistema operacional.
+   Preencha `BRADESCO_CA_BUNDLE` somente quando a infraestrutura fornecer um bundle PEM
+   específico. Confira também `BRADESCO_TIMEOUT_SECONDS`.
+4. Reinicie o backend e execute `python scripts/test_text_generator_connection.py`.
+   O diagnóstico deve informar `tls_origem_confianca: sistema_operacional` quando o
+   bundle estiver vazio, ou `bundle_corporativo` quando um PEM explícito estiver ativo.
+5. Depois do diagnóstico sintético, execute a extração de um PDF sintético pesquisável.
+6. Se persistir: envie somente a mensagem sanitizada/código HTTP, sem tokens,
    credenciais, documentos reais ou cabeçalhos Authorization.
 
-Falhas TLS orientam a configuração da CA; falhas de rede orientam a verificação
- de VPN, DNS, proxy e URLs; HTTP 401/403 exige revisar autenticação/permissões;
+Falhas TLS agora indicam se a confiança vem do sistema operacional ou de bundle explícito;
+falhas de rede orientam a verificação de VPN, DNS, proxy e URLs; HTTP 401/403 exige revisar autenticação/permissões;
 HTTP 400 exige confirmar deployment e contrato; HTTP 404 pode indicar rota ou
 recurso incorreto. Presença de configuração não comprova conectividade.
 
-Validação desta correção usa transporte HTTP simulado. Não houve acesso ao
-serviço corporativo real; a causa específica do incidente depende da mensagem
-obtida no ambiente do usuário. O motor de cálculo não foi alterado.
+Validação desta correção: suíte Python completa executada localmente, sem acesso ao
+serviço corporativo real. Os testes cobrem seleção do ambiente, autenticação simulada,
+classificação de falhas e a política de confiança TLS. A comprovação final do handshake
+continua dependente da estação/rede corporativa. O motor de cálculo não foi alterado.
 
 ## Correção da lista de índices — 24/09/2026
 

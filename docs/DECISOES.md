@@ -70,6 +70,22 @@ Regras que expressem interpretação jurídica, sucessão de decisões, polític
 - Falhas de persistência da trilha de revisão são retornadas como erro operacional 503 sanitizado, em vez de HTTP 500 genérico.
 - O fluxo de regressão cobre a mesma ordem da UI: registrar alteração manual, confirmar revisão e executar `/api/calculos` sem número de processo.
 
+## 2026-09-24 — Confiança TLS nativa do sistema operacional
+
+Responsável pela alteração: assistente de engenharia; validação corporativa pendente.
+
+- Quando `BRADESCO_CA_BUNDLE` estiver vazio, usar `ssl.create_default_context()` e
+  um `HTTPAdapter` próprio para preservar o repositório de certificados confiáveis
+  do sistema operacional em vez de forçar apenas o bundle do `certifi`.
+- No Windows corporativo, isso permite que a cadeia TLS utilize as CAs instaladas nos
+  stores confiáveis `ROOT/CA`, inclusive CAs de proxy/inspeção HTTPS autorizadas.
+- Quando `BRADESCO_CA_BUNDLE` estiver preenchido, usar exclusivamente o bundle PEM
+  informado, permitindo uma configuração explícita e auditável.
+- Manter `CERT_REQUIRED` e verificação de hostname sempre ativos. A solução não usa
+  `verify=False` e não reduz a segurança do canal.
+- A sessão HTTP é mantida por thread e reconstruída quando o caminho/conteúdo do
+  bundle muda; alterações no store do SO exigem reinício do backend.
+
 ## 2026-09-24 — Correção de configuração do text_generator
 
 Responsável pela alteração: assistente de engenharia; validação corporativa pendente.
@@ -102,3 +118,12 @@ Responsável pela alteração: assistente de engenharia.
   TypeScript instalado): 4 aprovados. `python -m pytest
   tests/test_index_catalog_connection.py tests/test_calculation_integration.py -q`:
   30 aprovados. Não executados build Angular completo nem validação no navegador.
+
+## 2026-09-24 — Diagnóstico explícito de autenticação do text_generator
+
+Responsável pela alteração: assistente de engenharia; validação corporativa real pendente.
+
+- O erro público deixa de agrupar credencial ausente e envelope inválido como indisponibilidade genérica.
+- A exceção corporativa transporta somente um código técnico sanitizado; conteúdo da resposta, prompt, PDFs e segredos permanecem fora dos logs e da UI.
+- O teste de conectividade usa mensagem sintética e existe separadamente do fluxo de documentos para reduzir risco operacional durante suporte.
+- A suíte automatizada valida o contrato local, mas a disponibilidade real do deployment, credenciais e rede precisa ser confirmada no ambiente corporativo.

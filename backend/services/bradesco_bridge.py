@@ -141,7 +141,7 @@ class BradescoBridgeClient:
             current = current.__cause__ or current.__context__
         for error_type, code, message in (
             (requests.exceptions.SSLError, "bradesco_certificado_invalido",
-             "Falha de certificado TLS. Configure BRADESCO_CA_BUNDLE com a CA corporativa confiável."),
+             "Falha de certificado TLS. Sem BRADESCO_CA_BUNDLE, a aplicação usa o repositório de certificados confiáveis do sistema operacional. Confirme que a CA corporativa está instalada no Windows ou configure BRADESCO_CA_BUNDLE com um bundle PEM autorizado."),
             (requests.exceptions.Timeout, "bradesco_tempo_esgotado",
              "O serviço corporativo excedeu o timeout. Verifique a rede e BRADESCO_TIMEOUT_SECONDS."),
             (requests.exceptions.ConnectionError, "bradesco_falha_rede",
@@ -152,6 +152,44 @@ class BradescoBridgeClient:
         status_code = self._safe_status_code(exc)
         request_id = self._safe_request_id(getattr(exc, "request_id", None))
         suffix = f" Referência técnica: {request_id}." if request_id else ""
+
+        # O módulo corporativo novo fornece um código técnico sanitizado. Versões
+        # anteriores não possuem esse atributo, por isso mantemos fallback abaixo.
+        external_code = next(
+            (getattr(item, "code", None) for item in causes if getattr(item, "code", None)),
+            None,
+        )
+        if external_code in {"tls_error", "tls_configuration_error"}:
+            return BradescoBridgeError(
+                "bradesco_certificado_invalido",
+                "A cadeia de confiança TLS não pôde ser validada. Sem BRADESCO_CA_BUNDLE, a aplicação usa o repositório confiável do sistema operacional; com a variável preenchida, valide se o arquivo é um bundle PEM de CA válido e completo.",
+            )
+        if external_code == "auth_missing" or str(exc).startswith("Faltam credenciais:"):
+            return BradescoBridgeError(
+                "bradesco_credencial_ausente",
+                "A geração de texto não possui credencial disponível. Configure BRADESCO_AUTHORIZATION_TOKEN "
+                "ou BRADESCO_IDENTIFICADOR e BRADESCO_SENHA no ambiente/.env do backend e reinicie a API.",
+                500,
+            )
+        if external_code == "auth_refresh_unavailable":
+            return BradescoBridgeError(
+                "bradesco_token_nao_renovavel",
+                "O token configurado não pode ser renovado sem identificador e senha. Forneça um token válido "
+                "ou configure as credenciais de serviço no backend.",
+                500,
+            )
+        if external_code == "auth_response_invalid":
+            return BradescoBridgeError(
+                "bradesco_resposta_autenticacao_invalida",
+                "O serviço de identidade respondeu sem o token esperado. Valide a URL de identidade e o contrato "
+                "de autenticação do ambiente configurado.",
+            )
+        if external_code in {"invalid_json_response", "invalid_text_response"}:
+            return BradescoBridgeError(
+                "bradesco_resposta_incompativel",
+                "O serviço de geração de texto respondeu em formato incompatível com o contrato esperado. "
+                "Valide a versão da API corporativa e o envelope response.output_text.",
+            )
         if status_code == 400:
             return BradescoBridgeError(
                 "bradesco_requisicao_rejeitada",
