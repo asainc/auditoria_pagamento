@@ -56,12 +56,28 @@ O nome do deployment precisa existir no ambiente corporativo. A aplicação não
 
 ## Execução sem ambiente virtual
 
-Em computadores onde ambientes virtuais não são permitidos, execute a partir da raiz do projeto e garanta que as dependências Python aprovadas estejam disponíveis no interpretador corporativo:
+Em computadores onde ambientes virtuais não são permitidos, use o Python corporativo já instalado. Os scripts de inicialização configuram `PYTHONPATH` automaticamente para localizar `src/judicial_calc`, sem exigir instalação editável do projeto.
+
+No CMD do Windows:
+
+```cmd
+scripts\start-backend.cmd
+```
+
+No PowerShell:
+
+```powershell
+.\scripts\start-backend.ps1
+```
+
+Ou manualmente, a partir da raiz:
 
 ```cmd
 set "PYTHONPATH=%CD%\src;%CD%"
 python -m uvicorn backend.principal:aplicacao --reload --host 127.0.0.1 --port 8000
 ```
+
+Se o comando `python` corporativo tiver outro caminho, defina `BACKEND_PYTHON` antes de iniciar.
 
 Teste antes:
 
@@ -95,9 +111,9 @@ Os prompts ficam em `prompts/`:
 - `06_prescricao.md`: prescrição;
 - `07_compensacao.md`: compensação;
 - `08_duplo_indice.md`: períodos com índices diferentes;
-- `09_eventos.md`: depósitos, pagamentos, levantamentos e compensações.
+- `09_valor_dobrado.md`: restituição/devolução em dobro determinada pelo título, aplicada somente às parcelas de dano material.
 
-O backend envia somente o subcontrato de parâmetros necessário a cada tarefa. Se o texto extraído pelo PyMuPDF ultrapassar o limite configurado por chamada, ele é dividido por documento/página sem descartar conteúdo. Cada parte continua sendo processada por `text_generator`, e o backend reindexa parcelas/eventos antes da consolidação.
+O backend envia somente o subcontrato de parâmetros necessário a cada tarefa. Se o texto extraído pelo PyMuPDF ultrapassar o limite configurado por chamada, ele é dividido por documento/página sem descartar conteúdo. Cada parte continua sendo processada por `text_generator`, e o backend reindexa as parcelas antes da consolidação.
 
 ## Telemetria
 

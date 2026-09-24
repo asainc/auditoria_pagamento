@@ -2,13 +2,14 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';
-import { dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const windows = process.platform === 'win32';
-const python = process.env.BACKEND_PYTHON || join(root, '.venv', windows ? 'Scripts/python.exe' : 'bin/python');
+const venvPython = join(root, '.venv', windows ? 'Scripts/python.exe' : 'bin/python');
+const python = process.env.BACKEND_PYTHON || (existsSync(venvPython) ? venvPython : 'python');
 const angular = join(root, 'frontend/node_modules/@angular/cli/bin/ng.js');
 const children = [];
 let closing = false;
@@ -29,6 +30,10 @@ process.on('SIGTERM', () => stop());
 
 function launch(command, args, cwd, frontend = false) {
   const environment = {...process.env};
+  if (!frontend) {
+    const projectPythonPath = [join(root, 'src'), root].join(delimiter);
+    environment.PYTHONPATH = environment.PYTHONPATH ? `${projectPythonPath}${delimiter}${environment.PYTHONPATH}` : projectPythonPath;
+  }
   if (frontend) for (const key of ['BRADESCO_AUTHORIZATION_TOKEN','BRADESCO_IDENTIFICADOR','BRADESCO_SENHA','GATEWAY_TOKEN']) delete environment[key];
   const child = spawn(command, args, {cwd, stdio:'inherit', detached:!windows, env:environment});
   children.push(child);
@@ -46,7 +51,7 @@ async function requireFreePort(port) {
 }
 
 try {
-  if (!existsSync(python)) throw new Error('Ambiente Python não encontrado. Instale as dependências seguindo o README.');
+  if (python !== 'python' && !existsSync(python)) throw new Error('Interpretador Python configurado não foi encontrado. Confira BACKEND_PYTHON ou a instalação corporativa.');
   if (!existsSync(angular)) throw new Error('Dependências Angular ausentes. Execute npm install na pasta frontend.');
   await requireFreePort(8000); await requireFreePort(4200);
   launch(python, ['-m','uvicorn','backend.principal:aplicacao','--host','127.0.0.1','--port','8000','--workers','1','--no-access-log'], root);

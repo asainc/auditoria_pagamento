@@ -12,6 +12,22 @@ from judicial_calc import calcular_debitos
 from backend.services.engine import dataframe_table
 
 
+def test_manual_calculation_runs_without_process_context(client, payload):
+    """Protege o fluxo manual contra regressões de contratos específicos de processo.
+
+    O cálculo manual não depende de documentos, extração, número de processo ou IA.
+    Esse teste reproduz o payload enviado pelo Angular alterando apenas a origem.
+    """
+    payload["origem_calculo"] = "manual"
+    payload["numero_processo"] = None
+    response = client.post("/api/calculos", json=payload)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["origem_calculo"] == "manual"
+    assert body["numero_processo"] is None
+    assert {row["campo"]: row["valor"] for row in body["resumo"]}["total_geral"] == "1234.56"
+
+
 def test_angular_payload_runs_real_engine(client, payload):
     response = client.post("/api/calculos", json=payload)
     assert response.status_code == 200
