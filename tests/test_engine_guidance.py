@@ -35,3 +35,23 @@ def test_guidance_does_not_parse_unstructured_exception_text():
     message = engine_error_guidance(ValueError("compensacao_valor=999999"))
     assert "999999" not in message
     assert "Revise os parâmetros" in message
+
+
+def test_guidance_explains_missing_index_competence_precisely():
+    error = CalculationValidationError(
+        "index_coverage_missing",
+        ["indice", "mes_atualizacao", "ano_atualizacao"],
+        metadata={
+            "index_label": "IPCA-15 (IBGE)",
+            "mode": "rate_decimal",
+            "required_competence": "2026-08",
+            "first_available_competence": "2000-05",
+            "last_available_competence": "2026-04",
+            "maximum_update_competence": "2026-05",
+            "reason": "after_last",
+        },
+    )
+    message = engine_error_guidance(error)
+    assert "IPCA-15 (IBGE) não possui taxa para ago/2026" in message
+    assert "Última competência disponível: abr/2026" in message
+    assert "competência máxima de atualização suportada é mai/2026" in message

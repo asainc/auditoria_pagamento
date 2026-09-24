@@ -140,6 +140,34 @@ def test_index_service_preserves_previous_files_on_remote_failure(tmp_path, monk
         service.close()
 
 
+def test_index_service_does_not_claim_new_data_when_source_has_no_later_competence(tmp_path, monkeypatch) -> None:
+    """Consulta bem-sucedida sem avanço deve ter estado próprio, não 'atualizado'."""
+    from threading import Lock
+
+    from backend.config import Settings
+    from backend.repository import Repository
+    from backend.services import indices as indices_service
+    from judicial_calc.data_sources.drcalc_updater import DrCalcUpdateResult
+
+    result = DrCalcUpdateResult(
+        executed=True,
+        skipped=False,
+        success=True,
+        date="2026-09-24",
+        message="Verificação concluída sem competência posterior.",
+        has_new_competence=False,
+    )
+    monkeypatch.setattr(indices_service, "atualizar_planilhas_drcalc_se_necessario", lambda **_: result)
+    service = indices_service.IndexService(Settings(data_dir=tmp_path), Repository(tmp_path), SimpleNamespace(lock=Lock()))
+    try:
+        service.run()
+        status = service.status()
+        assert status.estado == "sem_novidade"
+        assert status.mensagem == result.message
+    finally:
+        service.close()
+
+
 class _FakeResponse:
     """Resposta HTTP mínima para validar a submissão sem rede externa."""
 

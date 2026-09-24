@@ -231,3 +231,41 @@ Para aplicar, atualize o frontend com os arquivos deste pacote e reinicie o
 servidor Angular. Em instalações com build publicado, gere e publique novamente
 o frontend. Recarregue o navegador para remover a versão anterior da aplicação.
 As correções anteriores de conexão com text_generator estão incluídas.
+
+## Cobertura real dos índices e competência automática — 24/09/2026
+
+O seletor de índices não usa mais datas de cobertura escritas manualmente. O backend lê
+`src/judicial_calc/data/taxas_mensais.xlsx` e calcula, para cada coluna, a primeira e a
+última competência efetivamente preenchidas. O Angular recebe essas informações por
+`GET /api/indices` e mostra o intervalo observado no próprio arquivo instalado.
+
+Para índices mensais de variação, como IPCA, INPC e IPCA-15, uma atualização no mês `M`
+usa a taxa até `M-1`. Portanto, se a última taxa disponível for `2026-04`, a maior
+competência de atualização suportada é `2026-05`. Para séries de número-índice, a maior
+competência de atualização é a própria última competência existente na série.
+
+Quando mês e ano forem automáticos, o frontend consulta:
+
+```text
+GET /api/calculos/padroes?indice=<chave_do_indice>
+```
+
+e o backend limita a competência ao menor valor entre o mês corrente e o limite real da
+série. Nenhuma taxa futura é estimada. Se o operador informar manualmente uma competência
+acima do limite, o cálculo é bloqueado com uma mensagem específica, por exemplo:
+
+```text
+IPCA-15 (IBGE) não possui taxa para ago/2026. Última competência disponível: abr/2026.
+A competência máxima de atualização suportada é mai/2026.
+```
+
+Na gestão de índices, uma consulta externa bem-sucedida somente recebe o estado
+`atualizado` quando ao menos uma série avança sua competência máxima. Se a fonte responder,
+mas não trouxer período posterior ao instalado, o estado passa a `sem_novidade`. Falhas de
+rede, parsing ou validação preservam as planilhas anteriores. Se ocorrer uma falha durante
+a troca física dos arquivos após o backup, o atualizador tenta restaurar automaticamente o
+conjunto anterior para evitar mistura de versões.
+
+## Validação final desta entrega
+
+Consulte `docs/VALIDACAO_FINAL_2026-09-24.md` para os testes executados e os limites de validação.

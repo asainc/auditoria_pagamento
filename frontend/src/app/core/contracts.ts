@@ -18,7 +18,7 @@ export type Body_import_installments_api_documentos_parcelas_importar_post = { "
 
 export type Body_upload_api_documentos_upload_post = { "files": Array<string> };
 
-export type CalculationDefaults = { "mes": "janeiro" | "fevereiro" | "março" | "abril" | "maio" | "junho" | "julho" | "agosto" | "setembro" | "outubro" | "novembro" | "dezembro"; "ano": number };
+export type CalculationDefaults = { "mes": "janeiro" | "fevereiro" | "março" | "abril" | "maio" | "junho" | "julho" | "agosto" | "setembro" | "outubro" | "novembro" | "dezembro"; "ano": number; "competencia_recomendada"?: string | null; "ajustada_por_disponibilidade"?: boolean; "mensagem"?: string | null };
 
 export type CalculationDraft = { "origem_calculo": "manual" | "processo"; "numero_processo"?: string | null; "parcelas": Array<Installment_Output>; "parametros": CalculationParameters_Output; "revisao_humana_confirmada"?: boolean; "honorarios_sobre_danos_morais"?: boolean; "competencia_automatica"?: boolean };
 
@@ -56,9 +56,9 @@ export type HTTPValidationError = { "detail"?: Array<ValidationError> };
 
 export type Health = { "status"?: string; "versao_api"?: string };
 
-export type IndexOption = { "chave": string; "nome": string };
+export type IndexOption = { "chave": string; "nome": string; "nome_base": string; "disponivel"?: boolean; "modo": "rate_decimal" | "value_index" | "sem_correcao" | "indisponivel"; "competencia_inicial"?: string | null; "competencia_final"?: string | null; "competencia_maxima_atualizacao"?: string | null };
 
-export type IndexStatus = { "estado": "nao_verificado" | "atualizado" | "falha" | "executando"; "mensagem": string; "atualizado_em"?: string | null; "arquivos_sha256": Record<string, string> };
+export type IndexStatus = { "estado": "nao_verificado" | "atualizado" | "sem_novidade" | "falha" | "executando"; "mensagem": string; "atualizado_em"?: string | null; "arquivos_sha256": Record<string, string> };
 
 export type Installment_Input = { "data": string; "valor_singelo": number | string; "descricao"?: string; "verba_tipo": "dano_material" | "dano_moral" | "honorarios" | "custas"; "multiplicador"?: 1 | 2 | null; "origem"?: "informada" | "honorarios_dano_moral" };
 

@@ -1,6 +1,19 @@
 # Changelog
 
 
+## 2026-09-24 — Cobertura real dos índices e competência automática segura
+
+- Removidos os intervalos de disponibilidade escritos manualmente no backend; o catálogo agora lê a primeira e a última competência não vazia de cada coluna de `taxas_mensais.xlsx`.
+- O contrato de `/api/indices` passou a informar `competencia_inicial`, `competencia_final`, `competencia_maxima_atualizacao`, modo de acumulação e disponibilidade da série.
+- Índices conhecidos sem série instalada permanecem identificáveis, porém são apresentados como indisponíveis e ficam desabilitados no seletor do Angular.
+- Para índices de variação mensal, a competência de atualização M exige a taxa de M-1; para números-índice, M precisa existir na própria série.
+- A competência automática agora é limitada ao maior mês suportado pelo índice selecionado, sem estimar competências ausentes.
+- Erros de cobertura passaram a informar índice, competência necessária, última competência disponível e maior competência de atualização suportada.
+- O atualizador do DrCalc diferencia consulta bem-sucedida com nova competência de consulta sem avanço de cobertura. O estado `sem_novidade` evita informar atualização quando nenhuma série avançou.
+- Em falha durante a substituição dos três arquivos de índices, o backend tenta restaurar integralmente o backup criado antes da troca, evitando versões parciais misturadas.
+- O Angular exibe a cobertura real e a competência máxima de atualização do índice selecionado.
+
+
 ## 2026-09-24 — TLS corporativo via repositório nativo do SO
 
 - Corrigido o cliente HTTPS para usar a cadeia de confiança nativa do sistema operacional quando `BRADESCO_CA_BUNDLE` estiver vazio.

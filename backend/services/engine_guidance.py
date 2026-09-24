@@ -10,6 +10,19 @@ from backend.calculation_policy import parameter_label
 from judicial_calc.core.errors import CalculationValidationError
 
 
+MONTH_ABBREVIATIONS = ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
+
+
+def _format_competence(value: object) -> str:
+    """Formata ``AAAA-MM`` sem depender do locale do sistema operacional."""
+    text = str(value or "")
+    if len(text) >= 7 and text[4] == "-" and text[:4].isdigit() and text[5:7].isdigit():
+        month = int(text[5:7])
+        if 1 <= month <= 12:
+            return f"{MONTH_ABBREVIATIONS[month - 1]}/{text[:4]}"
+    return text or "competência não identificada"
+
+
 def _labels(keys: tuple[str, ...]) -> str:
     """Formata os campos do erro usando a mesma nomenclatura exibida na interface."""
     labels = [parameter_label(key) for key in dict.fromkeys(keys)]
@@ -27,6 +40,35 @@ def engine_error_guidance(error: Exception) -> str:
     a falha. Exceções não estruturadas recebem uma orientação genérica para que
     nenhum valor potencialmente sensível seja ecoado para a interface.
     """
+    if isinstance(error, CalculationValidationError) and error.code == "index_coverage_missing":
+        metadata = error.metadata
+        label = str(metadata.get("index_label") or "O índice selecionado")
+        required = _format_competence(metadata.get("required_competence"))
+        first = _format_competence(metadata.get("first_available_competence"))
+        last = _format_competence(metadata.get("last_available_competence"))
+        maximum_update = _format_competence(metadata.get("maximum_update_competence"))
+        reason = str(metadata.get("reason") or "")
+        noun = "taxa" if metadata.get("mode") == "rate_decimal" else "valor do índice"
+        if reason == "before_first":
+            return (
+                f"{label} não possui {noun} para {required}. "
+                f"Primeira competência disponível: {first}."
+            )
+        if reason == "gap":
+            return (
+                f"{label} possui uma lacuna na série em {required}. "
+                f"Intervalo observado no arquivo: {first} a {last}."
+            )
+        return (
+            f"{label} não possui {noun} para {required}. "
+            f"Última competência disponível: {last}. "
+            f"A competência máxima de atualização suportada é {maximum_update}."
+        )
+
+    if isinstance(error, CalculationValidationError) and error.code == "index_series_empty":
+        label = str(error.metadata.get("index_label") or "O índice selecionado")
+        return f"{label} não possui dados disponíveis na planilha instalada. Selecione outro índice ou atualize as séries."
+
     if isinstance(error, CalculationValidationError) and error.fields:
         return f"Ajuste o(s) parâmetro(s) {_labels(error.fields)} e tente calcular novamente."
 

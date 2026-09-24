@@ -20,6 +20,7 @@ import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.utils.datetime import from_excel
 
+from judicial_calc.core.dates import somar_meses
 from judicial_calc.core.numbers import D
 
 RATE_DECIMAL: Literal["rate_decimal"] = "rate_decimal"
@@ -61,6 +62,25 @@ class MissingLocalIndexSpec:
     key: str
     label: str
     available_range: str
+
+
+@dataclass(frozen=True)
+class LocalIndexCoverage:
+    """Cobertura efetivamente observada para uma coluna da planilha mensal.
+
+    ``last_competence`` representa a última competência com valor não nulo no
+    arquivo local. ``maximum_update_competence`` representa o maior mês de
+    atualização que o motor consegue calcular com essa série. Para índices de
+    variação mensal, o cálculo do mês M usa a taxa de M-1; para números-índice,
+    o próprio mês M precisa existir.
+    """
+
+    key: str
+    label: str
+    mode: IndexMode
+    first_competence: str
+    last_competence: str
+    maximum_update_competence: str
 
 
 def _resource_path(filename: str) -> Path:
@@ -357,6 +377,31 @@ def load_index_series(key_or_label: str, path: str | None = None) -> pd.DataFram
     out["indice"] = out["indice"].apply(_decimal_or_none)
     out = out.dropna(subset=["indice"]).reset_index(drop=True)
     return out
+
+
+@lru_cache(maxsize=128)
+def local_index_coverage(key_or_label: str, path: str | None = None) -> LocalIndexCoverage:
+    """Retorna o intervalo real de uma série, sem datas escritas manualmente.
+
+    A função considera somente células não vazias da coluna selecionada. Assim,
+    o catálogo e a validação usam exatamente os dados disponíveis no arquivo de
+    cálculo instalado, inclusive após uma atualização das planilhas.
+    """
+    spec = get_index_spec(key_or_label)
+    series = load_index_series(spec.key, path)
+    if series.empty:
+        raise ValueError(f"A série '{spec.column}' não possui competências preenchidas em {MENSAL_XLSX}.")
+    first = str(series["mes"].min())[:7]
+    last = str(series["mes"].max())[:7]
+    maximum_update = somar_meses(last, 1) if spec.mode == RATE_DECIMAL else last
+    return LocalIndexCoverage(
+        key=spec.key,
+        label=spec.column,
+        mode=spec.mode,
+        first_competence=first,
+        last_competence=last,
+        maximum_update_competence=maximum_update,
+    )
 
 
 def load_taxa_legal_mensal_percentual(path: str | None = None) -> pd.DataFrame:

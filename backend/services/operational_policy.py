@@ -6,15 +6,45 @@ from pydantic import TypeAdapter
 from backend.errors import ServiceError
 from backend.config import OperationalSettings
 from backend.models import CalculationDefaults, CalculationRequest, ExtractionResult, Installment, OperationalAdjustment, Rate
+from judicial_calc.data_sources.local_excel import local_index_coverage
 from judicial_calc.indices.registry import create_default_index_registry
 
 MONTHS = ("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro")
 
 
-def current_competence(today: date | None = None) -> CalculationDefaults:
-    """Retorna mês e ano da data de referência no calendário da aplicação."""
+def current_competence(today: date | None = None, index_key: str | None = None) -> CalculationDefaults:
+    """Retorna a competência recomendada, respeitando a cobertura do índice.
+
+    O relógio da aplicação define o teto desejado. Quando uma série local não
+    alcança esse mês, a recomendação é reduzida para a maior competência que o
+    motor consegue calcular sem estimar dados ausentes.
+    """
     today = today or datetime.now(ZoneInfo("America/Sao_Paulo")).date()
-    return CalculationDefaults(mes=MONTHS[today.month - 1], ano=today.year)
+    desired = f"{today.year:04d}-{today.month:02d}"
+    recommended = desired
+    adjusted = False
+    message = None
+    if index_key and index_key != "sem_correcao":
+        try:
+            coverage = local_index_coverage(index_key)
+        except (ValueError, FileNotFoundError):
+            coverage = None
+        if coverage is not None and coverage.maximum_update_competence < recommended:
+            recommended = coverage.maximum_update_competence
+            adjusted = True
+            message = (
+                f"Competência limitada pela última série disponível de {coverage.label}; "
+                "nenhum índice ausente foi estimado."
+            )
+    year = int(recommended[:4])
+    month = int(recommended[5:7])
+    return CalculationDefaults(
+        mes=MONTHS[month - 1],
+        ano=year,
+        competencia_recomendada=recommended,
+        ajustada_por_disponibilidade=adjusted,
+        mensagem=message,
+    )
 
 
 def fee_installments(rows: list[Installment], percentage: Decimal) -> list[Installment]:
@@ -46,7 +76,7 @@ def validate_prepared_request(payload: CalculationRequest) -> None:
         if [(row.data, row.valor_singelo, row.verba_tipo) for row in generated] != expected_rows:
             raise ServiceError("A base ou o percentual mudou. Clique em Atualizar honorários e confirme novamente a revisão.")
     if payload.competencia_automatica:
-        current = current_competence()
+        current = current_competence(index_key=payload.parametros.indice)
         if (payload.parametros.mes_atualizacao, payload.parametros.ano_atualizacao) != (current.mes, current.ano):
             raise ServiceError("A competência automática mudou. Desmarque e confirme novamente a revisão para atualizar mês e ano.", 409)
 
@@ -95,12 +125,14 @@ class OperationalPolicy:
             result.ajustes_operacionais.append(OperationalAdjustment(campo="parametros." + field, valor=value, motivo=reason))
 
         index = unique("parametros.indice")
+        effective_index = index
         registry = create_default_index_registry()
         if (not values("parametros.indice") and not explicitly_cleared("parametros.indice")) or (index and registry.get(index) is None and ("tjsp" in index.lower() or "tabela prática" in index.lower())):
             key = self.configuration.default_index
             if registry.get(key) is None:
                 raise ServiceError("O índice TJSP configurado não existe no catálogo instalado.", 503)
             assign("indice", key, "Padrão autorizado: TJSP (INPC/IPCA-15 - Lei 14905), na ausência de chave informada.")
+            effective_index = key
         if not values("parametros.juros_moratorios_tipo") and not explicitly_cleared("parametros.juros_moratorios_tipo"):
             assign(
                 "juros_moratorios_tipo",
@@ -132,13 +164,15 @@ class OperationalPolicy:
                     assign("juros_moratorios_data_inicio", source, "Data da citação documentada." if citation else "Citação sem data disponível: utilizada a data documentada da petição inicial, conforme regra autorizada.")
             else:
                 result.alertas.append("Sem data verificável da citação ou da petição inicial: início dos juros exige preenchimento manual.")
-        current = current_competence(today)
+        current = current_competence(today, effective_index)
         missing_month = not values("parametros.mes_atualizacao") and not explicitly_cleared("parametros.mes_atualizacao")
         missing_year = not values("parametros.ano_atualizacao") and not explicitly_cleared("parametros.ano_atualizacao")
         if missing_month:
-            assign("mes_atualizacao", current.mes, "Mês atual no horário de Brasília, conforme regra autorizada.")
+            reason = "Competência automática limitada à disponibilidade real do índice selecionado." if current.ajustada_por_disponibilidade else "Mês atual no horário de Brasília, conforme regra autorizada."
+            assign("mes_atualizacao", current.mes, reason)
         if missing_year:
-            assign("ano_atualizacao", current.ano, "Ano atual no horário de Brasília, conforme regra autorizada.")
+            reason = "Competência automática limitada à disponibilidade real do índice selecionado." if current.ajustada_por_disponibilidade else "Ano atual no horário de Brasília, conforme regra autorizada."
+            assign("ano_atualizacao", current.ano, reason)
         result.competencia_automatica = missing_month and missing_year
         fee_types = values("parametros.honorarios_tipo")
         if len(fee_types) > 1:

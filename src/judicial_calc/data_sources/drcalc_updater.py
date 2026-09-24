@@ -117,6 +117,8 @@ class DrCalcUpdateResult:
     previous_row_counts: dict[str, int] = field(default_factory=dict)
     diff_summary: list[dict[str, Any]] = field(default_factory=list)
     consistency_checks: list[dict[str, Any]] = field(default_factory=list)
+    has_new_competence: bool = False
+    new_competencies: list[dict[str, str]] = field(default_factory=list)
     restored_backup: str | None = None
     errors: list[str] = field(default_factory=list)
 
@@ -1461,6 +1463,59 @@ def _build_diff_row(filename: str, before_rows: int, after_df: pd.DataFrame) -> 
     }
 
 
+def _monthly_last_competence_by_column(df: pd.DataFrame) -> dict[str, str]:
+    """Obtém a última competência não nula de cada série mensal."""
+    if df.empty or "data" not in df.columns:
+        return {}
+    dates = df["data"].astype(str).str[:7]
+    result: dict[str, str] = {}
+    for column in df.columns:
+        if column == "data":
+            continue
+        mask = df[column].notna()
+        if mask.any():
+            result[str(column)] = str(dates[mask].max())
+    return result
+
+
+def _daily_last_competence(df: pd.DataFrame) -> str:
+    """Retorna a última data útil de uma série diária como texto ISO."""
+    if df.empty or "data" not in df.columns:
+        return ""
+    values = pd.to_datetime(df["data"], errors="coerce").dropna()
+    if values.empty:
+        return ""
+    return values.max().date().isoformat()
+
+
+def _coverage_advancements(
+    before_monthly: pd.DataFrame,
+    after_monthly: pd.DataFrame,
+    before_daily_selic: pd.DataFrame,
+    after_daily_selic: pd.DataFrame,
+    before_daily_12_6: pd.DataFrame,
+    after_daily_12_6: pd.DataFrame,
+) -> list[dict[str, str]]:
+    """Lista somente séries cuja competência máxima realmente avançou."""
+    advancements: list[dict[str, str]] = []
+    before_month = _monthly_last_competence_by_column(before_monthly)
+    after_month = _monthly_last_competence_by_column(after_monthly)
+    for column, after in sorted(after_month.items()):
+        before = before_month.get(column, "")
+        if after and (not before or after > before):
+            advancements.append({"arquivo": MENSAL_XLSX, "serie": column, "antes": before, "depois": after})
+
+    for filename, label, before_df, after_df in (
+        (DIARIA_SELIC_IPCAE_XLSX, "TAXA LEGAL DIARIA (SELIC-IPCAE)", before_daily_selic, after_daily_selic),
+        (DIARIA_12_6_XLSX, "TAXA LEGAL - 12% aa - 6% aa", before_daily_12_6, after_daily_12_6),
+    ):
+        before = _daily_last_competence(before_df)
+        after = _daily_last_competence(after_df)
+        if after and (not before or after > before):
+            advancements.append({"arquivo": filename, "serie": label, "antes": before, "depois": after})
+    return advancements
+
+
 def _consistency_checks(monthly: pd.DataFrame, daily_selic_ipcae: pd.DataFrame, daily_12_6: pd.DataFrame) -> list[dict[str, Any]]:
     """Gera checagens legíveis para a tela administrativa de índices."""
     checks = [
@@ -1554,7 +1609,9 @@ def restaurar_backup_drcalc(
 
 def _clear_local_caches() -> None:
     """Limpa caches de leitura de índices para que os próximos cálculos usem os arquivos atuais."""
-    for func in (load_monthly_indices, load_index_series, load_daily_rate_table):
+    from judicial_calc.data_sources.local_excel import local_index_coverage
+
+    for func in (load_monthly_indices, load_index_series, local_index_coverage, load_daily_rate_table):
         try:
             func.cache_clear()  # type: ignore[attr-defined]
         except Exception:
@@ -1673,10 +1730,15 @@ def atualizar_planilhas_drcalc(
             raise DrCalcUpdateError(f"Planilha obrigatória não encontrada: {target_dir / filename}")
 
     try:
+        # Captura a cobertura anterior antes de qualquer mesclagem. Essa foto é
+        # usada para distinguir "fonte consultada" de "competência avançada".
+        previous_monthly = _monthly_dataframe_from_workbook(target_dir / MENSAL_XLSX)
+        previous_daily_selic = _daily_dataframe_from_workbook(target_dir / DIARIA_SELIC_IPCAE_XLSX)
+        previous_daily_12_6 = _daily_dataframe_from_workbook(target_dir / DIARIA_12_6_XLSX)
         previous_row_counts = {
-            MENSAL_XLSX: _df_row_count(target_dir / MENSAL_XLSX),
-            DIARIA_SELIC_IPCAE_XLSX: _df_row_count(target_dir / DIARIA_SELIC_IPCAE_XLSX, daily=True),
-            DIARIA_12_6_XLSX: _df_row_count(target_dir / DIARIA_12_6_XLSX, daily=True),
+            MENSAL_XLSX: int(len(previous_monthly)),
+            DIARIA_SELIC_IPCAE_XLSX: int(len(previous_daily_selic)),
+            DIARIA_12_6_XLSX: int(len(previous_daily_12_6)),
         }
         series = series_list if series_list is not None else baixar_series_drcalc(timeout=timeout)
         monthly, updated_monthly, preserved = _merge_monthly(target_dir / MENSAL_XLSX, series)
@@ -1704,6 +1766,22 @@ def atualizar_planilhas_drcalc(
             _build_diff_row(DIARIA_12_6_XLSX, previous_row_counts.get(DIARIA_12_6_XLSX, 0), daily_12_6),
         ]
         checks = _consistency_checks(monthly, daily_selic_ipcae, daily_12_6)
+        new_competencies = _coverage_advancements(
+            previous_monthly,
+            monthly,
+            previous_daily_selic,
+            daily_selic_ipcae,
+            previous_daily_12_6,
+            daily_12_6,
+        )
+        has_new_competence = bool(new_competencies)
+        checks.append(
+            {
+                "checagem": "Fonte trouxe competência posterior à instalada",
+                "status": "ok" if has_new_competence else "sem_novidade",
+                "detalhe": f"{len(new_competencies)} série(s) avançaram a competência máxima.",
+            }
+        )
 
         with tempfile.TemporaryDirectory(prefix="drcalc_update_") as tmp_name:
             tmp_dir = Path(tmp_name)
@@ -1715,17 +1793,44 @@ def atualizar_planilhas_drcalc(
             _write_daily_workbook(daily_12_6, daily_2_path)
 
             backup_dir = _backup_planilhas(target_dir)
-            _atomic_replace(monthly_path, target_dir / MENSAL_XLSX)
-            _atomic_replace(daily_1_path, target_dir / DIARIA_SELIC_IPCAE_XLSX)
-            _atomic_replace(daily_2_path, target_dir / DIARIA_12_6_XLSX)
+            try:
+                _atomic_replace(monthly_path, target_dir / MENSAL_XLSX)
+                _atomic_replace(daily_1_path, target_dir / DIARIA_SELIC_IPCAE_XLSX)
+                _atomic_replace(daily_2_path, target_dir / DIARIA_12_6_XLSX)
+            except Exception as replace_exc:
+                # Se uma substituição falhar no meio do conjunto, restaura todos
+                # os arquivos do backup para não deixar versões misturadas.
+                restore_errors: list[str] = []
+                for filename in PLANILHAS_OBRIGATORIAS:
+                    backup_file = backup_dir / filename
+                    if not backup_file.exists():
+                        continue
+                    try:
+                        _atomic_replace(backup_file, target_dir / filename)
+                    except Exception as restore_exc:
+                        restore_errors.append(f"{filename}: {type(restore_exc).__name__}")
+                _clear_local_caches()
+                if restore_errors:
+                    raise DrCalcUpdateError(
+                        "Falha ao substituir as planilhas e a restauração automática não foi integral. "
+                        "Revise o backup criado antes de continuar."
+                    ) from replace_exc
+                raise DrCalcUpdateError(
+                    "Falha ao substituir as planilhas; o backup anterior foi restaurado automaticamente."
+                ) from replace_exc
 
         _clear_local_caches()
+        message = (
+            "Novas competências de índices foram incorporadas com sucesso a partir do DrCalc."
+            if has_new_competence
+            else "Verificação concluída: a fonte não trouxe competência posterior à já instalada. A cobertura máxima não foi avançada."
+        )
         result = DrCalcUpdateResult(
             executed=True,
             skipped=False,
             success=True,
             date=_today_str(),
-            message="Planilhas de índices atualizadas com sucesso a partir do DrCalc.",
+            message=message,
             backup_dir=str(backup_dir),
             updated_files=list(PLANILHAS_OBRIGATORIAS),
             updated_series=updated_monthly + updated_daily_1 + updated_daily_2,
@@ -1734,6 +1839,8 @@ def atualizar_planilhas_drcalc(
             row_counts=row_counts,
             diff_summary=diff_summary,
             consistency_checks=checks,
+            has_new_competence=has_new_competence,
+            new_competencies=new_competencies,
         )
         _write_state(target_dir, result)
         return result
@@ -1797,6 +1904,8 @@ def atualizar_planilhas_drcalc_se_necessario(
             row_counts=(state.get("result") or {}).get("row_counts", {}),
             diff_summary=(state.get("result") or {}).get("diff_summary", []),
             consistency_checks=(state.get("result") or {}).get("consistency_checks", []),
+            has_new_competence=bool((state.get("result") or {}).get("has_new_competence", False)),
+            new_competencies=(state.get("result") or {}).get("new_competencies", []),
         )
 
     if not _acquire_lock(target_dir):

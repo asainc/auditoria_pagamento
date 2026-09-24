@@ -32,12 +32,13 @@ import { DamageType, PARAM_FIELDS, ParamField, ParameterKey, SelectOption } from
               <label class="field">{{ field.label }}
                 @if (field.type === 'select') {
                   <select [ngModel]="store.active().parameters[field.key] ?? ''" (ngModelChange)="set(field.key, $event)" [disabled]="!store.canEdit() || (!field.options && !store.indices().length)">
-                    @for (option of options(field); track option.value) {<option [ngValue]="option.value" [hidden]="option.hidden === true">{{ option.label }}</option>}
+                    @for (option of options(field); track option.value) {<option [ngValue]="option.value" [hidden]="option.hidden === true" [disabled]="option.disabled === true">{{ option.label }}</option>}
                   </select>
                 } @else {
                   <input [type]="field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'" [ngModel]="store.active().parameters[field.key] ?? ''" (ngModelChange)="set(field.key, $event)" [disabled]="!store.canEdit()" placeholder="Não informado">
                 }
                 @if (field.help) {<small>{{ field.help }}</small>}
+                @if (field.key === 'indice' && selectedIndexHelp(); as coverageHelp) {<small>{{ coverageHelp }}</small>}
               </label>
             }
           }
@@ -50,6 +51,19 @@ export class ParameterPanelComponent {
   readonly store = inject(WorkspaceStore);
   readonly damageType = input<DamageType>('dano_material');
   readonly showAll = signal(true);
+  readonly selectedIndexHelp = computed(() => {
+    const key = String(this.store.active().parameters.indice ?? '');
+    const selected = this.store.indices().find(index => index.chave === key);
+    if (!selected || selected.chave === 'sem_correcao') return '';
+    if (!selected.disponivel) return 'A série deste índice não está instalada; selecione outro índice ou atualize a base.';
+    const first = this.formatCompetence(selected.competencia_inicial);
+    const last = this.formatCompetence(selected.competencia_final);
+    const maximum = this.formatCompetence(selected.competencia_maxima_atualizacao);
+    if (!first || !last) return '';
+    return maximum
+      ? `Dados disponíveis: ${first} a ${last}. Competência máxima de atualização: ${maximum}.`
+      : `Dados disponíveis: ${first} a ${last}.`;
+  });
   readonly sections = computed(() => {
     const grouped = new Map<string, ParamField[]>();
     for (const field of PARAM_FIELDS) {
@@ -59,5 +73,16 @@ export class ParameterPanelComponent {
     return Array.from(grouped, ([title, fields]) => ({title, fields}));
   });
   set(key: ParameterKey, value: string | number | boolean): void { this.store.updateParameter(key, value); }
-  options(field: ParamField): SelectOption[] { return field.options ?? [{value:'',label:'Selecione'}, ...this.store.indices().map(index => ({value:index.chave,label:index.nome}))]; }
+  options(field: ParamField): SelectOption[] {
+    return field.options ?? [
+      {value:'',label:'Selecione'},
+      ...this.store.indices().map(index => ({value:index.chave,label:index.nome,disabled:index.disponivel === false})),
+    ];
+  }
+  private formatCompetence(value?: string | null): string {
+    if (!value || !/^\d{4}-\d{2}$/.test(value)) return '';
+    const months = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    const month = Number(value.slice(5,7));
+    return month >= 1 && month <= 12 ? `${months[month - 1]}/${value.slice(0,4)}` : value;
+  }
 }

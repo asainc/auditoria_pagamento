@@ -26,7 +26,7 @@ import {{ CalculationParameters_Input }} from '../core/contracts';
 
 export type ParameterKey = keyof CalculationParameters_Input;
 export type DamageType = 'dano_material' | 'dano_moral' | 'honorarios' | 'custas';
-export interface SelectOption {{value: string | number | boolean | null; label: string; hidden?: boolean;}}
+export interface SelectOption {{value: string | number | boolean | null; label: string; hidden?: boolean; disabled?: boolean;}}
 export interface ParamField {{key: ParameterKey; label: string; type: 'text' | 'number' | 'date' | 'select' | 'checkbox'; section: string; options?: SelectOption[]; help?: string; damageTypes?: DamageType[];}}
 
 export const PARAM_FIELDS: ParamField[] = {ts(fields)} as ParamField[];

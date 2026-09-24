@@ -213,7 +213,7 @@ Regra configurada pelo operador; não é citação de documento.
 
 ### `class CalculationDefaults(Contract)`
 
-Competência do relógio do backend, em horário de Brasília.
+Competência recomendada pelo backend, limitada pela série selecionada.
 
 
 ### `class FeePreparation(Contract)`
@@ -259,7 +259,7 @@ Evento persistido com carimbo de tempo e origem documental resolvida no servidor
 
 ### `class IndexOption(Contract)`
 
-Chave registrada no motor e rótulo de apresentação.
+Chave registrada no motor e cobertura observada na planilha local.
 
 
 ### `class IndexStatus(Contract)`
@@ -377,9 +377,9 @@ Falhas são explícitas por processo; sucessos não são descartados.
 
 Cálculo e exportações compartilham o mesmo contrato validado.
 
-### `def defaults()`
+### `def defaults(indice: str | None=None)`
 
-A data corrente é fornecida pelo backend, sem relógio jurídico no Angular.
+Recomenda competência sem ultrapassar a cobertura do índice selecionado.
 
 ### `def calculation_policy(origem_calculo: CalculationOrigin)`
 
@@ -593,6 +593,10 @@ Isola o motor de cálculo dos contratos HTTP e das estruturas da interface.
 
 Transforma erros estruturados do motor em orientação operacional segura.
 
+### `def _format_competence(value: object) -> str`
+
+Formata ``AAAA-MM`` sem depender do locale do sistema operacional.
+
 ### `def _labels(keys: tuple[str, ...]) -> str`
 
 Formata os campos do erro usando a mesma nomenclatura exibida na interface.
@@ -733,9 +737,13 @@ Gestão das séries delega ao atualizador existente, com exclusão mútua.
 
 Normaliza nomes da lista para o padrão esperado na interface.
 
-### `def display_label(key: str, raw_name: str) -> str`
+### `def format_competence(comp: str | None) -> str`
 
-Acrescenta o intervalo de disponibilidade quando conhecido.
+Formata ``AAAA-MM`` como ``mmm/AAAA`` sem depender de locale.
+
+### `def display_label(raw_name: str, first: str | None, last: str | None) -> str`
+
+Monta rótulo apenas com o intervalo observado na planilha instalada.
 
 ### `def _public_update_failure(result) -> str`
 
@@ -757,9 +765,9 @@ Uma atualização por vez, estado verificável e backup fornecido pelo motor.
 
 Aplica critérios operacionais rastreáveis antes da revisão humana do cálculo.
 
-### `def current_competence(today: date | None=None) -> CalculationDefaults`
+### `def current_competence(today: date | None=None, index_key: str | None=None) -> CalculationDefaults`
 
-Retorna mês e ano da data de referência no calendário da aplicação.
+Retorna a competência recomendada, respeitando a cobertura do índice.
 
 ### `def fee_installments(rows: list[Installment], percentage: Decimal) -> list[Installment]`
 
@@ -968,6 +976,14 @@ Converte valores da política para texto curto e estável em Markdown.
 
 Grava padrões, obrigatoriedade, opções e grupos sem duplicação manual.
 
+## `scripts/test_text_generator_connection.py`
+
+Diagnóstico seguro da conexão com o gerador corporativo.
+
+### `def main() -> int`
+
+Valida configuração local e realiza uma chamada mínima ao text_generator.
+
 ## `scripts/validate_architecture.py`
 
 Valida fronteiras arquiteturais, dependências proibidas e versões fixadas do frontend.
@@ -1060,7 +1076,7 @@ Exceções estruturadas usadas na fronteira do motor de cálculo.
 
 Representa uma combinação inválida de parâmetros do motor.
 
-- `def __init__(self, code: str, fields: Iterable[str]=(), message: str='Parâmetros de cálculo incompatíveis.') -> None` — Inicializa código estável, campos relacionados e mensagem pública sanitizada.
+- `def __init__(self, code: str, fields: Iterable[str]=(), message: str='Parâmetros de cálculo incompatíveis.', metadata: Mapping[str, Any] | None=None) -> None` — Inicializa código estável, campos relacionados e metadados seguros.
 
 ## `src/judicial_calc/core/models.py`
 
@@ -1336,6 +1352,18 @@ Retorna intervalo textual mínimo/máximo de datas/competências.
 
 Resume diferença de linhas e intervalo de datas de uma planilha.
 
+### `def _monthly_last_competence_by_column(df: pd.DataFrame) -> dict[str, str]`
+
+Obtém a última competência não nula de cada série mensal.
+
+### `def _daily_last_competence(df: pd.DataFrame) -> str`
+
+Retorna a última data útil de uma série diária como texto ISO.
+
+### `def _coverage_advancements(before_monthly: pd.DataFrame, after_monthly: pd.DataFrame, before_daily_selic: pd.DataFrame, after_daily_selic: pd.DataFrame, before_daily_12_6: pd.DataFrame, after_daily_12_6: pd.DataFrame) -> list[dict[str, str]]`
+
+Lista somente séries cuja competência máxima realmente avançou.
+
 ### `def _consistency_checks(monthly: pd.DataFrame, daily_selic_ipcae: pd.DataFrame, daily_12_6: pd.DataFrame) -> list[dict[str, Any]]`
 
 Gera checagens legíveis para a tela administrativa de índices.
@@ -1392,6 +1420,11 @@ Metadados de uma coluna de índice na tabela mensal local.
 Metadados de índice conhecido, mas sem coluna na planilha local.
 
 
+### `class LocalIndexCoverage`
+
+Cobertura efetivamente observada para uma coluna da planilha mensal.
+
+
 ### `def _resource_path(filename: str) -> Path`
 
 Resolve o caminho de uma planilha empacotada no projeto.
@@ -1439,6 +1472,10 @@ Carrega a tabela mensal local em formato largo.
 ### `def load_index_series(key_or_label: str, path: str | None=None) -> pd.DataFrame`
 
 Retorna a série mensal de uma chave local.
+
+### `def local_index_coverage(key_or_label: str, path: str | None=None) -> LocalIndexCoverage`
+
+Retorna o intervalo real de uma série, sem datas escritas manualmente.
 
 ### `def load_taxa_legal_mensal_percentual(path: str | None=None) -> pd.DataFrame`
 

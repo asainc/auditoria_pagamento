@@ -8,7 +8,10 @@ import { CalculationDefaults, CalculationRequest, CalculationResponse, FeePrepar
 export class CalculationApiService {
   private readonly http = inject(HttpClient);
   private readonly config = inject(ApiConfiguration);
-  defaults() { return this.http.get<CalculationDefaults>(`${this.config.baseUrl}/calculos/padroes`); }
+  defaults(indice?: string) {
+    const params = indice ? {indice} : undefined;
+    return this.http.get<CalculationDefaults>(`${this.config.baseUrl}/calculos/padroes`, {params});
+  }
   prepareFees(payload: FeePreparation) { return this.http.post<Installment_Output[]>(`${this.config.baseUrl}/calculos/honorarios/preparar`, payload); }
   calculate(payload: CalculationRequest) { return this.http.post<CalculationResponse>(`${this.config.baseUrl}/calculos`, payload); }
   pdf(payload: CalculationRequest, audit = false, indicesHash = '') { return this.http.post(`${this.config.baseUrl}/calculos/memoria-pdf`, payload, {responseType:'blob', params:{auditavel:audit,indices_sha256:indicesHash}}); }

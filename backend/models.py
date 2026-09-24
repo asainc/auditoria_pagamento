@@ -284,9 +284,12 @@ class OperationalAdjustment(Contract):
 
 
 class CalculationDefaults(Contract):
-    """Competência do relógio do backend, em horário de Brasília."""
+    """Competência recomendada pelo backend, limitada pela série selecionada."""
     mes: Month
     ano: int
+    competencia_recomendada: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    ajustada_por_disponibilidade: bool = False
+    mensagem: str | None = None
 
 
 class FeePreparation(Contract):
@@ -380,14 +383,20 @@ class ParameterChangeRecord(ParameterChangeInput):
 
 
 class IndexOption(Contract):
-    """Chave registrada no motor e rótulo de apresentação."""
+    """Chave registrada no motor e cobertura observada na planilha local."""
     chave: str
     nome: str
+    nome_base: str
+    disponivel: bool = True
+    modo: Literal["rate_decimal", "value_index", "sem_correcao", "indisponivel"]
+    competencia_inicial: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    competencia_final: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    competencia_maxima_atualizacao: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
 
 
 class IndexStatus(Contract):
     """Estado observado da atualização e hashes dos arquivos existentes."""
-    estado: Literal["nao_verificado", "atualizado", "falha", "executando"]
+    estado: Literal["nao_verificado", "atualizado", "sem_novidade", "falha", "executando"]
     mensagem: str
     atualizado_em: str | None = None
     arquivos_sha256: dict[str, str]

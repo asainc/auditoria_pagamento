@@ -5,7 +5,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from judicial_calc import atualizar_planilhas_drcalc_se_necessario
-from judicial_calc.data_sources.local_excel import local_index_specs, local_missing_index_specs
+from judicial_calc.data_sources.local_excel import local_index_coverage, local_index_specs, local_missing_index_specs
 from backend.config import ROOT, Settings
 from backend.models import IndexOption, IndexStatus
 from backend.repository import Repository, timestamp
@@ -18,62 +18,32 @@ DISPLAY_NAME_OVERRIDES: dict[str, str] = {
     "cesta_basica_sao_paulo": "Cesta básica (São Paulo)",
 }
 
-DISPLAY_RANGE_OVERRIDES: dict[str, str] = {
-    "cesta_basica_sao_paulo": "jan/1965 a jul/2026",
-    "cub_sinduscon_sp": "fev/1982 a ago/2026",
-    "icv_dieese": "jan/1987 a fev/2020",
-    "igp_di_fgv": "fev/1944 a ago/2026",
-    "igp_m_fgv": "jun/1989 a ago/2026",
-    "incc_di_fgv": "fev/1944 a ago/2026",
-    "inpc_ibge": "abr/1979 a ago/2026",
-    "ipa_di_fgv": "mar/1944 a ago/2026",
-    "ipca_ibge": "jan/1980 a ago/2026",
-    "ipca_15_ibge": "mai/2000 a ago/2026",
-    "ipca_e_ibge": "dez/1991 a ago/2026",
-    "ipc_di_fgv": "jan/1987 a ago/2026",
-    "ipc_fipe": "fev/1939 a ago/2026",
-    "ipc_ibge_extinto": "mar/1986 a fev/1991",
-    "ipc_r_ibge_extinto": "jul/1994 a jul/1996",
-    "isn_ibge_extinto": "mar/1991 a abr/1997",
-    "ist_telecomunicacoes": "jan/2006 a jul/2026",
-    "salario_minimo": "jan/1943 a dez/2026",
-    "debitos_judiciais_acoes_acidentarias": "jan/1976 a set/2026",
-    "encoge_xi_encontro": "out/1964 a set/2026",
-    "jf_beneficio_previdenciario_res_267_2013": "out/1964 a ago/2026",
-    "jf_condenatorias_fazenda_publica": "out/1964 a set/2026",
-    "jf_condenatorias_geral_exceto_fazenda_publica": "out/1964 a set/2026",
-    "jf_desapropriacoes_res_267_2013": "out/1964 a ago/2026",
-    "tjdf_expurgada": "out/1964 a ago/2026",
-    "tjmg_expurgada": "out/1964 a set/2026",
-    "tjce_condenatorias_tj_ceara": "out/1964 a set/2026",
-    "tjdf_nao_expurgada": "out/1964 a ago/2026",
-    "tjes_tabela_tribunal_just_es": "jan/1969 a ago/2026",
-    "tjmg_nao_expurgada": "out/1964 a set/2026",
-    "tjpr_ipca_e_precatorios": "mar/1989 a set/2026",
-    "tjpr_media_igp_inpc": "out/1964 a ago/2026",
-    "tjrj_tabela_tribunal_just_rj": "out/1964 a dez/2026",
-    "tjrs_tabela_tribunal_just_rs_igpm": "out/1964 a ago/2026",
-    "tjsc_tabela_tribunal_just_sc_icgj": "out/1964 a ago/2026",
-    "tjsp_inpc_ipca15_lei_14905": "out/1964 a set/2026",
-    "tjsp_fazenda_publica_precatorios_ate_25_3_15_cnj_303_selic": "out/1964 a set/2026",
-    "tjsp_precatorios_apos_25_3_15_cnj_303_com_selic": "out/1964 a set/2026",
-    "tst_debitos_trabalhistas_ipca_e": "out/1966 a ago/2026",
-    "tst_debitos_trabalhistas_tr": "out/1966 a out/2026",
-}
-
-
 def display_name(key: str, raw_name: str) -> str:
     """Normaliza nomes da lista para o padrão esperado na interface."""
     return DISPLAY_NAME_OVERRIDES.get(key, raw_name)
 
 
-def display_label(key: str, raw_name: str) -> str:
-    """Acrescenta o intervalo de disponibilidade quando conhecido."""
-    name = display_name(key, raw_name)
-    coverage = DISPLAY_RANGE_OVERRIDES.get(key)
-    if not coverage:
-        return name
-    return f"{name} ...... ({coverage})"
+MONTH_ABBREVIATIONS = ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
+
+
+def format_competence(comp: str | None) -> str:
+    """Formata ``AAAA-MM`` como ``mmm/AAAA`` sem depender de locale."""
+    if not comp or len(comp) < 7:
+        return ""
+    try:
+        month = int(comp[5:7])
+    except ValueError:
+        return comp
+    if not 1 <= month <= 12:
+        return comp
+    return f"{MONTH_ABBREVIATIONS[month - 1]}/{comp[:4]}"
+
+
+def display_label(raw_name: str, first: str | None, last: str | None) -> str:
+    """Monta rótulo apenas com o intervalo observado na planilha instalada."""
+    if not first or not last:
+        return raw_name
+    return f"{raw_name} ...... ({format_competence(first)} a {format_competence(last)})"
 
 
 def _public_update_failure(result) -> str:
@@ -155,15 +125,58 @@ class IndexService:
             "tst_debitos_trabalhistas_ipca_e",
             "tst_debitos_trabalhistas_tr",
         ]
-        options: list[IndexOption] = [IndexOption(chave="sem_correcao", nome="Sem correção")]
+        options: list[IndexOption] = [
+            IndexOption(
+                chave="sem_correcao",
+                nome="Sem correção",
+                nome_base="Sem correção",
+                disponivel=True,
+                modo="sem_correcao",
+            )
+        ]
         for key in ordered_keys:
             spec = available.get(key)
             if spec is not None:
-                options.append(IndexOption(chave=key, nome=display_label(key, spec.column)))
+                name = display_name(key, spec.column)
+                try:
+                    coverage = local_index_coverage(key)
+                except (ValueError, FileNotFoundError) as exc:
+                    logger.warning("index_coverage_unavailable", extra={"index_key": key, "error_type": type(exc).__name__})
+                    options.append(
+                        IndexOption(
+                            chave=key,
+                            nome=f"{name} (série indisponível)",
+                            nome_base=name,
+                            disponivel=False,
+                            modo="indisponivel",
+                        )
+                    )
+                    continue
+                options.append(
+                    IndexOption(
+                        chave=key,
+                        nome=display_label(name, coverage.first_competence, coverage.last_competence),
+                        nome_base=name,
+                        disponivel=True,
+                        modo=coverage.mode,
+                        competencia_inicial=coverage.first_competence,
+                        competencia_final=coverage.last_competence,
+                        competencia_maxima_atualizacao=coverage.maximum_update_competence,
+                    )
+                )
                 continue
             missing_spec = missing.get(key)
             if missing_spec is not None:
-                options.append(IndexOption(chave=key, nome=display_label(key, missing_spec.label)))
+                name = display_name(key, missing_spec.label)
+                options.append(
+                    IndexOption(
+                        chave=key,
+                        nome=f"{name} (série não instalada)",
+                        nome_base=name,
+                        disponivel=False,
+                        modo="indisponivel",
+                    )
+                )
         return options
 
     def status(self) -> IndexStatus:
@@ -215,7 +228,12 @@ class IndexService:
                 )
                 if result.success:
                     disabled = "desativada" in result.message.lower()
-                    state = "nao_verificado" if disabled else "atualizado"
+                    if disabled:
+                        state = "nao_verificado"
+                    elif result.executed and not result.has_new_competence:
+                        state = "sem_novidade"
+                    else:
+                        state = "atualizado"
                     message = result.message
                 else:
                     state = "falha"

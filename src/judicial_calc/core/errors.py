@@ -7,7 +7,8 @@ sensível em logs ou respostas HTTP.
 """
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 
 class CalculationValidationError(ValueError):
@@ -23,9 +24,21 @@ class CalculationValidationError(ValueError):
         fields: Tupla ordenada e sem duplicidade com as chaves relacionadas.
     """
 
-    def __init__(self, code: str, fields: Iterable[str] = (), message: str = "Parâmetros de cálculo incompatíveis.") -> None:
-        """Inicializa código estável, campos relacionados e mensagem pública sanitizada."""
+    def __init__(
+        self,
+        code: str,
+        fields: Iterable[str] = (),
+        message: str = "Parâmetros de cálculo incompatíveis.",
+        metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Inicializa código estável, campos relacionados e metadados seguros.
+
+        ``metadata`` existe apenas para informações técnicas já sanitizadas,
+        como chave de índice e competência ``AAAA-MM``. Conteúdo documental,
+        valores de parcelas ou outros dados do processo não devem ser incluídos.
+        """
         normalized_fields = tuple(dict.fromkeys(str(field) for field in fields if field))
         self.code = str(code)
         self.fields = normalized_fields
+        self.metadata = dict(metadata or {})
         super().__init__(message)

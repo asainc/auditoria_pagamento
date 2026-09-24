@@ -30,7 +30,8 @@ export class WorkspaceCalculationStore {
     this.reviewing.set(true);
     try {
       const automatic = snapshot.automaticCompetence || (!snapshot.parameters.mes_atualizacao && !snapshot.parameters.ano_atualizacao);
-      const current = automatic ? await firstValueFrom(this.api.defaults()) : null;
+      const selectedIndex = String(snapshot.parameters.indice ?? '').trim();
+      const current = automatic ? await firstValueFrom(this.api.defaults(selectedIndex || undefined)) : null;
       if (this.state.drafts()[key].revision !== snapshot.revision || this.state.draftKey() !== key) return;
       this.state.drafts.update(values => ({
         ...values,

@@ -402,8 +402,26 @@
           "Cálculos"
         ],
         "summary": "Defaults",
-        "description": "A data corrente é fornecida pelo backend, sem relógio jurídico no Angular.",
+        "description": "Recomenda competência sem ultrapassar a cobertura do índice selecionado.",
         "operationId": "defaults_api_calculos_padroes_get",
+        "parameters": [
+          {
+            "name": "indice",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Indice"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -411,6 +429,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CalculationDefaults"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1262,6 +1290,34 @@
           "ano": {
             "type": "integer",
             "title": "Ano"
+          },
+          "competencia_recomendada": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competencia Recomendada"
+          },
+          "ajustada_por_disponibilidade": {
+            "type": "boolean",
+            "title": "Ajustada Por Disponibilidade",
+            "default": false
+          },
+          "mensagem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mensagem"
           }
         },
         "additionalProperties": false,
@@ -1271,7 +1327,7 @@
           "ano"
         ],
         "title": "CalculationDefaults",
-        "description": "Competência do relógio do backend, em horário de Brasília."
+        "description": "Competência recomendada pelo backend, limitada pela série selecionada."
       },
       "CalculationDraft": {
         "properties": {
@@ -3169,16 +3225,73 @@
           "nome": {
             "type": "string",
             "title": "Nome"
+          },
+          "nome_base": {
+            "type": "string",
+            "title": "Nome Base"
+          },
+          "disponivel": {
+            "type": "boolean",
+            "title": "Disponivel",
+            "default": true
+          },
+          "modo": {
+            "type": "string",
+            "enum": [
+              "rate_decimal",
+              "value_index",
+              "sem_correcao",
+              "indisponivel"
+            ],
+            "title": "Modo"
+          },
+          "competencia_inicial": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competencia Inicial"
+          },
+          "competencia_final": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competencia Final"
+          },
+          "competencia_maxima_atualizacao": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competencia Maxima Atualizacao"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "chave",
-          "nome"
+          "nome",
+          "nome_base",
+          "modo"
         ],
         "title": "IndexOption",
-        "description": "Chave registrada no motor e rótulo de apresentação."
+        "description": "Chave registrada no motor e cobertura observada na planilha local."
       },
       "IndexStatus": {
         "properties": {
@@ -3187,6 +3300,7 @@
             "enum": [
               "nao_verificado",
               "atualizado",
+              "sem_novidade",
               "falha",
               "executando"
             ],

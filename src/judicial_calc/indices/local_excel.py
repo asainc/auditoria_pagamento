@@ -9,6 +9,7 @@ from typing import Any
 import pandas as pd
 
 from judicial_calc.core.dates import competencia_data, iter_competencias, somar_meses
+from judicial_calc.core.errors import CalculationValidationError
 from judicial_calc.core.numbers import D
 from judicial_calc.data_sources.local_excel import (
     RATE_DECIMAL,
@@ -195,9 +196,53 @@ class LocalExcelCorrectionIndex(CorrectionIndexStrategy):
             return Decimal("1")
 
         mapa = _series_map(tabela_indices) if tabela_indices is not None else _default_series_map(self.key)
+        if not mapa:
+            raise CalculationValidationError(
+                "index_series_empty",
+                ["indice"],
+                "A série do índice selecionado não possui dados disponíveis.",
+                metadata={"index_key": self.key, "index_label": self.spec.column, "mode": self.spec.mode},
+            )
+
+        first_available = min(mapa)
+        last_available = max(mapa)
+        maximum_update = somar_meses(last_available, 1) if self.spec.mode == RATE_DECIMAL else last_available
+
+        def coverage_error(required: str, reason: str) -> CalculationValidationError:
+            """Cria erro estruturado sem incluir valores do processo ou da parcela."""
+            return CalculationValidationError(
+                "index_coverage_missing",
+                ["indice", "mes_atualizacao", "ano_atualizacao"],
+                "A série do índice não cobre a competência necessária para o cálculo.",
+                metadata={
+                    "index_key": self.key,
+                    "index_label": self.spec.column,
+                    "mode": self.spec.mode,
+                    "required_competence": required,
+                    "first_available_competence": first_available,
+                    "last_available_competence": last_available,
+                    "maximum_update_competence": maximum_update,
+                    "reason": reason,
+                },
+            )
+
+        # A validação explícita evita que uma competência futura vire um erro
+        # genérico de parâmetros. Para variações mensais, ``fim`` já é M-1.
+        if fim > last_available:
+            raise coverage_error(fim, "after_last")
+        if inicio < first_available:
+            raise coverage_error(inicio, "before_first")
+
         if self.spec.mode == RATE_DECIMAL:
+            for comp in iter_competencias(inicio, fim):
+                if comp not in mapa:
+                    raise coverage_error(comp, "gap")
             fator = _fator_por_taxa_decimal_map(mapa, inicio, fim)
         elif self.spec.mode == VALUE_INDEX:
+            if inicio not in mapa:
+                raise coverage_error(inicio, "gap")
+            if fim not in mapa:
+                raise coverage_error(fim, "gap")
             fator = _fator_por_numero_indice_map(mapa, inicio, fim)
         else:  # defensive
             raise ValueError(f"Modo de índice local inválido: {self.spec.mode}")

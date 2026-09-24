@@ -4,6 +4,7 @@ from decimal import Decimal
 import pytest
 from backend.models import ChronologyDecision, ExtractionResult, FieldEvidence, Installment
 from backend.services.operational_policy import OperationalPolicy, fee_installments
+from judicial_calc.data_sources.local_excel import local_index_coverage
 
 
 def result(fields=None, rows=None):
@@ -18,12 +19,15 @@ def adjustments(output):
 def test_authorized_defaults_fill_only_absent_fields():
     output=OperationalPolicy().apply(result(),date(2027,2,12))
     values=adjustments(output)
+    coverage=local_index_coverage("tjsp_inpc_ipca15_lei_14905")
+    expected_year=int(coverage.maximum_update_competence[:4])
+    expected_month={1:"janeiro",2:"fevereiro",3:"março",4:"abril",5:"maio",6:"junho",7:"julho",8:"agosto",9:"setembro",10:"outubro",11:"novembro",12:"dezembro"}[int(coverage.maximum_update_competence[5:7])]
     assert values["parametros.indice"]=="tjsp_inpc_ipca15_lei_14905"
     assert values["parametros.juros_moratorios_tipo"]=="taxa_legal_12_aa_6_aa"
     assert values["parametros.juros_compensatorios_tipo"]=="taxa_legal_12_aa_6_aa"
     assert values["parametros.art_523"]=="nao_aplicar"
-    assert values["parametros.mes_atualizacao"]=="fevereiro"
-    assert values["parametros.ano_atualizacao"]==2027
+    assert values["parametros.mes_atualizacao"]==expected_month
+    assert values["parametros.ano_atualizacao"]==expected_year
     assert "parametros.honorarios_tipo" not in values
     assert output.competencia_automatica
     assert "parametros.juros_moratorios_data_inicio" not in values
@@ -105,6 +109,16 @@ def test_current_competence_endpoint_and_stale_automatic_request(client,payload)
     payload["competencia_automatica"]=True
     payload["parametros"]["ano_atualizacao"]=1900
     assert client.post("/api/calculos",json=payload).status_code==409
+
+
+def test_current_competence_endpoint_limits_ipca15_to_available_series(client):
+    coverage=local_index_coverage("ipca_15_ibge")
+    current=client.get("/api/calculos/padroes",params={"indice":"ipca_15_ibge"})
+    assert current.status_code==200
+    body=current.json()
+    assert body["competencia_recomendada"] <= coverage.maximum_update_competence
+    if body["ajustada_por_disponibilidade"]:
+        assert body["competencia_recomendada"] == coverage.maximum_update_competence
 
 
 def test_request_defaults_depend_on_origin(payload):

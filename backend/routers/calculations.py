@@ -11,9 +11,9 @@ Dependency = Annotated[Services, Depends(services)]
 
 
 @router.get("/padroes", response_model=CalculationDefaults)
-def defaults():
-    """A data corrente é fornecida pelo backend, sem relógio jurídico no Angular."""
-    return current_competence()
+def defaults(indice: str | None = None):
+    """Recomenda competência sem ultrapassar a cobertura do índice selecionado."""
+    return current_competence(index_key=indice)
 
 
 @router.get("/politica/{origem_calculo}", response_model=CalculationPolicyView)
