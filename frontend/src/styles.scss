@@ -302,11 +302,19 @@ dialog{padding:0;border:1px solid var(--line);border-radius:10px;width:min(570px
 .checkbox-with-evidence>.checkbox{flex:1;min-width:0}
 .parameter-section{overflow:visible}
 app-evidence-info{position:relative;display:inline-flex;flex:0 0 auto;font-weight:400}
-.evidence-info-control{position:relative;display:inline-flex;align-items:center;z-index:8}
+.evidence-info-control{position:relative;display:inline-flex;align-items:center}
 .evidence-info-trigger{width:22px;height:22px;min-width:22px;min-height:22px;padding:0;border:1px solid #c8d1d9;border-radius:50%;background:#fff;color:#526674;font-size:.72rem;font-weight:750;font-family:var(--body);line-height:1}
 .evidence-info-trigger:hover:not(:disabled){border-color:#8fa0ac;background:#f5f7f9;color:var(--accent)}
-.evidence-info-popover{position:absolute;right:0;top:calc(100% + 7px);z-index:40;width:min(350px,calc(100vw - 34px));max-height:360px;overflow:auto;padding:12px;border:1px solid #cfd7de;border-radius:7px;background:#fff;box-shadow:0 12px 30px #14253226;text-align:left;color:var(--ink);font-family:var(--body)}
-.evidence-info-control.align-left .evidence-info-popover{left:0;right:auto}
+/*
+ * O balão usa a camada superior nativa do navegador (`popover=auto`).
+ * `position:fixed` faz as coordenadas serem relativas à janela, e não ao painel
+ * de parâmetros. Assim, `overflow:auto/hidden` do painel e o iframe do PDF não
+ * recortam o conteúdo. O navegador também garante que apenas um popover `auto`
+ * fique ativo por vez, eliminando a sobreposição entre ícones de informação.
+ */
+.evidence-info-popover{position:fixed;inset:auto;margin:0;z-index:1000;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:12px;border:1px solid #cfd7de;border-radius:7px;background:#fff;box-shadow:0 12px 30px #14253226;text-align:left;color:var(--ink);font-family:var(--body)}
+.evidence-info-popover.place-above{transform:translateY(-100%)}
+.evidence-info-popover:not(:popover-open){display:none}
 .evidence-info-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-bottom:9px;border-bottom:1px solid #e7ebef}
 .evidence-info-heading strong{display:block;font-size:.82rem}
 .evidence-info-heading small{display:block;margin-top:2px;font-size:.68rem;font-weight:400}
@@ -325,7 +333,7 @@ app-evidence-info{position:relative;display:inline-flex;flex:0 0 auto;font-weigh
 .evidence-info-empty{padding:10px 0 2px;font-size:.75rem;color:var(--muted);font-weight:400}
 .installment-item-cell{display:flex;align-items:center;justify-content:center;gap:5px;min-height:34px}
 .installment-item-cell app-evidence-info{font-family:var(--body)}
-@media(max-width:780px){.evidence-info-popover{width:min(310px,calc(100vw - 30px));max-height:300px}}
+@media(max-width:780px){.evidence-info-popover{padding:11px}}
 
 /* Qualidade da extração e FinOps: dados agregados, sem conteúdo documental bruto. */
 .quality-page{height:100%;overflow:auto;padding:24px clamp(18px,3vw,42px) 42px;background:var(--canvas)}

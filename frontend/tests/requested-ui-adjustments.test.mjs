@@ -114,3 +114,15 @@ test('valor em dobro fica visível no topo do bloco de dano material', () => {
   assert.match(panel, /field.key === 'valor_dobrado_flag'/);
   assert.match(fields, /"key":"valor_dobrado_flag"/);
 });
+
+
+test('balão de evidência usa a camada superior e não é cortado pelo PDF ou por outros ícones', () => {
+  const info = readFileSync(new URL('../src/app/calculation/evidence-info.component.ts', import.meta.url), 'utf8');
+  assert.match(info, /popover="auto"/);
+  assert.match(info, /showPopover\(\)/);
+  assert.match(info, /hidePopover\(\)/);
+  assert.match(info, /getBoundingClientRect\(\)/);
+  assert.match(styles, /\.evidence-info-popover\{position:fixed;/);
+  assert.match(styles, /\.evidence-info-popover\.place-above\{transform:translateY\(-100%\)\}/);
+  assert.doesNotMatch(styles, /\.evidence-info-control\{[^}]*z-index:/);
+});

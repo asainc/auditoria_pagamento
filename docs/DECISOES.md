@@ -12,6 +12,7 @@ Este documento registra apenas decisões que continuam válidas no projeto. Ele 
 | Usar `Decimal` para valores financeiros no backend/motor | Evita arredondamento binário indevido | Não converter dinheiro para `float` em regras financeiras |
 | Separar o estado funcional do cálculo da execução técnica | Permite rastrear reexecuções e artefatos sem confundir o que o usuário revisou | Persistência deve manter hashes e vínculos explícitos |
 | Usar revisão humana antes do cálculo derivado de documentos | Extração automática pode errar | A interface deve sinalizar evidências e exigir confirmação |
+| Exibir evidências em `popover="auto"` na camada superior do navegador | Evita recorte pelo painel rolável e pelo visualizador PDF e impede múltiplos balões simultâneos | Novos balões contextuais devem reutilizar `EvidenceInfoComponent` em vez de criar sobreposições absolutas locais |
 | Manter predição da IA separada da correção humana | Permite medir qualidade sem reescrever a predição original | Feedback só entra no conjunto de exemplos após curadoria |
 | Não fazer aprendizado automático em produção | Mudanças de comportamento precisam ser testáveis e reversíveis | Qualquer alteração de modelo/prompt deve passar por avaliação |
 | Não embutir preço presumido do serviço de IA | Tarifas corporativas precisam ser verificadas | Custos só são exibidos quando tarifas verificadas forem configuradas |

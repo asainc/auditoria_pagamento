@@ -1,5 +1,5 @@
 /** Exibe a origem documental e as considerações de extração sem ocupar uma aba própria. */
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, ViewChild, computed, inject, input, signal } from '@angular/core';
 import { WorkspaceStore } from '../core/workspace.store';
 import { CalculationParameters_Input, ChronologyDecision, FieldEvidence, OperationalAdjustment } from '../core/contracts';
 
@@ -8,8 +8,9 @@ import { CalculationParameters_Input, ChronologyDecision, FieldEvidence, Operati
   standalone: true,
   template: `
     @if (visible()) {
-      <div class="evidence-info-control" [class.align-left]="align() === 'left'">
+      <div class="evidence-info-control">
         <button
+          #trigger
           type="button"
           class="evidence-info-trigger"
           [attr.aria-label]="label()"
@@ -17,14 +18,26 @@ import { CalculationParameters_Input, ChronologyDecision, FieldEvidence, Operati
           (click)="toggle($event)"
         >i</button>
 
-        @if (open()) {
-          <div class="evidence-info-popover" role="dialog" [attr.aria-label]="label()" (click)="$event.stopPropagation()">
+        <div
+          #popover
+          popover="auto"
+          class="evidence-info-popover"
+          [class.place-above]="popoverPosition().placeAbove"
+          [style.left.px]="popoverPosition().left"
+          [style.top.px]="popoverPosition().top"
+          [style.width.px]="popoverPosition().width"
+          [style.max-height.px]="popoverPosition().maxHeight"
+          role="dialog"
+          [attr.aria-label]="label()"
+          (toggle)="syncOpenState($event)"
+          (click)="$event.stopPropagation()"
+        >
             <div class="evidence-info-heading">
               <div>
                 <strong>Origem e considerações</strong>
                 <small>Informações usadas na conferência deste dado.</small>
               </div>
-              <button type="button" class="evidence-info-close" aria-label="Fechar informações" (click)="open.set(false)">×</button>
+              <button type="button" class="evidence-info-close" aria-label="Fechar informações" (click)="close()">×</button>
             </div>
 
             @if (includeAlerts() && alerts().length) {
@@ -84,19 +97,39 @@ import { CalculationParameters_Input, ChronologyDecision, FieldEvidence, Operati
               <p class="evidence-info-empty">Não há evidência documental ou consideração específica vinculada a este dado.</p>
             }
           </div>
-        }
       </div>
     }
   `,
 })
 export class EvidenceInfoComponent {
   readonly store = inject(WorkspaceStore);
+
+  /**
+   * Referências aos dois elementos visuais usados para posicionar o balão.
+   * O botão informa onde o balão deve nascer; o próprio balão é aberto na
+   * camada superior do navegador, fora dos limites do painel e do PDF.
+   */
+  @ViewChild('trigger') private triggerElement?: ElementRef<HTMLButtonElement>;
+  @ViewChild('popover') private popoverElement?: ElementRef<HTMLElement>;
   readonly paths = input<string[]>([]);
   readonly includeAlerts = input(false);
   readonly showWhenEmpty = input(false);
   readonly label = input('Ver origem e considerações');
   readonly align = input<'left' | 'right'>('right');
   readonly open = signal(false);
+
+  /**
+   * Coordenadas calculadas no momento em que o usuário abre o balão.
+   * Todas as medidas são em pixels relativos à janela do navegador.
+   * Isso impede que o conteúdo seja cortado pelo painel lateral ou pelo iframe do PDF.
+   */
+  readonly popoverPosition = signal({
+    left: 12,
+    top: 12,
+    width: 350,
+    maxHeight: 360,
+    placeAbove: false,
+  });
 
   private readonly pathSet = computed(() => new Set(this.paths()));
   readonly alerts = computed(() => this.store.active().extraction?.alertas ?? []);
@@ -126,9 +159,86 @@ export class EvidenceInfoComponent {
   );
   readonly visible = computed(() => this.hasContext() || this.showWhenEmpty());
 
+  /**
+   * Abre ou fecha o balão de evidências.
+   *
+   * Entrada:
+   * - event: clique no botão de informação.
+   *
+   * Saída:
+   * - nenhuma. O método apenas altera o estado visual do componente.
+   *
+   * O atributo HTML `popover="auto"` coloca o balão na camada superior do
+   * navegador. Dessa forma ele não fica preso ao `overflow` do painel direito
+   * e um novo balão fecha automaticamente o anterior, evitando sobreposição.
+   */
   toggle(event: Event): void {
     event.stopPropagation();
-    this.open.update(value => !value);
+    const popover = this.popoverElement?.nativeElement;
+    if (!popover) return;
+
+    if (popover.matches(':popover-open')) {
+      popover.hidePopover();
+      return;
+    }
+
+    this.updatePopoverPosition();
+    popover.showPopover();
+  }
+
+  /** Fecha o balão atual sem alterar os dados da conferência. */
+  close(): void {
+    const popover = this.popoverElement?.nativeElement;
+    if (popover?.matches(':popover-open')) popover.hidePopover();
+    this.open.set(false);
+  }
+
+  /**
+   * Mantém `aria-expanded` sincronizado inclusive quando o navegador fecha o
+   * balão por clique fora dele ou pela tecla Escape.
+   */
+  syncOpenState(event: Event): void {
+    const element = event.currentTarget as HTMLElement | null;
+    this.open.set(element?.matches(':popover-open') ?? false);
+  }
+
+  /**
+   * Recalcula a posição caso a janela mude de tamanho enquanto o balão estiver aberto.
+   * Isso evita que o conteúdo fique parcialmente fora da tela após zoom ou resize.
+   */
+  @HostListener('window:resize')
+  onViewportResize(): void {
+    if (this.open()) this.updatePopoverPosition();
+  }
+
+  /**
+   * Calcula uma posição que sempre respeita as bordas visíveis da janela.
+   * O balão tenta abrir abaixo do ícone; quando não há espaço suficiente, abre acima.
+   */
+  private updatePopoverPosition(): void {
+    const trigger = this.triggerElement?.nativeElement;
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportHeight = document.documentElement.clientHeight;
+    const margin = 12;
+    const gap = 8;
+    const preferredWidth = viewportWidth <= 780 ? 310 : 350;
+    const width = Math.max(220, Math.min(preferredWidth, viewportWidth - (margin * 2)));
+
+    const availableBelow = Math.max(0, viewportHeight - rect.bottom - margin - gap);
+    const availableAbove = Math.max(0, rect.top - margin - gap);
+    const placeAbove = availableBelow < 220 && availableAbove > availableBelow;
+    const availableHeight = placeAbove ? availableAbove : availableBelow;
+    const maxHeight = Math.max(96, Math.min(360, availableHeight));
+
+    const desiredLeft = this.align() === 'left' ? rect.left : rect.right - width;
+    const maximumLeft = Math.max(margin, viewportWidth - width - margin);
+    const left = Math.min(Math.max(desiredLeft, margin), maximumLeft);
+    const top = placeAbove ? rect.top - gap : rect.bottom + gap;
+
+    this.popoverPosition.set({left, top, width, maxHeight, placeAbove});
   }
 
   /** Retorna o valor revisado correspondente à evidência, quando ainda existir no rascunho. */
@@ -167,6 +277,6 @@ export class EvidenceInfoComponent {
     this.store.selectedDocument.set(document.identificador);
     this.store.pdfPage.set(page);
     this.store.pdfHighlight.set(highlight);
-    this.open.set(false);
+    this.close();
   }
 }
