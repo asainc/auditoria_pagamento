@@ -407,8 +407,6 @@ def calcular_juros_stj1368_selic_menos_correcao(
     data_fim_selic_stj1368: date | None = None,
     competencia_final_taxa_legal_stj1368: str | None = None,
     usar_selic_mensal_sem_deducao: bool = False,
-    valor_referencia_percentual: Decimal | None = None,
-    valor_incidencia: Decimal | None = None,
 ) -> tuple[Decimal, Decimal, Decimal]:
     """Replica o seletor critério de referência "Taxa Legal + STJ Tema 1368".
 
@@ -417,13 +415,6 @@ def calcular_juros_stj1368_selic_menos_correcao(
         ``valor_corrigido``: valor após correção monetária do principal, usado
         como referência padrão para transformar o montante SELIC/IPCA em
         percentual equivalente.
-        ``valor_referencia_percentual``: referência opcional para calcular o
-        percentual equivalente. O serviço usa esta entrada quando os juros
-        moratórios devem incidir também sobre juros compensatórios: o percentual
-        do Tema 1368 é apurado sobre o principal corrigido, mas aplicado sobre
-        a base ampliada.
-        ``valor_incidencia``: base opcional sobre a qual o percentual
-        equivalente será aplicado.
         ``data_inicio``: data da parcela ou da mora.
         ``competencia_atualizacao``: mês-alvo ``AAAA-MM``.
 
@@ -462,17 +453,12 @@ def calcular_juros_stj1368_selic_menos_correcao(
     juros_pos_lei = valor_nominal * percentual_taxa_legal(percentual_pos)
     n_pos = Decimal(competencias_entre(pos_inicio, somar_meses(pos_fim, 1))) if aplicar_taxa_legal_pos_lei and pos_fim >= pos_inicio else Decimal("0")
 
-    # O montante bruto é calculado uma única vez com base nas séries oficiais.
-    # Em seguida ele é convertido em percentual equivalente. Isso permite
-    # reproduzir o checkbox do critério de referência "juros moratórios sobre compensatórios":
-    # o percentual legal continua sendo apurado sobre o principal corrigido,
-    # mas pode incidir sobre uma base maior, composta por principal corrigido +
-    # juros compensatórios.
+    # O montante bruto é convertido em percentual equivalente sobre o principal
+    # corrigido e aplicado à mesma base, sem camadas adicionais de juros.
     juros_brutos = juros_pre_lei + juros_pos_lei
-    referencia = D(valor_referencia_percentual) if valor_referencia_percentual is not None else D(valor_corrigido)
-    base_incidencia = D(valor_incidencia) if valor_incidencia is not None else D(valor_corrigido)
+    referencia = D(valor_corrigido)
     percentual = Decimal("0") if referencia == 0 else percentual_taxa_legal(juros_brutos / referencia)
-    juros = moeda(base_incidencia * percentual)
+    juros = moeda(referencia * percentual)
     return juros, percentual, n_pre + n_pos
 
 

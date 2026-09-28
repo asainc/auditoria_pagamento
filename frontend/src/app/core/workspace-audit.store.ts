@@ -6,7 +6,6 @@ import { WorkspaceDraft } from './calculation-mapper';
 import { RevisionAuditApiService } from './revision-audit-api.service';
 import { Notifications } from './notifications';
 import { WorkspaceStateStore } from './workspace-state.store';
-import { ParameterKey } from '../calculation/parameter-fields';
 
 @Injectable({providedIn:'root'})
 export class WorkspaceAuditStore {
@@ -16,7 +15,7 @@ export class WorkspaceAuditStore {
   readonly parameterChanges = signal<ParameterChangeRecord[]>([]);
   private readonly pending = new Map<string, {payload: ParameterChangeInput; timer: ReturnType<typeof setTimeout>}>();
 
-  queue(snapshot: WorkspaceDraft, key: ParameterKey, previous: string|number|boolean|null, next: string|number|boolean|null): void {
+  queue(snapshot: WorkspaceDraft, key: string, previous: string|number|boolean|null, next: string|number|boolean|null): void {
     const auditKey = `${snapshot.draftId}:${key}`;
     const existing = this.pending.get(auditKey);
     if (existing) clearTimeout(existing.timer);

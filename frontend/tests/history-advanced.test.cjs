@@ -22,7 +22,7 @@ test('histórico usa paginação e filtros enviados ao backend', () => {
 
 test('versões são carregadas sob demanda ao expandir o cálculo', () => {
   assert.match(history, /toggle\(calculation/);
-  assert.match(history, /loadVersions\(calculation\.calculo_id,1,false\)/);
+  assert.match(history, /loadVersions\(calculation\.calculo_id,1\)/);
   assert.match(api, /\/versoes`/);
 });
 
@@ -64,3 +64,11 @@ test('diff não usa optional chaining redundante no input obrigatório', () => {
   assert.match(diff, /diff\.campos/);
   assert.match(diff, /diff\.parcelas/);
 });
+
+test('cargas iniciais de versões e execuções usam append false por padrão', () => {
+  assert.match(history, /loadVersions\(calculation\.calculo_id,1\)/);
+  assert.match(history, /loadVersions\(id:string,page:number,append:boolean=false\)/);
+  assert.match(executions, /loadPage\(1\)/);
+  assert.match(executions, /loadPage\(page:number,append:boolean=false\)/);
+});
+

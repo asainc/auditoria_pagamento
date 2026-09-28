@@ -2,7 +2,7 @@
 import { CalculationResponse, IndexOption, SummaryEntry } from './contracts';
 import { PARAM_FIELDS } from '../calculation/parameter-fields';
 const LABELS: Record<string,string> = {
-  total_singelo:'Principal original',total_atualizado:'Principal atualizado',total_juros_compensatorios:'Juros compensatórios',total_juros_moratorios:'Juros moratórios',total_multa:'Multa',honorarios:'Honorários',total_art_523:'Encargos do art. 523',valor_compensacao:'Compensação'
+  total_singelo:'Principal original',total_atualizado:'Principal atualizado',total_juros_moratorios:'Juros moratórios',total_multa:'Multa',honorarios:'Honorários',total_art_523:'Encargos do art. 523',valor_compensacao:'Compensação'
 };
 export function summaryRows(result: CalculationResponse): SummaryEntry[] {
   return result.resumo.filter(row => Object.hasOwn(LABELS,row.campo)).map(row => ({campo:LABELS[row.campo],valor:row.valor}));
@@ -60,15 +60,16 @@ function indexName(key: string, options: IndexOption[]): string {
 }
 
 function interestLabel(result: CalculationResponse, damage: 'dano_material'|'dano_moral'): string {
-  const key = damage === 'dano_material' ? 'juros_compensatorios_tipo' : 'juros_moratorios_tipo';
-  const rateKey = damage === 'dano_material' ? 'juros_compensatorios_taxa' : 'juros_moratorios_taxa';
-  const periodicityKey = damage === 'dano_material' ? 'juros_compensatorios_periodicidade' : 'juros_moratorios_periodicidade';
-  const value = String(result.parametros[key] ?? 'sem_juros');
+  const key = 'juros_moratorios_tipo' as const;
+  const rateKey = 'juros_moratorios_taxa' as const;
+  const periodicityKey = 'juros_moratorios_periodicidade' as const;
+  const scoped = result.parametros_por_dano?.[damage] ?? result.parametros;
+  const value = String(scoped[key] ?? 'sem_juros');
   const field = PARAM_FIELDS.find(item => item.key === key);
   let label = String(field?.options?.find(option => String(option.value) === value)?.label ?? value.replace(/_/g,' '));
-  const rate = result.parametros[rateKey];
+  const rate = scoped[rateKey];
   if ((value === 'capitalizacao_simples' || value === 'capitalizacao_composta') && rate) {
-    const period = result.parametros[periodicityKey];
+    const period = scoped[periodicityKey];
     const suffix = period === 'diaria' ? 'a.d.' : period === 'anual' ? 'a.a.' : 'a.m.';
     label += ` — ${rate}% ${suffix}`;
   }
@@ -82,14 +83,15 @@ function damageIndex(result: CalculationResponse, damage: 'dano_material'|'dano_
     const labels = [first,second].filter((value): value is string => Boolean(value)).map(value => indexName(value,options));
     if (labels.length) return labels.join(' → ');
   }
-  return indexName(result.parametros.indice, options);
+  const scoped = result.parametros_por_dano?.[damage] ?? result.parametros;
+  return indexName(scoped.indice, options);
 }
 
 /** Resume somente informações já materializadas pelo motor; não recalcula valores no navegador. */
 export function damageCalculationSummaries(result: CalculationResponse, options: IndexOption[]): DamageCalculationSummary[] {
   const rows = memoryRows(result);
   const definitions: Array<{tipo:'dano_material'|'dano_moral';titulo:string;interestStart:string;varyCorrection:string;varyInterest:string}> = [
-    {tipo:'dano_material',titulo:'Dano Material',interestStart:'data_inicio_juros_compensatorios_efetiva',varyCorrection:'DATA DE CORREÇÃO DE CADA DANO MATERIAL',varyInterest:'DATA DE JUROS DE CADA DANO MATERIAL'},
+    {tipo:'dano_material',titulo:'Dano Material',interestStart:'data_inicio_juros_moratorios_efetiva',varyCorrection:'DATA DE CORREÇÃO DE CADA DANO MATERIAL',varyInterest:'DATA DE JUROS DE CADA DANO MATERIAL'},
     {tipo:'dano_moral',titulo:'Dano Moral',interestStart:'data_inicio_juros_moratorios_efetiva',varyCorrection:'DATA DE CORREÇÃO DE CADA DANO MORAL',varyInterest:'DATA DE JUROS DE CADA DANO MORAL'},
   ];
   return definitions.flatMap(definition => {

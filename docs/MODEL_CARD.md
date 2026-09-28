@@ -41,4 +41,4 @@ O deployment de texto é configurável por `BRADESCO_TEXT_MODEL`. A disponibilid
 
 Acompanhar falhas por etapa, duração, quantidade de chamadas, páginas e caracteres enviados, correções estruturais, evidências aceitas/rejeitadas, retentativas e alterações humanas posteriores.
 
-A implementação de benchmark real rotulado foi deliberadamente deixada fora desta versão; qualquer conclusão de acurácia continua exigindo validação específica futura.
+Não há benchmark real rotulado homologado dentro do projeto. Qualquer conclusão de acurácia exige uma avaliação específica com conjunto governado e métrica previamente definida.

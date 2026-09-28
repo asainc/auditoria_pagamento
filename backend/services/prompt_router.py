@@ -25,7 +25,6 @@ class PromptPageRouter:
         "01_parcelas": ("r$", "parcela", "desconto", "pagamento", "dano material", "dano moral", "devolução", "devolucao", "restituição", "restituicao", "condenar"),
         "02_correcao": ("correção", "correcao", "atualização", "atualizacao", "índice", "indice", "ipca", "inpc", "igp", "selic", "tabela de correção"),
         "03_moratorios": ("juros de mora", "juros moratórios", "juros moratorios", "citação", "citacao", "1% ao mês", "1% a.m"),
-        "04_compensatorios": ("juros compensatórios", "juros compensatorios", "remuneratórios", "remuneratorios"),
         "05_encargos": ("multa", "honorários", "honorarios", "art. 523", "artigo 523", "custas", "despesas processuais"),
         "06_prescricao": ("prescri", "prazo", "cinco anos", "05 anos", "5 anos", "ajuizamento", "propositura"),
         "07_compensacao": ("compensação", "compensacao", "abatimento", "dedução", "deducao", "compensar"),

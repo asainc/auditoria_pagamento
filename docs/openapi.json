@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Calculadora de Débitos Judiciais",
-    "version": "2.1.0"
+    "version": "2.3.2"
   },
   "paths": {
     "/api/v2/saude": {
@@ -1074,16 +1074,6 @@
               "type": "integer",
               "title": "Versao"
             }
-          },
-          {
-            "name": "auditavel",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Auditavel"
-            }
           }
         ],
         "responses": {
@@ -1128,16 +1118,6 @@
             "schema": {
               "type": "string",
               "title": "Execucao Id"
-            }
-          },
-          {
-            "name": "auditavel",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Auditavel"
             }
           }
         ],
@@ -1258,7 +1238,7 @@
           "Cálculos"
         ],
         "summary": "Memory Pdf",
-        "description": "Exportação legada do request atual; não cria versão nem execução persistida.",
+        "description": "Exporta o request atual sem criar estado funcional ou execução persistida.",
         "operationId": "memory_pdf_api_v2_calculos_memoria_pdf_post",
         "parameters": [
           {
@@ -1568,6 +1548,277 @@
           }
         }
       }
+    },
+    "/api/v2/qualidade/revisoes": {
+      "post": {
+        "tags": [
+          "Qualidade IA"
+        ],
+        "summary": "Capture Review",
+        "description": "Registra IA × humano sem sobrescrever a predição original.",
+        "operationId": "capture_review_api_v2_qualidade_revisoes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewSnapshotInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewCaptureResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/qualidade/resumo": {
+      "get": {
+        "tags": [
+          "Qualidade IA"
+        ],
+        "summary": "Quality Summary",
+        "operationId": "quality_summary_api_v2_qualidade_resumo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualitySummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/qualidade/feedback": {
+      "get": {
+        "tags": [
+          "Qualidade IA"
+        ],
+        "summary": "Feedback Page",
+        "operationId": "feedback_page_api_v2_qualidade_feedback_get",
+        "parameters": [
+          {
+            "name": "pagina",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Pagina"
+            }
+          },
+          {
+            "name": "tamanho",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 25,
+              "title": "Tamanho"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "pending",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "campo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campo"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/qualidade/feedback/{feedback_id}/curadoria": {
+      "post": {
+        "tags": [
+          "Qualidade IA"
+        ],
+        "summary": "Curate Feedback",
+        "operationId": "curate_feedback_api_v2_qualidade_feedback__feedback_id__curadoria_post",
+        "parameters": [
+          {
+            "name": "feedback_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Feedback Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackCurationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackEventRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/qualidade/datasets/snapshot": {
+      "post": {
+        "tags": [
+          "Qualidade IA"
+        ],
+        "summary": "Snapshot Dataset",
+        "description": "Congela IDs/hashes dos exemplos aprovados; não duplica conteúdo documental.",
+        "operationId": "snapshot_dataset_api_v2_qualidade_datasets_snapshot_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetSnapshot"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/qualidade/finops": {
+      "get": {
+        "tags": [
+          "Qualidade IA"
+        ],
+        "summary": "Finops",
+        "operationId": "finops_api_v2_qualidade_finops_get",
+        "parameters": [
+          {
+            "name": "dias",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Dias"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinOpsSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1630,6 +1881,41 @@
             ],
             "title": "Tokens Total"
           },
+          "tokens_estimados_entrada": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Estimados Entrada"
+          },
+          "tokens_estimados_saida": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Estimados Saida"
+          },
+          "origem_tokens": {
+            "type": "string",
+            "enum": [
+              "gateway",
+              "estimativa_local",
+              "cache",
+              "indisponivel"
+            ],
+            "title": "Origem Tokens",
+            "default": "indisponivel"
+          },
           "custo_estimado_usd": {
             "anyOf": [
               {
@@ -1671,6 +1957,36 @@
             ],
             "title": "Caracteres Entrada"
           },
+          "caracteres_saida": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caracteres Saida"
+          },
+          "cache_hit": {
+            "type": "boolean",
+            "title": "Cache Hit",
+            "default": false
+          },
+          "request_sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Sha256"
+          },
           "correcao_estrutural": {
             "type": "boolean",
             "title": "Correcao Estrutural",
@@ -1692,6 +2008,18 @@
             "type": "integer",
             "minimum": 0.0,
             "title": "Chamadas"
+          },
+          "chamadas_api": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Chamadas Api",
+            "default": 0
+          },
+          "acertos_cache": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Acertos Cache",
+            "default": 0
           },
           "tokens_entrada": {
             "anyOf": [
@@ -1740,6 +2068,18 @@
               }
             ],
             "title": "Tokens Total"
+          },
+          "tokens_estimados_total": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Estimados Total"
           },
           "custo_estimado_usd": {
             "anyOf": [
@@ -2115,6 +2455,16 @@
           },
           "parametros": {
             "$ref": "#/components/schemas/CalculationParameters-Output"
+          },
+          "parametros_por_dano": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DamageParameters-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "revisao_humana_confirmada": {
             "type": "boolean",
@@ -2748,17 +3098,6 @@
             ],
             "title": "Prescricao Data Referencia"
           },
-          "incidir_multa_sobre_juros_compensatorios": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Incidir Multa Sobre Juros Compensatorios"
-          },
           "incidir_multa_sobre_juros_moratorios": {
             "anyOf": [
               {
@@ -2939,86 +3278,6 @@
             ],
             "title": "Juros Moratorios Data Inicio"
           },
-          "juros_moratorios_sobre_compensatorios": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Juros Moratorios Sobre Compensatorios"
-          },
-          "juros_compensatorios_tipo": {
-            "type": "string",
-            "enum": [
-              "sem_juros",
-              "capitalizacao_simples",
-              "capitalizacao_composta",
-              "juros_moratorios_stj1368_lei_14905",
-              "taxa_legal_12_aa_6_aa",
-              "taxa_legal_diaria_selic_ipcae",
-              "taxa_legal",
-              "juros_moratorios_ctn_lei_14905"
-            ],
-            "title": "Juros Compensatorios Tipo"
-          },
-          "juros_compensatorios_taxa": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,19}0*$)\\d{0,10}\\.\\d{0,8}0*$)"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Juros Compensatorios Taxa"
-          },
-          "juros_compensatorios_periodicidade": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "diaria",
-                  "mensal",
-                  "anual"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Juros Compensatorios Periodicidade"
-          },
-          "juros_compensatorios_pro_rata": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Juros Compensatorios Pro Rata"
-          },
-          "juros_compensatorios_data_inicio": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Juros Compensatorios Data Inicio"
-          },
           "mes_atualizacao": {
             "type": "string",
             "enum": [
@@ -3088,7 +3347,6 @@
         "type": "object",
         "required": [
           "juros_moratorios_tipo",
-          "juros_compensatorios_tipo",
           "mes_atualizacao",
           "ano_atualizacao",
           "indice"
@@ -3293,17 +3551,6 @@
             ],
             "title": "Prescricao Data Referencia"
           },
-          "incidir_multa_sobre_juros_compensatorios": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Incidir Multa Sobre Juros Compensatorios"
-          },
           "incidir_multa_sobre_juros_moratorios": {
             "anyOf": [
               {
@@ -3472,82 +3719,6 @@
             ],
             "title": "Juros Moratorios Data Inicio"
           },
-          "juros_moratorios_sobre_compensatorios": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Juros Moratorios Sobre Compensatorios"
-          },
-          "juros_compensatorios_tipo": {
-            "type": "string",
-            "enum": [
-              "sem_juros",
-              "capitalizacao_simples",
-              "capitalizacao_composta",
-              "juros_moratorios_stj1368_lei_14905",
-              "taxa_legal_12_aa_6_aa",
-              "taxa_legal_diaria_selic_ipcae",
-              "taxa_legal",
-              "juros_moratorios_ctn_lei_14905"
-            ],
-            "title": "Juros Compensatorios Tipo"
-          },
-          "juros_compensatorios_taxa": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,19}0*$)\\d{0,10}\\.\\d{0,8}0*$)"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Juros Compensatorios Taxa"
-          },
-          "juros_compensatorios_periodicidade": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "diaria",
-                  "mensal",
-                  "anual"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Juros Compensatorios Periodicidade"
-          },
-          "juros_compensatorios_pro_rata": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Juros Compensatorios Pro Rata"
-          },
-          "juros_compensatorios_data_inicio": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Juros Compensatorios Data Inicio"
-          },
           "mes_atualizacao": {
             "type": "string",
             "enum": [
@@ -3617,7 +3788,6 @@
         "type": "object",
         "required": [
           "juros_moratorios_tipo",
-          "juros_compensatorios_tipo",
           "mes_atualizacao",
           "ano_atualizacao",
           "indice"
@@ -3731,6 +3901,16 @@
           "parametros": {
             "$ref": "#/components/schemas/CalculationParameters-Input"
           },
+          "parametros_por_dano": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DamageParameters-Input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "revisao_humana_confirmada": {
             "type": "boolean",
             "const": true,
@@ -3805,6 +3985,16 @@
           "parametros": {
             "$ref": "#/components/schemas/CalculationParameters-Output"
           },
+          "parametros_por_dano": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DamageParameters-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "revisao_humana_confirmada": {
             "type": "boolean",
             "const": true,
@@ -3869,6 +4059,9 @@
           "parametros": {
             "$ref": "#/components/schemas/CalculationParameters-Output"
           },
+          "parametros_por_dano": {
+            "$ref": "#/components/schemas/DamageParameters-Output"
+          },
           "metadata": {
             "$ref": "#/components/schemas/CalculationMetadata"
           }
@@ -3882,6 +4075,7 @@
           "memoria",
           "resumo",
           "parametros",
+          "parametros_por_dano",
           "metadata"
         ],
         "title": "CalculationResponse"
@@ -4312,6 +4506,310 @@
         ],
         "title": "ChronologyDecision"
       },
+      "DamageFinancialCriteria-Input": {
+        "properties": {
+          "juros_moratorios_tipo": {
+            "type": "string",
+            "enum": [
+              "sem_juros",
+              "capitalizacao_simples",
+              "capitalizacao_composta",
+              "juros_moratorios_stj1368_lei_14905",
+              "taxa_legal_12_aa_6_aa",
+              "taxa_legal_diaria_selic_ipcae",
+              "taxa_legal",
+              "juros_moratorios_ctn_lei_14905"
+            ],
+            "title": "Juros Moratorios Tipo"
+          },
+          "juros_moratorios_taxa": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,19}0*$)\\d{0,10}\\.\\d{0,8}0*$)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Juros Moratorios Taxa"
+          },
+          "juros_moratorios_periodicidade": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "diaria",
+                  "mensal",
+                  "anual"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Juros Moratorios Periodicidade"
+          },
+          "juros_moratorios_pro_rata": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Juros Moratorios Pro Rata"
+          },
+          "juros_moratorios_data_inicio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Juros Moratorios Data Inicio"
+          },
+          "mes_atualizacao": {
+            "type": "string",
+            "enum": [
+              "janeiro",
+              "fevereiro",
+              "março",
+              "abril",
+              "maio",
+              "junho",
+              "julho",
+              "agosto",
+              "setembro",
+              "outubro",
+              "novembro",
+              "dezembro"
+            ],
+            "title": "Mes Atualizacao"
+          },
+          "ano_atualizacao": {
+            "type": "integer",
+            "maximum": 2200.0,
+            "minimum": 1900.0,
+            "title": "Ano Atualizacao"
+          },
+          "indice": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Indice"
+          },
+          "deflacionar_valor_nominal": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deflacionar Valor Nominal"
+          },
+          "competencia_final_taxa_legal": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competencia Final Taxa Legal"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "juros_moratorios_tipo",
+          "mes_atualizacao",
+          "ano_atualizacao",
+          "indice"
+        ],
+        "title": "DamageFinancialCriteria",
+        "description": "Critérios financeiros próprios de uma natureza de dano.\n\nDano material e dano moral podem usar índices, competência final, termo\ninicial e regime de juros distintos. Estes campos são intencionalmente\nseparados dos parâmetros globais do processo."
+      },
+      "DamageFinancialCriteria-Output": {
+        "properties": {
+          "juros_moratorios_tipo": {
+            "type": "string",
+            "enum": [
+              "sem_juros",
+              "capitalizacao_simples",
+              "capitalizacao_composta",
+              "juros_moratorios_stj1368_lei_14905",
+              "taxa_legal_12_aa_6_aa",
+              "taxa_legal_diaria_selic_ipcae",
+              "taxa_legal",
+              "juros_moratorios_ctn_lei_14905"
+            ],
+            "title": "Juros Moratorios Tipo"
+          },
+          "juros_moratorios_taxa": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,19}0*$)\\d{0,10}\\.\\d{0,8}0*$)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Juros Moratorios Taxa"
+          },
+          "juros_moratorios_periodicidade": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "diaria",
+                  "mensal",
+                  "anual"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Juros Moratorios Periodicidade"
+          },
+          "juros_moratorios_pro_rata": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Juros Moratorios Pro Rata"
+          },
+          "juros_moratorios_data_inicio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Juros Moratorios Data Inicio"
+          },
+          "mes_atualizacao": {
+            "type": "string",
+            "enum": [
+              "janeiro",
+              "fevereiro",
+              "março",
+              "abril",
+              "maio",
+              "junho",
+              "julho",
+              "agosto",
+              "setembro",
+              "outubro",
+              "novembro",
+              "dezembro"
+            ],
+            "title": "Mes Atualizacao"
+          },
+          "ano_atualizacao": {
+            "type": "integer",
+            "maximum": 2200.0,
+            "minimum": 1900.0,
+            "title": "Ano Atualizacao"
+          },
+          "indice": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Indice"
+          },
+          "deflacionar_valor_nominal": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deflacionar Valor Nominal"
+          },
+          "competencia_final_taxa_legal": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competencia Final Taxa Legal"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "juros_moratorios_tipo",
+          "mes_atualizacao",
+          "ano_atualizacao",
+          "indice"
+        ],
+        "title": "DamageFinancialCriteria",
+        "description": "Critérios financeiros próprios de uma natureza de dano.\n\nDano material e dano moral podem usar índices, competência final, termo\ninicial e regime de juros distintos. Estes campos são intencionalmente\nseparados dos parâmetros globais do processo."
+      },
+      "DamageParameters-Input": {
+        "properties": {
+          "dano_material": {
+            "$ref": "#/components/schemas/DamageFinancialCriteria-Input"
+          },
+          "dano_moral": {
+            "$ref": "#/components/schemas/DamageFinancialCriteria-Input"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "dano_material",
+          "dano_moral"
+        ],
+        "title": "DamageParameters",
+        "description": "Critérios independentes para dano material e dano moral."
+      },
+      "DamageParameters-Output": {
+        "properties": {
+          "dano_material": {
+            "$ref": "#/components/schemas/DamageFinancialCriteria-Output"
+          },
+          "dano_moral": {
+            "$ref": "#/components/schemas/DamageFinancialCriteria-Output"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "dano_material",
+          "dano_moral"
+        ],
+        "title": "DamageParameters",
+        "description": "Critérios independentes para dano material e dano moral."
+      },
       "DataTable": {
         "properties": {
           "colunas": {
@@ -4355,6 +4853,41 @@
           "linhas"
         ],
         "title": "DataTable"
+      },
+      "DatasetSnapshot": {
+        "properties": {
+          "identificador": {
+            "type": "string",
+            "title": "Identificador"
+          },
+          "criado_em": {
+            "type": "string",
+            "title": "Criado Em"
+          },
+          "criado_por": {
+            "type": "string",
+            "title": "Criado Por"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "quantidade_exemplos": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Quantidade Exemplos"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "identificador",
+          "criado_em",
+          "criado_por",
+          "sha256",
+          "quantidade_exemplos"
+        ],
+        "title": "DatasetSnapshot"
       },
       "DocumentMetadata": {
         "properties": {
@@ -4660,6 +5193,399 @@
         ],
         "title": "FeePreparation"
       },
+      "FeedbackCurationInput": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "approved",
+              "rejected"
+            ],
+            "title": "Status"
+          },
+          "motivo_codigo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "confirmado_sem_alteracao",
+                  "decisao_posterior_prevalece",
+                  "documento_incorreto",
+                  "pagina_incorreta",
+                  "valor_interpretado_incorretamente",
+                  "data_interpretada_incorretamente",
+                  "regra_nao_se_aplica",
+                  "campo_ausente_no_documento",
+                  "contrato_incorreto",
+                  "parcela_associada_ao_contrato_errado",
+                  "classificacao_documento_incorreta",
+                  "ambiguidade_documental",
+                  "adicao_manual",
+                  "nao_informado",
+                  "outro"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo Codigo"
+          },
+          "comentario": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comentario"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "FeedbackCurationInput"
+      },
+      "FeedbackEventRecord": {
+        "properties": {
+          "identificador": {
+            "type": "string",
+            "title": "Identificador"
+          },
+          "numero_processo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numero Processo"
+          },
+          "rascunho_id": {
+            "type": "string",
+            "title": "Rascunho Id"
+          },
+          "extracao_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extracao Id"
+          },
+          "campo": {
+            "type": "string",
+            "title": "Campo"
+          },
+          "acao": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "corrected",
+              "removed",
+              "added",
+              "not_found",
+              "ambiguous"
+            ],
+            "title": "Acao"
+          },
+          "motivo_codigo": {
+            "type": "string",
+            "enum": [
+              "confirmado_sem_alteracao",
+              "decisao_posterior_prevalece",
+              "documento_incorreto",
+              "pagina_incorreta",
+              "valor_interpretado_incorretamente",
+              "data_interpretada_incorretamente",
+              "regra_nao_se_aplica",
+              "campo_ausente_no_documento",
+              "contrato_incorreto",
+              "parcela_associada_ao_contrato_errado",
+              "classificacao_documento_incorreta",
+              "ambiguidade_documental",
+              "adicao_manual",
+              "nao_informado",
+              "outro"
+            ],
+            "title": "Motivo Codigo"
+          },
+          "comentario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comentario"
+          },
+          "valor_modelo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valor Modelo"
+          },
+          "valor_humano": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valor Humano"
+          },
+          "documento": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Documento"
+          },
+          "pagina": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagina"
+          },
+          "evidencia_modelo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidencia Modelo"
+          },
+          "tipo_documento": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipo Documento"
+          },
+          "versao_prompts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Versao Prompts"
+          },
+          "modelo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modelo"
+          },
+          "pipeline_version": {
+            "type": "string",
+            "title": "Pipeline Version"
+          },
+          "revisor_pseudonimo": {
+            "type": "string",
+            "title": "Revisor Pseudonimo"
+          },
+          "criado_em": {
+            "type": "string",
+            "title": "Criado Em"
+          },
+          "status_curadoria": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected"
+            ],
+            "title": "Status Curadoria"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "identificador",
+          "rascunho_id",
+          "campo",
+          "acao",
+          "motivo_codigo",
+          "pipeline_version",
+          "revisor_pseudonimo",
+          "criado_em",
+          "status_curadoria"
+        ],
+        "title": "FeedbackEventRecord"
+      },
+      "FeedbackFieldMetric": {
+        "properties": {
+          "campo": {
+            "type": "string",
+            "title": "Campo"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total"
+          },
+          "confirmados": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Confirmados"
+          },
+          "corrigidos": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Corrigidos"
+          },
+          "removidos": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Removidos"
+          },
+          "adicionados": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Adicionados"
+          },
+          "taxa_intervencao": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
+            "title": "Taxa Intervencao"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "campo",
+          "total",
+          "confirmados",
+          "corrigidos",
+          "removidos",
+          "adicionados",
+          "taxa_intervencao"
+        ],
+        "title": "FeedbackFieldMetric"
+      },
+      "FeedbackPage": {
+        "properties": {
+          "itens": {
+            "items": {
+              "$ref": "#/components/schemas/FeedbackEventRecord"
+            },
+            "type": "array",
+            "title": "Itens"
+          },
+          "pagina": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Pagina"
+          },
+          "tamanho_pagina": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Tamanho Pagina"
+          },
+          "total_itens": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total Itens"
+          },
+          "total_paginas": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total Paginas"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "itens",
+          "pagina",
+          "tamanho_pagina",
+          "total_itens",
+          "total_paginas"
+        ],
+        "title": "FeedbackPage"
+      },
+      "FeedbackReasonMetric": {
+        "properties": {
+          "motivo_codigo": {
+            "type": "string",
+            "title": "Motivo Codigo"
+          },
+          "quantidade": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Quantidade"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "motivo_codigo",
+          "quantidade"
+        ],
+        "title": "FeedbackReasonMetric"
+      },
       "FieldEvidence": {
         "properties": {
           "campo": {
@@ -4748,6 +5674,234 @@
           "escopo"
         ],
         "title": "FieldEvidence"
+      },
+      "FinOpsStageMetric": {
+        "properties": {
+          "etapa": {
+            "type": "string",
+            "title": "Etapa"
+          },
+          "chamadas_api": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Chamadas Api"
+          },
+          "falhas_api": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Falhas Api",
+            "default": 0
+          },
+          "acertos_cache": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Acertos Cache"
+          },
+          "caracteres_entrada": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Caracteres Entrada"
+          },
+          "caracteres_saida": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Caracteres Saida"
+          },
+          "tokens_reais": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Reais"
+          },
+          "tokens_estimados": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Tokens Estimados"
+          },
+          "custo_estimado_usd": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custo Estimado Usd"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "etapa",
+          "chamadas_api",
+          "acertos_cache",
+          "caracteres_entrada",
+          "caracteres_saida",
+          "tokens_estimados"
+        ],
+        "title": "FinOpsStageMetric"
+      },
+      "FinOpsSummary": {
+        "properties": {
+          "periodo_dias": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Periodo Dias"
+          },
+          "chamadas_api": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Chamadas Api"
+          },
+          "falhas_api": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Falhas Api",
+            "default": 0
+          },
+          "acertos_cache": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Acertos Cache"
+          },
+          "taxa_cache": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
+            "title": "Taxa Cache"
+          },
+          "caracteres_entrada": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Caracteres Entrada"
+          },
+          "caracteres_saida": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Caracteres Saida"
+          },
+          "tokens_reais": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Reais"
+          },
+          "tokens_estimados": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Tokens Estimados"
+          },
+          "custo_estimado_usd": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custo Estimado Usd"
+          },
+          "origem_tokens": {
+            "type": "string",
+            "enum": [
+              "gateway",
+              "estimativa_local",
+              "mista",
+              "cache",
+              "indisponivel"
+            ],
+            "title": "Origem Tokens"
+          },
+          "economia_chamadas_cache": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Economia Chamadas Cache"
+          },
+          "orcamento_mensal_usd": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orcamento Mensal Usd"
+          },
+          "consumo_mes_estimado_usd": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consumo Mes Estimado Usd"
+          },
+          "percentual_orcamento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percentual Orcamento"
+          },
+          "status_orcamento": {
+            "type": "string",
+            "enum": [
+              "not_configured",
+              "unavailable",
+              "ok",
+              "warning",
+              "exceeded"
+            ],
+            "title": "Status Orcamento",
+            "default": "not_configured"
+          },
+          "por_etapa": {
+            "items": {
+              "$ref": "#/components/schemas/FinOpsStageMetric"
+            },
+            "type": "array",
+            "title": "Por Etapa"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "periodo_dias",
+          "chamadas_api",
+          "acertos_cache",
+          "taxa_cache",
+          "caracteres_entrada",
+          "caracteres_saida",
+          "tokens_estimados",
+          "origem_tokens",
+          "economia_chamadas_cache"
+        ],
+        "title": "FinOpsSummary"
       },
       "HTTPValidationError": {
         "properties": {
@@ -5503,6 +6657,210 @@
         ],
         "title": "ProcessSummary"
       },
+      "QualitySummary": {
+        "properties": {
+          "total_eventos": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total Eventos"
+          },
+          "confirmados": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Confirmados"
+          },
+          "corrigidos": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Corrigidos"
+          },
+          "removidos": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Removidos"
+          },
+          "adicionados": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Adicionados"
+          },
+          "pendentes_curadoria": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Pendentes Curadoria"
+          },
+          "taxa_intervencao": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
+            "title": "Taxa Intervencao"
+          },
+          "por_campo": {
+            "items": {
+              "$ref": "#/components/schemas/FeedbackFieldMetric"
+            },
+            "type": "array",
+            "title": "Por Campo"
+          },
+          "motivos": {
+            "items": {
+              "$ref": "#/components/schemas/FeedbackReasonMetric"
+            },
+            "type": "array",
+            "title": "Motivos"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "total_eventos",
+          "confirmados",
+          "corrigidos",
+          "removidos",
+          "adicionados",
+          "pendentes_curadoria",
+          "taxa_intervencao"
+        ],
+        "title": "QualitySummary"
+      },
+      "ReviewCaptureResult": {
+        "properties": {
+          "eventos_criados": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Eventos Criados"
+          },
+          "confirmados": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Confirmados"
+          },
+          "corrigidos": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Corrigidos"
+          },
+          "pendentes_curadoria": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Pendentes Curadoria"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "eventos_criados",
+          "confirmados",
+          "corrigidos",
+          "pendentes_curadoria"
+        ],
+        "title": "ReviewCaptureResult"
+      },
+      "ReviewSnapshotInput": {
+        "properties": {
+          "origem_calculo": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "processo"
+            ],
+            "title": "Origem Calculo"
+          },
+          "numero_processo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9][0-9.\\-]{0,39}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numero Processo"
+          },
+          "rascunho_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 8,
+            "title": "Rascunho Id"
+          },
+          "extracao_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extracao Id"
+          },
+          "parametros": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Parametros"
+          },
+          "parametros_por_dano": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Parametros Por Dano"
+          },
+          "parcelas": {
+            "items": {
+              "$ref": "#/components/schemas/Installment-Input"
+            },
+            "type": "array",
+            "title": "Parcelas"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "origem_calculo",
+          "rascunho_id"
+        ],
+        "title": "ReviewSnapshotInput",
+        "description": "Snapshot do estado revisado usado para comparar IA × humano no servidor."
+      },
       "SummaryEntry": {
         "properties": {
           "campo": {
@@ -5625,6 +6983,9 @@
           "parametros": {
             "$ref": "#/components/schemas/CalculationParameters-Output"
           },
+          "parametros_por_dano": {
+            "$ref": "#/components/schemas/DamageParameters-Output"
+          },
           "metadata": {
             "$ref": "#/components/schemas/CalculationMetadata"
           },
@@ -5658,6 +7019,7 @@
           "memoria",
           "resumo",
           "parametros",
+          "parametros_por_dano",
           "metadata"
         ],
         "title": "VersionedCalculationResponse"

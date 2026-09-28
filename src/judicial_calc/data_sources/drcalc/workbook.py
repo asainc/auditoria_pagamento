@@ -123,7 +123,7 @@ def _convert_monthly_value(column: str, valor: Decimal, *, source_metric: str = 
 
     Quando o parser identificou explicitamente ``rate_percent``, o valor do
     DrCalc está em percentual e deve ser dividido por 100 inclusive para taxas
-    pequenas, como ``0,03%``. O limiar numérico fica somente para fontes legadas
+    pequenas, como ``0,03%``. O limiar numérico fica somente para fontes cuja unidade não esteja explícita
     sem metadado de unidade.
     """
     spec = None
@@ -135,7 +135,7 @@ def _convert_monthly_value(column: str, valor: Decimal, *, source_metric: str = 
         if source_metric == "rate_percent":
             return valor / Decimal("100")
         if source_metric == "unknown" and abs(valor) > Decimal("0.05"):
-            # Compatibilidade com o fallback legado, cuja unidade nem sempre é
+            # Tratamento de segurança para a estratégia alternativa, cuja unidade nem sempre é
             # identificável pelo cabeçalho da tabela.
             return valor / Decimal("100")
     return valor

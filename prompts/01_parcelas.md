@@ -40,10 +40,13 @@ Para cada item de `parcelas`:
 - `data`: `AAAA-MM-DD`;
 - `valor_singelo`: decimal textual sem símbolo monetário;
 - `descricao`: curta e sem dados pessoais desnecessários;
+- `numero_contrato`: número/identificador do contrato ao qual a parcela pertence, quando estiver explicitamente associado ao lançamento; use `null` quando não houver vínculo contratual verificável;
 - `verba_tipo`: `dano_material`, `dano_moral`, `honorarios` ou `custas`;
 - `multiplicador`: `1`, `2` ou `null` conforme as regras acima.
 
-Crie evidências para `parcelas.<índice>.data`, `.valor_singelo` e `.verba_tipo`, usando o mesmo índice da lista. Crie evidência de `.multiplicador` quando o valor não for `null`.
+Quando `numero_contrato` estiver disponível, preserve somente o identificador contratual necessário para distinguir as parcelas; o backend acrescentará `Contrato: <número>` à descrição exibida.
+
+Crie evidências para `parcelas.<índice>.data`, `.valor_singelo` e `.verba_tipo`, usando o mesmo índice da lista. Crie evidência de `.numero_contrato` quando houver contrato verificável e de `.multiplicador` quando o valor não for `null`.
 
 ## Limites
 Não faça rateio, soma inferida ou percentual que não esteja materializado quando isso alterar a quantia da parcela. Se o documento trouxer regra não representável pelo contrato, extraia o fato verificável e gere alerta para revisão humana.

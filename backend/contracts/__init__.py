@@ -6,3 +6,5 @@ from backend.contracts.extraction import *  # noqa: F403
 from backend.contracts.audit import *  # noqa: F403
 from backend.contracts.index import *  # noqa: F403
 from backend.contracts.batch import *  # noqa: F403
+
+from backend.contracts.quality import *  # noqa: F403

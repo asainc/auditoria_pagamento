@@ -49,7 +49,7 @@ class ChronologyReducer:
         """
         by_field: dict[str, list[FieldEvidence]] = defaultdict(list)
         for evidence in evidences:
-            if evidence.campo.startswith("parametros.") and evidence.escopo == "caso_concreto":
+            if evidence.campo.startswith(("parametros.", "parametros_por_dano.")) and evidence.escopo == "caso_concreto":
                 by_field[evidence.campo].append(evidence)
 
         consolidated: dict[str, Scalar] = {}
@@ -57,7 +57,11 @@ class ChronologyReducer:
         alerts: list[str] = []
 
         for path, items in by_field.items():
-            key = path.split(".", 1)[1]
+            if path.startswith("parametros_por_dano."):
+                _, damage, field = path.split(".", 2)
+                key = f"{damage}.{field}"
+            else:
+                key = path.split(".", 1)[1]
             non_null = [item for item in items if item.valor is not None]
 
             commands = [item for item in items if item.natureza == self._DECISION_NATURE]

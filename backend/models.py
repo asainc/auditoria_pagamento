@@ -1,6 +1,6 @@
-"""Compatibilidade de imports legados.
+"""Ponto central de importação dos contratos usados pelo backend e pelos testes.
 
-Novos módulos devem importar de ``backend.contracts.<dominio>``. Este arquivo
-permanece apenas para integrações e testes que ainda usam ``backend.models``.
+As definições ficam organizadas por domínio em ``backend.contracts``. Este módulo
+reúne os símbolos públicos quando um import único deixa a composição mais simples.
 """
 from backend.contracts import *  # noqa: F401,F403

@@ -11,7 +11,7 @@ import { WorkspaceAuditStore } from './workspace-audit.store';
 import { WorkspaceExtractionStore } from './workspace-extraction.store';
 import { WorkspaceCalculationStore } from './workspace-calculation.store';
 import { blankDraft, draftFromCalculationVersion } from './calculation-mapper';
-import { ParameterKey } from '../calculation/parameter-fields';
+import { DAMAGE_SCOPED_PARAMETER_KEYS, DamageType, ParameterKey } from '../calculation/parameter-fields';
 
 @Injectable({providedIn:'root'})
 export class WorkspaceStore {
@@ -165,12 +165,30 @@ export class WorkspaceStore {
 
   update(transform: Parameters<WorkspaceStateStore['update']>[0]): void { this.state.update(transform); }
 
-  updateParameter(key: ParameterKey, value: string|number|boolean|null): void {
+  parameterValue(key: ParameterKey, damageType: DamageType): string|number|boolean|null|undefined {
+    if (DAMAGE_SCOPED_PARAMETER_KEYS.includes(key) && (damageType === 'dano_material' || damageType === 'dano_moral')) {
+      return this.active().damageParameters[damageType][key];
+    }
+    return this.active().parameters[key];
+  }
+
+  updateParameter(key: ParameterKey, value: string|number|boolean|null, damageType: DamageType = 'dano_material'): void {
     const snapshot = this.active();
-    const previous = snapshot.parameters[key] ?? null;
+    const scoped = DAMAGE_SCOPED_PARAMETER_KEYS.includes(key) && (damageType === 'dano_material' || damageType === 'dano_moral');
+    const previous = scoped ? snapshot.damageParameters[damageType][key] ?? null : snapshot.parameters[key] ?? null;
     if (JSON.stringify(previous) === JSON.stringify(value)) return;
-    this.state.update(draft => ({...draft,parameters:{...draft.parameters,[key]:value}}));
-    this.audits.queue(snapshot, key, previous, value);
+    if (scoped) {
+      this.state.update(draft => ({
+        ...draft,
+        damageParameters:{
+          ...draft.damageParameters,
+          [damageType]:{...draft.damageParameters[damageType],[key]:value},
+        },
+      }));
+    } else {
+      this.state.update(draft => ({...draft,parameters:{...draft.parameters,[key]:value}}));
+    }
+    this.audits.queue(snapshot, scoped ? `${damageType}.${String(key)}` : String(key), previous, value);
   }
 
   review(confirmed: boolean): Promise<void> { return this.calculations.review(confirmed); }

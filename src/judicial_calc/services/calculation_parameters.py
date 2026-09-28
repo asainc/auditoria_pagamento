@@ -352,11 +352,8 @@ class CalculoParams:
     competencia_atualizacao: str
     indice: str
     deflacionar: bool
-    juros_mora_sobre_compensatorios: bool
     competencia_final_taxa_legal: str | None
-    tipo_juros_compensatorios: str
     tipo_juros_moratorios: str
-    data_inicio_compensatorios: Any
     data_inicio_moratorios: Any
     incidir_multa_sobre_parcelas_a_vencer: bool
     art_523: str
@@ -398,11 +395,8 @@ class CalculoParams:
             competencia_atualizacao=parse_mes_ano(params["mes_atualizacao"], params["ano_atualizacao"]),
             indice=indice_padrao,
             deflacionar=bool(params.get("deflacionar_valor_nominal", False)),
-            juros_mora_sobre_compensatorios=bool(params.get("juros_moratorios_sobre_compensatorios", False)),
             competencia_final_taxa_legal=params.get("competencia_final_taxa_legal"),
-            tipo_juros_compensatorios=str(params.get("juros_compensatorios_tipo", "capitalizacao_simples")),
             tipo_juros_moratorios=str(params.get("juros_moratorios_tipo", "capitalizacao_simples")),
-            data_inicio_compensatorios=params.get("juros_compensatorios_data_inicio"),
             data_inicio_moratorios=params.get("juros_moratorios_data_inicio"),
             incidir_multa_sobre_parcelas_a_vencer=bool(params.get("incidir_multa_sobre_parcelas_a_vencer", False)),
             art_523=normalizar_art_523(params.get("art_523", ART_523_NAO_APLICAR)),
@@ -428,9 +422,9 @@ class CalculoParams:
             Nenhuma; usa os atributos normalizados da instância.
 
         Saída:
-            ``set[str]`` com tipo compensatório e moratório.
+            ``set[str]`` com o tipo de juros moratórios.
         """
-        return {self.tipo_juros_compensatorios, self.tipo_juros_moratorios}
+        return {self.tipo_juros_moratorios}
 
     @property
     def usa_stj1368(self) -> bool:

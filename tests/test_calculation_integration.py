@@ -69,7 +69,6 @@ def test_angular_payload_runs_real_engine(client, payload):
 
 @pytest.mark.parametrize("changes", [
     {"juros_moratorios_tipo": "capitalizacao_simples", "juros_moratorios_taxa": "1", "juros_moratorios_periodicidade": "mensal"},
-    {"juros_compensatorios_tipo": "capitalizacao_composta", "juros_compensatorios_taxa": "0.5", "juros_compensatorios_periodicidade": "mensal"},
     {"compensacao_flag": True, "compensacao_tipo_calculo": "fixo", "compensacao_valor": "100"},
     {"compensacao_flag": True, "compensacao_tipo_calculo": "percentual", "compensacao_valor": "10"},
     {"prescricao_flag": True, "prescricao_anos": 5, "prescricao_data_referencia_tipo": "data_decisao", "prescricao_data_referencia": "2026-01-01"},

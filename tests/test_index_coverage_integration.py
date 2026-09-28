@@ -13,7 +13,6 @@ def test_ipca15_future_competence_returns_precise_message(client):
             "mes_atualizacao": "setembro",
             "ano_atualizacao": 2026,
             "juros_moratorios_tipo": "sem_juros",
-            "juros_compensatorios_tipo": "sem_juros",
         },
         "revisao_humana_confirmada": True,
         "competencia_automatica": False,

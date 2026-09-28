@@ -14,6 +14,10 @@ export const routes: Routes = [
         loadComponent: () => import('./history/calculation-history-page.component').then(module => module.CalculationHistoryPageComponent),
       },
       {
+        path: 'qualidade-ia',
+        loadComponent: () => import('./quality/quality-page.component').then(module => module.QualityPageComponent),
+      },
+      {
         path: 'lotes',
         loadComponent: () => import('./batches/batch-page.component').then(module => module.BatchPageComponent),
       },

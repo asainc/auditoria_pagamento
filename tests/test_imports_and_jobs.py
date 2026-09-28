@@ -6,7 +6,19 @@ import json
 
 from openpyxl import Workbook
 from backend.models import DocumentMetadata, ExtractionStatus
-from backend.repository import Repository, timestamp
+from backend.persistence.schema import migrate, timestamp
+from backend.persistence.sqlite import SQLiteDatabase
+from backend.repositories.document_repository import DocumentRepository
+from backend.repositories.extraction_repository import ExtractionRepository
+
+
+def _stores(tmp_path):
+    """Cria somente os repositórios usados pelos testes de documentos e extração."""
+    database = SQLiteDatabase(tmp_path)
+    migrate(database)
+    documents = DocumentRepository(database)
+    extractions = ExtractionRepository(database, documents)
+    return database, documents, extractions
 
 
 def test_excel_and_csv_import_use_canonical_dates_and_money(client):
@@ -58,26 +70,27 @@ def test_batch_reports_error_per_process(client, payload):
 
 
 def test_late_job_cannot_replace_new_revision(tmp_path):
-    repository = Repository(tmp_path)
+    _, _, extractions = _stores(tmp_path)
     first = ExtractionStatus(numero_processo="1001", identificador="first", estado="executando", etapa="teste", mensagem="teste", atualizado_em=timestamp())
     second = first.model_copy(update={"identificador": "second", "estado": "aguardando"})
-    repository.start_job(first)
-    repository.start_job(second)
+    extractions.start_job(first)
+    extractions.start_job(second)
     first.estado = "pronto"
-    repository.update_job(first)
-    assert repository.status("1001").identificador == "second"
-    assert repository.status("1001").estado == "aguardando"
+    extractions.update_job(first)
+    assert extractions.status("1001").identificador == "second"
+    assert extractions.status("1001").estado == "aguardando"
 
 
 def test_repository_survives_restart_and_recovers_pending_jobs(tmp_path):
-    repository = Repository(tmp_path)
+    _, documents, extractions = _stores(tmp_path)
     document = DocumentMetadata(identificador="synthetic", numero_processo="1001", nome="1001_1.pdf", sha256="synthetic", tamanho_bytes=1, paginas=1, classificacao="outro")
-    repository.add_document(document)
-    repository.start_job(ExtractionStatus(numero_processo="1001", identificador="pending", estado="executando", etapa="teste", mensagem="teste", atualizado_em=timestamp()))
-    reopened = Repository(tmp_path)
-    reopened.recover_jobs()
-    assert reopened.documents("1001") == [document]
-    assert reopened.status("1001").estado == "aguardando"
+    documents.add(document)
+    extractions.start_job(ExtractionStatus(numero_processo="1001", identificador="pending", estado="executando", etapa="teste", mensagem="teste", atualizado_em=timestamp()))
+
+    _, reopened_documents, reopened_extractions = _stores(tmp_path)
+    reopened_extractions.recover_jobs()
+    assert reopened_documents.list_for_process("1001") == [document]
+    assert reopened_extractions.status("1001").estado == "aguardando"
 
 
 def test_index_catalog_and_initial_status_are_real(client):

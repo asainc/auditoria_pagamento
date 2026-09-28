@@ -19,9 +19,9 @@ from .workbook import (
 def baixar_series_drcalc(timeout: int = 30) -> list[DrCalcSeries]:
     """Baixa as séries disponíveis nas três categorias alvo do DrCalc.
 
-    A fonte principal é o formulário oficial de ``Séries históricas``. O fluxo
-    antigo, que tenta interpretar opções como URLs independentes, permanece
-    apenas como fallback de compatibilidade com versões antigas do site.
+    A fonte principal é o formulário de ``Séries históricas``. Se essa forma de
+    consulta não retornar dados, uma segunda estratégia tenta interpretar as
+    opções do formulário como endereços individuais de série.
 
     Falhas isoladas de uma série não interrompem a coleta inteira, mas as causas
     mais representativas são preservadas na exceção final para facilitar suporte
@@ -38,8 +38,8 @@ def baixar_series_drcalc(timeout: int = 30) -> list[DrCalcSeries]:
     if series_list:
         return series_list
 
-    # Fallback para estruturas antigas em que cada opção levava diretamente a
-    # uma página de série. Não é mais o caminho preferencial.
+    # Estratégia alternativa: tenta tratar cada opção como endereço individual
+    # somente quando a consulta principal não retornou nenhuma série.
     candidates = client.discover_series_urls()
     if not candidates:
         detail = "; ".join(errors[:3])

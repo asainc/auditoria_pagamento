@@ -76,9 +76,17 @@ def validate_prepared_request(payload: CalculationRequest) -> None:
         if [(row.data, row.valor_singelo, row.verba_tipo) for row in generated] != expected_rows:
             raise ServiceError("A base ou o percentual mudou. Clique em Atualizar honorários e confirme novamente a revisão.")
     if payload.competencia_automatica:
-        current = current_competence(index_key=payload.parametros.indice)
-        if (payload.parametros.mes_atualizacao, payload.parametros.ano_atualizacao) != (current.mes, current.ano):
-            raise ServiceError("A competência automática mudou. Desmarque e confirme novamente a revisão para atualizar mês e ano.", 409)
+        active_damages = {row.verba_tipo for row in payload.parcelas if row.verba_tipo in {"dano_material", "dano_moral"}}
+        scoped = payload.parametros_por_dano
+        for damage in active_damages:
+            branch = getattr(scoped, damage) if scoped is not None else payload.parametros
+            current = current_competence(index_key=branch.indice)
+            if (branch.mes_atualizacao, branch.ano_atualizacao) != (current.mes, current.ano):
+                label = "dano material" if damage == "dano_material" else "dano moral"
+                raise ServiceError(
+                    f"A competência automática de {label} mudou. Confirme novamente a revisão para atualizar mês e ano.",
+                    409,
+                )
 
 
 class OperationalPolicy:
@@ -138,12 +146,6 @@ class OperationalPolicy:
                 "juros_moratorios_tipo",
                 self.configuration.default_moratory_type,
                 "Documento sem tipo de juros moratórios: aplicada a Taxa Legal - 12% a.a. / 6% a.a. como critério operacional padrão.",
-            )
-        if not values("parametros.juros_compensatorios_tipo") and not explicitly_cleared("parametros.juros_compensatorios_tipo"):
-            assign(
-                "juros_compensatorios_tipo",
-                self.configuration.default_compensatory_type,
-                "Documento sem tipo de juros compensatórios: aplicada a Taxa Legal - 12% a.a. / 6% a.a. como critério operacional padrão.",
             )
         if not values("parametros.art_523") and not explicitly_cleared("parametros.art_523"):
             assign(

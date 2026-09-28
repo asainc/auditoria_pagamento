@@ -21,8 +21,8 @@ def normalize_process_number(value: str) -> str:
 def display_process_number(value: str) -> str:
     """Aplica a máscara CNJ quando houver exatamente vinte dígitos.
 
-    Identificadores processuais legados ou sintéticos com outro tamanho permanecem
-    somente com dígitos, preservando compatibilidade com testes e bases antigas.
+    Identificadores processuais ou sintéticos com outro tamanho permanecem
+    somente com dígitos, mantendo uma única identidade técnica no banco.
     """
     digits = normalize_process_number(value)
     if len(digits) != 20:

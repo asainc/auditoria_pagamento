@@ -46,6 +46,8 @@ class StructuredOutputParser:
         "value": "valor_singelo",
         "valor": "valor_singelo",
         "description": "descricao",
+        "contract_number": "numero_contrato",
+        "numero_do_contrato": "numero_contrato",
         "damage_type": "verba_tipo",
         "type": "verba_tipo",
         "multiplier": "multiplicador",
@@ -114,6 +116,7 @@ class StructuredOutputParser:
                 continue
             row = cls._rename(item, cls.INSTALLMENT_ALIASES)
             row.setdefault("descricao", "")
+            row.setdefault("numero_contrato", None)
             row.setdefault("multiplicador", None)
             installments.append(row)
         normalized["campos"] = fields

@@ -56,19 +56,37 @@ class EngineFacade:
     def calculate(self, payload: CalculationRequest) -> ResultadoCalculo:
         """Converte a requisição validada para o formato esperado pelo motor e executa o cálculo."""
         params = payload.parametros.model_dump(mode="json", exclude_none=True)
+        if payload.parametros_por_dano is not None:
+            params["parametros_por_dano"] = payload.parametros_por_dano.model_dump(mode="json", exclude_none=True)
         validate_prepared_request(payload)
         if payload.honorarios_sobre_danos_morais:
             params["honorarios"] = "0"
         # Atualização de arquivos tem endpoint próprio e usa a mesma exclusão mútua.
         params["auto_atualizar_planilhas_indices"] = False
         installments = [dict(item=index, **row.model_dump(mode="json", exclude={"origem"})) for index, row in enumerate(payload.parcelas, 1)]
-        return calcular_debitos(installments, **params)
+        result = calcular_debitos(installments, **params)
+        # A identidade do cadastro não participa das fórmulas, mas melhora a
+        # rastreabilidade da memória PDF. Ela é anexada somente depois do motor.
+        result.parametros["numero_processo"] = payload.numero_processo
+        result.parametros["identificador_calculo"] = payload.identificador_calculo
+        return result
 
-    def pdf(self, result: ResultadoCalculo) -> bytes:
-        """Gera a única memória de cálculo PDF distribuída pela aplicação."""
+    def pdf(
+        self,
+        result: ResultadoCalculo,
+        *,
+        identificador_calculo: str | None = None,
+        versao_calculo: int | None = None,
+    ) -> bytes:
+        """Gera a única memória PDF com identidade de negócio e versão quando conhecidas."""
         with tempfile.TemporaryDirectory(prefix="judicial_export_") as directory:
             path = Path(directory) / "memoria.pdf"
-            salvar_resultado_pdf(result, path)
+            salvar_resultado_pdf(
+                result,
+                path,
+                identificador_calculo=identificador_calculo,
+                versao_calculo=versao_calculo,
+            )
             return path.read_bytes()
 
     def index_hash(self) -> str:

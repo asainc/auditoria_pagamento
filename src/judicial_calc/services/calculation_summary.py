@@ -45,7 +45,6 @@ class HonorariosResumo:
 def _calcular_honorarios_informados(
     *,
     total_atualizado: Decimal,
-    total_comp: Decimal,
     total_mora: Decimal,
     total_multa: Decimal,
     params: dict[str, Any],
@@ -64,7 +63,7 @@ def _calcular_honorarios_informados(
     Resultado:
         tupla ``(base_honorarios, honorarios_informados)``.
     """
-    base_manual = total_atualizado + total_comp + total_mora
+    base_manual = total_atualizado + total_mora
     if params.get("incidir_honorarios_sobre_multa", False):
         base_manual += total_multa
     base_manual = moeda(base_manual)
@@ -78,7 +77,6 @@ def _calcular_honorarios_informados(
 def _calcular_honorarios_resumo(
     *,
     total_atualizado: Decimal,
-    total_comp: Decimal,
     total_mora: Decimal,
     total_multa: Decimal,
     memoria: pd.DataFrame,
@@ -92,7 +90,6 @@ def _calcular_honorarios_resumo(
     """
     base_manual, honorarios_manual = _calcular_honorarios_informados(
         total_atualizado=total_atualizado,
-        total_comp=total_comp,
         total_mora=total_mora,
         total_multa=total_multa,
         params=params,
@@ -123,7 +120,7 @@ def _total_multa_resumo(memoria: pd.DataFrame, params: dict[str, Any]) -> Decima
 
     if str(params.get("multa_tipo") or "percentual").strip().lower() == "fixo":
         # A memória já contém o rateio exato do valor único entre as parcelas
-        # elegíveis, portanto a soma é a fonte auditável do total fixo aplicado.
+        # elegíveis, portanto a soma é a fonte do total fixo aplicado.
         return moeda(memoria["multa"].sum())
 
     if "incide_multa_manual" in memoria.columns:
@@ -147,14 +144,12 @@ def _montar_resumo(memoria: pd.DataFrame, params: dict[str, Any], cfg: CalculoPa
         6. desconta a compensação, se aplicável, chegando ao total geral líquido.
     """
     total_atualizado = moeda(memoria["valor_atualizado"].sum())
-    total_comp = moeda(memoria["juros_compensatorios"].sum())
     total_mora = moeda(memoria["juros_moratorios"].sum())
     total_multa = _total_multa_resumo(memoria, params)
-    subtotal = moeda(total_atualizado + total_comp + total_mora + total_multa)
+    subtotal = moeda(total_atualizado + total_mora + total_multa)
 
     base_honorarios, honorarios_informados = _calcular_honorarios_informados(
         total_atualizado=total_atualizado,
-        total_comp=total_comp,
         total_mora=total_mora,
         total_multa=total_multa,
         params=params,
@@ -165,7 +160,15 @@ def _montar_resumo(memoria: pd.DataFrame, params: dict[str, Any], cfg: CalculoPa
     total_art_523 = moeda(multa_art_523 + honorarios_art_523)
     valor_honorarios = moeda(honorarios_informados + honorarios_art_523)
     total_geral_bruto = moeda(subtotal_com_honorarios + total_art_523)
-    valor_compensacao = _calcular_valor_compensacao(cfg, total_geral_bruto)
+    # Compensação é regra exclusiva do dano material. Em processos mistos, sua
+    # base não pode reduzir valores de dano moral. Como os honorários globais e
+    # o art. 523 já estão rateados por linha, usamos somente as linhas materiais.
+    if "verba_tipo" in memoria.columns and "total_com_honorarios_e_art_523" in memoria.columns:
+        material = memoria[memoria["verba_tipo"].astype(str) == "dano_material"]
+        base_compensacao = moeda(material["total_com_honorarios_e_art_523"].sum()) if not material.empty else Decimal("0.00")
+    else:
+        base_compensacao = total_geral_bruto
+    valor_compensacao = _calcular_valor_compensacao(cfg, base_compensacao)
     total_geral = moeda(total_geral_bruto - valor_compensacao)
 
     return pd.DataFrame([
@@ -187,7 +190,6 @@ def _montar_resumo(memoria: pd.DataFrame, params: dict[str, Any], cfg: CalculoPa
         {"campo": "prescricao_data_inicio_calculo", "valor": cfg.data_inicio_prescricao.isoformat() if cfg.data_inicio_prescricao else None},
         {"campo": "total_singelo", "valor": moeda(memoria["valor_singelo"].sum())},
         {"campo": "total_atualizado", "valor": total_atualizado},
-        {"campo": "total_juros_compensatorios", "valor": total_comp},
         {"campo": "total_juros_moratorios", "valor": total_mora},
         {"campo": "total_multa", "valor": total_multa},
         {"campo": "subtotal", "valor": subtotal},

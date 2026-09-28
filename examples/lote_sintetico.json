@@ -14,8 +14,7 @@
         "indice": "sem_correcao",
         "mes_atualizacao": "março",
         "ano_atualizacao": 2026,
-        "juros_moratorios_tipo": "sem_juros",
-        "juros_compensatorios_tipo": "sem_juros"
+        "juros_moratorios_tipo": "sem_juros"
       },
       "revisao_humana_confirmada": false,
       "origem_calculo": "processo"

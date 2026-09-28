@@ -1,7 +1,6 @@
 """Cliente HTTP e parser de formulários/tabelas históricas do DrCalc."""
 from __future__ import annotations
-from datetime import date, datetime
-from decimal import Decimal
+from datetime import date
 from io import StringIO
 import re
 from typing import Any, Iterable
@@ -78,13 +77,13 @@ class DrCalcClient:
 
         A tela ``consultaindices.asp`` não expõe cada indexador como uma página
         histórica independente. O usuário escolhe categoria, período e
-        indexador e então submete um formulário. A implementação anterior
-        tentava converter os valores do ``select`` em URLs ``it=<id>``; isso
-        podia devolver novamente a tela vazia, sem série alguma.
+        indexador e então submete um formulário. Tratar diretamente os valores
+        do ``select`` como URLs ``it=<id>`` pode devolver a própria tela sem os
+        dados da série.
 
-        Aqui o formulário real é identificado e submetido para cada indexador.
-        Quando a estrutura não puder ser reconhecida, o chamador ainda pode
-        recorrer ao mecanismo legado de descoberta de URLs como fallback.
+        Por isso, o formulário é identificado e submetido para cada indexador.
+        Quando essa estrutura não puder ser reconhecida, o chamador pode usar a
+        estratégia alternativa de descoberta de URLs.
         """
         series_list: list[DrCalcSeries] = []
         errors: list[str] = []

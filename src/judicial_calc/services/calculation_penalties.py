@@ -38,7 +38,7 @@ class MultaLinha:
 
         ``manual``: valor da multa percentual informada pelo usuário.
 
-        ``total``: mantido para compatibilidade; neste ponto é igual a
+        ``total``: campo público do resultado; neste ponto é igual a
         ``manual``.
     """
 
@@ -70,30 +70,27 @@ def _multa_pode_incidir(data_parcela, cfg: CalculoParams) -> bool:
 def _base_multa_manual(
     *,
     valor_atualizado: Decimal,
-    juros_comp: Decimal,
     juros_mora: Decimal,
     params: dict[str, Any],
 ) -> Decimal:
     """Calcula a base da multa percentual informada pelo usuário.
 
-    Por padrão, a base é apenas o valor atualizado. As opções da tela permitem
-    incluir juros compensatórios e/ou juros moratórios na mesma base.
+    Por padrão, a base é apenas o valor atualizado. A opção da tela permite
+    incluir os juros moratórios na mesma base.
     """
     base = valor_atualizado
-    if params.get("incidir_multa_sobre_juros_compensatorios", False):
-        base += juros_comp
     if params.get("incidir_multa_sobre_juros_moratorios", False):
         base += juros_mora
     return moeda(base)
 
 
 def _tipo_multa(params: dict[str, Any]) -> str:
-    """Normaliza o tipo da multa comum, preservando percentuais legados."""
+    """Normaliza o tipo da multa comum e aceita o campo percentual alternativo."""
     return str(params.get("multa_tipo") or "percentual").strip().lower()
 
 
 def _valor_multa(params: dict[str, Any]) -> Decimal:
-    """Obtém o valor canônico da multa e aceita o campo percentual legado."""
+    """Obtém o valor canônico da multa e aceita o campo percentual alternativo."""
     raw = params.get("multa_valor")
     if raw in (None, ""):
         raw = params.get("multa_percentual", "0")
@@ -104,7 +101,6 @@ def _calcular_multa_linha(
     *,
     data_parcela,
     valor_atualizado: Decimal,
-    juros_comp: Decimal,
     juros_mora: Decimal,
     cfg: CalculoParams,
     params: dict[str, Any],
@@ -112,8 +108,7 @@ def _calcular_multa_linha(
     """Calcula somente a multa percentual comum de uma parcela.
 
     Entradas principais:
-        ``valor_atualizado``, ``juros_comp`` e ``juros_mora`` já devem estar
-        arredondados em moeda.
+        ``valor_atualizado`` e ``juros_mora`` já devem estar arredondados em moeda.
 
     Resultado:
         ``MultaLinha`` com a base e o valor da multa digitada no campo
@@ -128,7 +123,6 @@ def _calcular_multa_linha(
     """
     base_manual = _base_multa_manual(
         valor_atualizado=valor_atualizado,
-        juros_comp=juros_comp,
         juros_mora=juros_mora,
         params=params,
     )
@@ -176,7 +170,7 @@ def _rateio_monetario(total: Decimal, pesos: list[Decimal]) -> list[Decimal]:
 def _aplicar_multa_fixa_na_memoria(memoria: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
     """Rateia uma multa fixa uma única vez entre as parcelas elegíveis.
 
-    O rateio existe apenas para manter a memória auditável e fazer com que
+    O rateio existe apenas para manter a memória de cálculo e fazer com que
     subtotal, honorários e art. 523 usem a mesma composição linha a linha.
     O total da multa permanece exatamente igual ao valor fixo informado.
     """

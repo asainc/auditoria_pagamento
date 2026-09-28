@@ -5,10 +5,30 @@ Os cenários usam HTML sintético para validar a descoberta sem depender de rede
 from __future__ import annotations
 
 from types import SimpleNamespace
+from threading import Lock
+
+from backend.config import Settings
+from backend.persistence.schema import migrate
+from backend.persistence.sqlite import SQLiteDatabase
+from backend.repositories.audit_repository import AuditRepository
+from backend.repositories.index_repository import IndexRepository
 from urllib.parse import parse_qs, urlparse
 
 from backend.services.indices import _public_update_failure
-from judicial_calc.data_sources.drcalc_updater import DrCalcClient, _build_category_url
+from judicial_calc.data_sources.drcalc.client import DrCalcClient
+from judicial_calc.data_sources.drcalc.parsing import _build_category_url
+
+
+def _index_service(tmp_path):
+    """Monta o serviço com somente as dependências que ele realmente usa."""
+    database = SQLiteDatabase(tmp_path)
+    migrate(database)
+    return __import__("backend.services.indices", fromlist=["IndexService"]).IndexService(
+        Settings(data_dir=tmp_path),
+        IndexRepository(database),
+        AuditRepository(database),
+        SimpleNamespace(lock=Lock()),
+    )
 
 
 class NavigationClient(DrCalcClient):
@@ -86,12 +106,8 @@ def test_public_failure_message_distinguishes_invalid_remote_series() -> None:
 
 def test_index_service_uses_result_success_instead_of_message_text(tmp_path, monkeypatch) -> None:
     """Resultado bem-sucedido não pode virar falha por heurística textual."""
-    from threading import Lock
-
-    from backend.config import Settings
-    from backend.repository import Repository
     from backend.services import indices as indices_service
-    from judicial_calc.data_sources.drcalc_updater import DrCalcUpdateResult
+    from judicial_calc.data_sources.drcalc.models import DrCalcUpdateResult
 
     result = DrCalcUpdateResult(
         executed=False,
@@ -101,7 +117,7 @@ def test_index_service_uses_result_success_instead_of_message_text(tmp_path, mon
         message="Atualização previamente confirmada nesta execução.",
     )
     monkeypatch.setattr(indices_service, "atualizar_planilhas_drcalc_se_necessario", lambda **_: result)
-    service = indices_service.IndexService(Settings(data_dir=tmp_path), Repository(tmp_path), SimpleNamespace(lock=Lock()))
+    service = _index_service(tmp_path)
     try:
         service.run()
         status = service.status()
@@ -113,12 +129,8 @@ def test_index_service_uses_result_success_instead_of_message_text(tmp_path, mon
 
 def test_index_service_preserves_previous_files_on_remote_failure(tmp_path, monkeypatch) -> None:
     """Falha de descoberta deve ser explícita e não apagar o snapshot local."""
-    from threading import Lock
-
-    from backend.config import Settings
-    from backend.repository import Repository
     from backend.services import indices as indices_service
-    from judicial_calc.data_sources.drcalc_updater import DrCalcUpdateResult
+    from judicial_calc.data_sources.drcalc.models import DrCalcUpdateResult
 
     result = DrCalcUpdateResult(
         executed=True,
@@ -129,7 +141,7 @@ def test_index_service_preserves_previous_files_on_remote_failure(tmp_path, monk
         errors=["Nenhuma série histórica válida foi extraída do DrCalc."],
     )
     monkeypatch.setattr(indices_service, "atualizar_planilhas_drcalc_se_necessario", lambda **_: result)
-    service = indices_service.IndexService(Settings(data_dir=tmp_path), Repository(tmp_path), SimpleNamespace(lock=Lock()))
+    service = _index_service(tmp_path)
     try:
         service.run()
         status = service.status()
@@ -142,12 +154,8 @@ def test_index_service_preserves_previous_files_on_remote_failure(tmp_path, monk
 
 def test_index_service_does_not_claim_new_data_when_source_has_no_later_competence(tmp_path, monkeypatch) -> None:
     """Consulta bem-sucedida sem avanço deve ter estado próprio, não 'atualizado'."""
-    from threading import Lock
-
-    from backend.config import Settings
-    from backend.repository import Repository
     from backend.services import indices as indices_service
-    from judicial_calc.data_sources.drcalc_updater import DrCalcUpdateResult
+    from judicial_calc.data_sources.drcalc.models import DrCalcUpdateResult
 
     result = DrCalcUpdateResult(
         executed=True,
@@ -158,7 +166,7 @@ def test_index_service_does_not_claim_new_data_when_source_has_no_later_competen
         has_new_competence=False,
     )
     monkeypatch.setattr(indices_service, "atualizar_planilhas_drcalc_se_necessario", lambda **_: result)
-    service = indices_service.IndexService(Settings(data_dir=tmp_path), Repository(tmp_path), SimpleNamespace(lock=Lock()))
+    service = _index_service(tmp_path)
     try:
         service.run()
         status = service.status()
@@ -313,7 +321,7 @@ def test_history_parser_accepts_year_by_month_matrix() -> None:
 def test_explicit_percent_metric_converts_small_monthly_rate_without_threshold_error() -> None:
     """0,03% do DrCalc deve virar 0,0003 mesmo sendo menor que o limiar legado."""
     from decimal import Decimal
-    from judicial_calc.data_sources.drcalc_updater import _convert_monthly_value
+    from judicial_calc.data_sources.drcalc.workbook import _convert_monthly_value
 
     converted = _convert_monthly_value("IPCA (IBGE)", Decimal("0.03"), source_metric="rate_percent")
     assert converted == Decimal("0.0003")
@@ -322,7 +330,7 @@ def test_explicit_percent_metric_converts_small_monthly_rate_without_threshold_e
 def test_explicit_percent_metric_converts_small_daily_rate_without_threshold_error() -> None:
     """Taxa diária 0,005% deve virar 0,00005 quando a unidade é explícita."""
     from decimal import Decimal
-    from judicial_calc.data_sources.drcalc_updater import _convert_daily_value
+    from judicial_calc.data_sources.drcalc.workbook import _convert_daily_value
 
     converted = _convert_daily_value(Decimal("0.005"), source_metric="rate_percent")
     assert converted == Decimal("0.00005")

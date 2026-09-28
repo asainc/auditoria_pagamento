@@ -1,173 +1,228 @@
-# Arquitetura do projeto
+# Arquitetura da Calculadora Judicial
 
-## 1. Objetivo arquitetural
+## 1. Objetivo
 
-O sistema separa quatro responsabilidades que não devem se misturar:
+A arquitetura separa apresentação, coordenação, extração documental, persistência e cálculo. Essa separação evita que uma tela altere uma fórmula, que uma resposta da IA seja tratada como decisão final ou que regras financeiras fiquem espalhadas por vários pontos do projeto.
 
-1. **interação**: Angular apresenta documentos, formulários, evidências e resultados;
-2. **aplicação**: FastAPI valida contratos, coordena jobs, auditoria e políticas;
-3. **extração**: o componente de IA transforma documentos em fatos/evidências, sem executar fórmulas;
-4. **cálculo**: `judicial_calc` executa fórmulas determinísticas sobre entradas já revisadas.
+A regra central é simples:
 
-A regra de projeto é: **LLM extrai e classifica; Python consolida e calcula; humano confirma**.
+> Angular apresenta e coleta; FastAPI valida e coordena; a IA sugere; o usuário revisa; `judicial_calc` calcula de forma determinística.
 
-## 2. Diagrama de componentes
+## 2. Diagrama detalhado
 
-```text
-┌──────────────────────── Angular 21.2.19 ────────────────────────┐
-│ App shell │ WorkspaceStore │ editores │ PDF │ logs │ resultado │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │ /api/v2
-┌──────────────────────────────▼──────────────────────────────────┐
-│ FastAPI                                                         │
-│ routers → contratos Pydantic → serviços                         │
-│                                                                 │
-│ DocumentService ──→ ExtractionService ──→ ChronologyReducer     │
-│                                  │              │                │
-│                                  └→ OperationalPolicy           │
-│                                                                 │
-│ RevisionAuditService                  CalculationService         │
-│                                              │                  │
-│                                         EngineFacade             │
-└──────────────────────────────────────────────┬──────────────────┘
-                                               │
-┌──────────────────────────────────────────────▼──────────────────┐
-│ judicial_calc                                                     │
-│ normalização de parâmetros │ índices │ juros │ cálculo │ PDF     │
-└──────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph UI[Interface - frontend/]
+        Browser[Navegador]
+        Components[Componentes Angular]
+        Stores[Stores de estado]
+        ApiServices[Serviços HTTP]
+        Browser --> Components
+        Components <--> Stores
+        Stores --> ApiServices
+    end
+
+    subgraph API[Aplicação - backend/]
+        Main[principal.py]
+        Routers[Routers]
+        Contracts[Contratos Pydantic]
+        Container[container.py]
+        AppServices[Serviços de aplicação]
+        Repositories[Repositórios por domínio]
+        DB[(SQLite)]
+        Main --> Routers
+        Routers --> Contracts
+        Routers --> AppServices
+        Container --> AppServices
+        Container --> Repositories
+        AppServices --> Repositories
+        Repositories --> DB
+    end
+
+    subgraph Extraction[Extração assistida]
+        Pdf[Leitura local do PDF]
+        Context[Montagem de contexto]
+        Prompts[Prompts especializados]
+        CorporateAI[Serviço corporativo de texto]
+        Parse[Validação da saída]
+        Chronology[Consolidação cronológica]
+        Policy[Política operacional]
+        Pdf --> Context
+        Context --> Prompts
+        Prompts --> CorporateAI
+        CorporateAI --> Parse
+        Parse --> Chronology
+        Chronology --> Policy
+    end
+
+    subgraph Engine[Motor - src/judicial_calc/]
+        EngineFacade[EngineFacade]
+        Params[Normalização dos parâmetros]
+        Preparation[Preparação das parcelas]
+        Contexts[Contextos por tipo de dano]
+        Indices[Índices de correção]
+        Interest[Juros moratórios]
+        Memory[Memória linha a linha]
+        Adjustments[Prescrição, multas, honorários e compensação]
+        Summary[Resumo]
+        PDF[Memória PDF]
+        EngineFacade --> Params
+        Params --> Preparation
+        Preparation --> Contexts
+        Contexts --> Indices
+        Contexts --> Interest
+        Indices --> Memory
+        Interest --> Memory
+        Memory --> Adjustments
+        Adjustments --> Summary
+        Summary --> PDF
+    end
+
+    ApiServices --> Extraction
+    ApiServices --> EngineFacade
+    ApiServices --> Repositories
+    ApiServices --> PDF
+    ApiServices -->|resposta estruturada| ApiServices
+    ApiServices --> Routers
+    ApiServices --> DB
+    ApiServices -->|resultado| Routers
+    ApiServices -->|auditoria| Repositories
+    ApiServices -->|revisão necessária| UI
+    ApiServices -->|cálculo revisado| EngineFacade
+    ApiServices -->|PDFs/texto| Pdf
+    ApiServices -->|configuração| Policy
+    ApiServices -->|evidências| UI
+    ApiServices -->|HTTP| UI
+    ApiServices -.->|não envia fórmulas| CorporateAI
+    ApiServices -->|chamada de texto| CorporateAI
+    UI -->|/api| API
 ```
 
-## 3. Fonte única dos parâmetros
+## 3. Caminho de uma requisição de cálculo
 
-`config/calculation_policy.json` é a fonte de verdade para:
+```mermaid
+sequenceDiagram
+    participant U as Usuário
+    participant A as Angular
+    participant R as Router FastAPI
+    participant C as CalculationService
+    participant E as EngineFacade
+    participant M as judicial_calc
+    participant D as SQLite
 
-- chaves de parâmetros;
-- rótulos e agrupamentos da interface;
-- opções de campos `select`;
-- campos mínimos;
-- defaults do modo `manual`;
-- defaults de `processo`.
+    U->>A: revisa parcelas e parâmetros
+    A->>R: POST /api/.../calculos
+    R->>R: valida contrato Pydantic
+    R->>C: execute(payload)
+    C->>C: normaliza e gera hashes
+    C->>E: calculate(payload)
+    E->>M: calcular_debitos(parcelas, **parametros)
+    M->>M: prepara, calcula e resume
+    M-->>E: ResultadoCalculo
+    E-->>C: ResultadoCalculo
+    C->>D: registra execução/auditoria
+    C-->>R: resposta estruturada
+    R-->>A: JSON
+    A-->>U: memória e resumo
+```
 
-`backend/calculation_policy.py` lê e valida essa política. O frontend não mantém uma segunda lista manual: `scripts/generate_parameter_catalog.py` produz `frontend/src/app/calculation/parameter-fields.ts` a partir do JSON. `scripts/generate_parameter_docs.py` produz `docs/PARAMETROS.md` da mesma fonte.
+## 4. Camadas e responsabilidades
 
-## 4. Frontend Angular
+### 4.1 `frontend/`
 
-### `app.component.ts`
+Responsável pela experiência do usuário. Pode formatar, validar campos básicos, manter estado temporário e chamar a API. Não deve implementar fórmulas financeiras nem decidir critérios jurídicos.
 
-Responsável pelo shell da plataforma e navegação entre Auditoria de Pagamentos, BJN e AI Ready. Não contém regras financeiras.
+### 4.2 `backend/contracts/`
 
-### `calculation-page.component.ts`
+Define o formato aceito e devolvido pela API. A validação acontece na fronteira: tipos, campos obrigatórios, intervalos e estruturas inválidas são rejeitados antes de chegar ao motor.
 
-Compõe a tela de conferência. Alterna Parcelas, Evidências, Parâmetros, Logs e Resultado.
+### 4.3 `backend/routers/`
 
-### `workspace.store.ts`
+Expõe endpoints HTTP. Cada rota deve ser curta: recebe dados já validados, chama um serviço e converte o resultado em resposta HTTP. Regra de negócio não deve crescer dentro do router.
 
-Mantém rascunhos por processo e um rascunho manual isolado. Responsabilidades principais:
+### 4.4 `backend/services/`
 
-- seleção de processo/documento;
-- polling da extração;
-- invalidação de revisão após edição;
-- envio de alterações humanas à auditoria;
-- confirmação humana;
-- execução e exportação do cálculo.
+Coordena casos de uso: documentos, extração, revisão, cálculo, índices, lote e qualidade. Essa camada decide a ordem das operações, mas não replica as fórmulas do motor.
 
-O modo manual usa `calculationOrigin='manual'` e `numeroProcesso=''` apenas no estado visual; na API ele vira `origem_calculo='manual'` e `numero_processo=null`.
+### 4.5 `backend/repositories/` e `backend/persistence/`
 
-### `calculation-mapper.ts`
+Centralizam leitura e gravação no SQLite. Cada repositório cuida de um assunto. A camada de persistência prepara conexão, estrutura das tabelas e transações.
 
-É a fronteira de conversão entre formulário e contrato HTTP. Ele não reproduz fórmulas do backend.
+### 4.6 `src/judicial_calc/`
 
-## 5. FastAPI e contratos
+Contém o motor determinístico. Para a mesma entrada, a mesma configuração e as mesmas tabelas de índices, a saída deve ser reproduzível. O motor não depende do Angular e não depende de resposta de IA.
 
-`backend/principal.py` cria a aplicação e registra a API canônica sob `/api/v2`. Os prefixos `/api` e `/api/v1` permanecem somente como aliases transitórios e são ocultos do OpenAPI. `X-API-Version` e o health check expõem o contrato `2.0.0`.
+### 4.7 `prompts/`
 
-Os contratos Pydantic foram divididos por domínio em `backend/contracts/`. `backend/models.py` permanece somente como fachada retrocompatível. Dinheiro/taxas são validados como `Decimal` internamente, enquanto a interface envia texto decimal para preservar precisão.
+Cada arquivo descreve uma tarefa específica de extração. Separar os prompts reduz ambiguidades e permite testar alterações por assunto.
 
-Rotas são deliberadamente finas:
+### 4.8 `config/`
 
-- `documents.py`: upload/listagem/leitura;
-- `extractions.py`: configuração, start, status e resultado;
-- `calculations.py`: competência, política, cálculo, honorários e PDF;
-- `indices.py`: catálogo/status/atualização;
-- `batches.py`: importação e execução em lote;
-- `audit.py`: trilha de alteração humana dos parâmetros.
+Armazena parâmetros não secretos. Configuração de execução, política de cálculo e limites de extração ficam fora do código para reduzir alterações desnecessárias em funções.
 
-## 5.1 Persistência por domínio
+## 5. Fluxo documental
 
-A composição de persistência é explícita em `backend/container.py`. O código novo usa repositórios especializados:
+```text
+Upload do PDF
+    -> armazenamento controlado
+    -> leitura local da camada textual
+    -> divisão por tarefa de extração
+    -> prompt especializado + contexto
+    -> serviço corporativo de texto
+    -> validação estrutural da resposta
+    -> consolidação de evidências
+    -> revisão humana
+    -> cálculo
+```
 
-- `DocumentRepository`: documentos/processos;
-- `ExtractionRepository`: fila, status e resultados de extração;
-- `AuditRepository`: trilha de auditoria;
-- `CalculationRepository`: cadastro, versões, execuções e artefatos;
-- `IndexRepository`: estado operacional dos índices.
+A camada de IA não deve ser tratada como fonte normativa. Ela produz uma sugestão rastreável. Quando a informação não puder ser determinada com segurança, o fluxo deve preferir ausência/alerta em vez de inventar um valor.
 
-`backend/repository.py` não contém SQL e existe apenas para compatibilidade com integrações anteriores. Conexão, transações, schema e migrações ficam em `backend/persistence/`.
+## 6. Fluxo do motor de cálculo
 
-O agregado de cálculo é persistido como `Cálculo → Versão → Execução → Artefato`. Versões são estados funcionais imutáveis; execuções registram cada materialização técnica; PDFs são artefatos ligados à execução por SHA-256. Constraints/triggers do SQLite reforçam identidade, hashes válidos e imutabilidade.
+```text
+CalculationRequest
+    -> EngineFacade.calculate()
+    -> lista de parcelas + dicionário de parâmetros
+    -> calcular_debitos()
+       -> _prepare_installments()
+       -> _build_damage_contexts()
+       -> _build_memory()
+          -> cálculo de correção e juros por parcela
+       -> _apply_calculation_post_processing()
+       -> _montar_resumo()
+    -> ResultadoCalculo(memoria, resumo, parametros)
+```
 
-## 6. Extração documental
+Os módulos `indices/`, `interest/` e `data_sources/` são usados apenas quando o tipo de cálculo selecionado precisa deles.
 
-`backend/services/extraction.py` orquestra dez tarefas especializadas. O contexto comum é montado uma única vez por `PromptContextBuilder` com:
+## 7. Persistência e rastreabilidade
 
-- regras universais de `_base.md`;
-- cronologia de anexos;
-- catálogo real de índices;
-- schema dos parâmetros.
+O banco local separa assuntos em repositórios. O cálculo possui duas noções diferentes que não devem ser confundidas:
 
-Cada chamada recebe esse contexto mais o prompt especializado. A resposta externa passa por modelos de transporte estritos (`extraction_wire.py`) e depois pela validação interna.
+- **estado funcional do cálculo**: conjunto de parâmetros e parcelas escolhido pelo usuário;
+- **execução técnica**: uma execução concreta desse estado, com hashes, duração e artefatos.
 
-`ChronologyReducer` consolida somente `parametros.*`. As evidências brutas permanecem intactas. A consolidação utiliza `natureza`, `efeito`, sequência e página; não escolhe por “documento mais recente” quando o tipo de evidência não permite essa conclusão.
+Essa separação permite rastrear uma nova execução sem alterar silenciosamente o estado funcional que o usuário revisou. O histórico de estados do cálculo é requisito de auditoria do produto, não uma referência a releases do software.
 
-`OperationalPolicy` roda depois da consolidação e adiciona defaults rastreáveis apenas quando necessário.
+## 8. Configuração e injeção de dependências
 
-## 7. Auditoria de revisão humana
+`backend/container.py` cria as dependências em um único ponto. Serviços recebem explicitamente os repositórios e colaboradores de que precisam. O objetivo é permitir manutenção e testes sem procurar objetos globais espalhados pelo código.
 
-`RevisionAuditService` e a tabela SQLite `parameter_changes` mantêm eventos imutáveis de edição. Cada evento pode conter:
+`config/runtime.json` controla host, portas, workers e recarga. `backend/config.py` controla os parâmetros operacionais do backend e lê segredos somente do ambiente ou `.env` local.
 
-- origem do cálculo;
-- processo ou id do rascunho manual;
-- campo alterado;
-- valor anterior e novo;
-- id da extração associada;
-- valor/origem automáticos conhecidos pelo servidor;
-- data/hora;
-- ator técnico.
+## 9. Observação de arquivos em desenvolvimento
 
-Em ambiente não local, o backend não grava o subject recebido em claro; deriva um identificador por SHA-256. O frontend mantém eventos não persistidos na fila e força o envio antes de revisão, troca de processo e cálculo, evitando prosseguir quando a trilha obrigatória não pôde ser registrada. A política de retenção e o contrato com o gateway devem ser validados na implantação.
+`scripts/run_backend.py` é o único lugar que chama `uvicorn.run`. Em modo de recarga ele observa apenas `backend/`, `src/`, `config/` e `prompts/`. O frontend e `node_modules` são excluídos, impedindo que alterações do npm reiniciem o backend.
 
-## 8. Motor de cálculo
+## 10. Limites arquiteturais
 
-`backend/services/engine.py` é a fachada do backend para `judicial_calc`.
+As seguintes regras devem permanecer verdadeiras:
 
-Dentro do motor:
-
-- `services/calculation_parameters.py` normaliza e valida parâmetros, inclusive prescrição, compensação, valor em dobro, duplo índice e Art. 523;
-- `services/calculation_prescription.py` aplica o corte temporal das parcelas;
-- `services/calculation_penalties.py` concentra multa, rateio monetário e Art. 523;
-- `services/calculation_adjustments.py` aplica compensação;
-- `services/calculation_summary.py` agrega honorários e totais do resumo;
-- `services/calculation_service.py` permanece como orquestrador de tabelas, correção, juros e composição das etapas;
-- módulos `indices/`, `interest/` e `data_sources/` implementam estratégias especializadas.
-
-As fronteiras acima isolam responsabilidades sem duplicar fórmulas financeiras. `tests/test_engine_golden_master.py` congela cenários completos e verifica que o resultado numérico permanece compatível com a referência esperada.
-
-## 9. Erros estruturados
-
-O motor usa `CalculationValidationError(code, fields, message)` para validações de combinação de parâmetros. `backend/services/engine_guidance.py` utiliza `fields` e o catálogo central para orientar o operador. Ele não faz regex em texto de exceção e não ecoa valores recebidos.
-
-Na fronteira HTTP, falhas esperadas usam `ServiceError` com `code`, `message`, `fields`, `retryable` e `request_id`. O frontend decide comportamento pelo código estável e usa a mensagem somente para apresentação; valores de entrada não são devolvidos no envelope de erro.
-
-## 10. Interfaces públicas do pacote de cálculo
-
-A extração por IA é responsabilidade da camada de aplicação e não faz parte de `judicial_calc`. O pacote expõe `judicial_calc.calculator`, `judicial_calc.cli` e as funções públicas de `judicial_calc.__init__` como interfaces determinísticas de cálculo/exportação. O processamento em lote da aplicação web é coordenado por `backend/services/batches.py`, reutilizando a mesma fachada de cálculo.
-
-## 11. Reprodutibilidade
-
-- dependências Python: `requirements.lock`;
-- dependências Angular: `package-lock.json` gerado no Nexus corporativo com Node.js 22.12.0/npm 10.9.0 e depois versionado;
-- contratos gerados: `docs/openapi.json` e `contracts.ts`;
-- integridade do motor: `docs/motor_sha256.json`;
-- hash canônico da entrada e hash da política retornados em cada cálculo;
-- política de cálculo versionada: `calculation_policy.json`;
-- fixtures golden-master: `tests/fixtures/golden_calculations.json`.
+1. Angular não contém fórmula financeira.
+2. Routers não contêm SQL.
+3. Repositórios não executam regra de cálculo.
+4. `judicial_calc` não depende da IA.
+5. Segredos não ficam em arquivos versionados.
+6. Dados reais de produção não entram em testes ou documentação.
+7. Mudanças em fórmulas exigem testes com entrada e saída esperadas.
+8. Decisões jurídicas sobre parâmetros concretos continuam sujeitas à revisão humana e validação institucional.

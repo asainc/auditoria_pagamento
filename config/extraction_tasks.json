@@ -11,9 +11,6 @@
   "03_moratorios": {
     "max_output_tokens": 8192
   },
-  "04_compensatorios": {
-    "max_output_tokens": 8192
-  },
   "05_encargos": {
     "max_output_tokens": 8192
   },

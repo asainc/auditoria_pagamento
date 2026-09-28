@@ -5,7 +5,16 @@ import json
 import sqlite3
 
 from backend.models import ParameterChangeInput
-from backend.repository import Repository
+from backend.persistence.schema import migrate
+from backend.persistence.sqlite import SQLiteDatabase
+from backend.repositories.audit_repository import AuditRepository
+
+
+def _migrated_database(tmp_path):
+    """Abre o banco do teste e aplica o mesmo migrador usado pela aplicação."""
+    database = SQLiteDatabase(tmp_path)
+    migrate(database)
+    return database
 
 
 def test_legacy_parameter_changes_schema_is_migrated_without_blocking_manual_audit(tmp_path):
@@ -34,8 +43,8 @@ def test_legacy_parameter_changes_schema_is_migrated_without_blocking_manual_aud
     connection.commit()
     connection.close()
 
-    repository = Repository(tmp_path)
-    with repository.connection() as current:
+    database = _migrated_database(tmp_path)
+    with database.connection() as current:
         columns = {row[1] for row in current.execute("PRAGMA table_info(parameter_changes)").fetchall()}
         legacy_tables = {row[0] for row in current.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
     assert {"draft", "process", "origin", "field", "payload"}.issubset(columns)
@@ -50,9 +59,10 @@ def test_legacy_parameter_changes_schema_is_migrated_without_blocking_manual_aud
         valor_novo="sem_correcao",
         extracao_id=None,
     )
-    record = repository.add_parameter_change(change, actor="local")
+    audit_repository = AuditRepository(database)
+    record = audit_repository.add_parameter_change(change, actor="local")
     assert record.origem_calculo == "manual"
-    assert repository.parameter_changes(draft="manualdraft001")[0].campo == "indice"
+    assert audit_repository.parameter_changes(draft="manualdraft001")[0].campo == "indice"
 
 
 def test_legacy_calculation_records_gain_origin_and_identifier_without_losing_process(tmp_path):
@@ -73,8 +83,8 @@ def test_legacy_calculation_records_gain_origin_and_identifier_without_losing_pr
     connection.commit()
     connection.close()
 
-    repository = Repository(tmp_path)
-    with repository.connection() as current:
+    database = _migrated_database(tmp_path)
+    with database.connection() as current:
         row = current.execute(
             "SELECT process,origin,identifier FROM calculation_records WHERE id=?",
             ("calc_0123456789abcdef0123456789abcdef",),
@@ -109,7 +119,6 @@ def test_legacy_calculation_schema_gains_normalized_identity_state_hash_diff_and
             request TEXT NOT NULL,
             response TEXT NOT NULL,
             pdf BLOB NOT NULL,
-            audit_pdf BLOB NOT NULL,
             total TEXT,
             index_name TEXT NOT NULL,
             update_competence TEXT NOT NULL,
@@ -139,21 +148,21 @@ def test_legacy_calculation_schema_gains_normalized_identity_state_hash_diff_and
     connection.execute(
         """
         INSERT INTO calculation_versions(
-            calculation_id,version,base_version,created_at,created_by,request,response,pdf,audit_pdf,
+            calculation_id,version,base_version,created_at,created_by,request,response,pdf,
             total,index_name,update_competence,input_hash,policy_hash,engine_hash,indices_hash,changed_fields
-        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         (
             calculation_id, 1, None, "2026-01-01", "legacy", json.dumps(request), json.dumps(response),
-            sqlite3.Binary(b"%PDF-legacy"), sqlite3.Binary(b"%PDF-audit"), "100.00", "sem_correcao", "janeiro/2026",
+            sqlite3.Binary(b"%PDF-legacy"), "100.00", "sem_correcao", "janeiro/2026",
             "a" * 64, "b" * 64, "c" * 64, "d" * 64, "[]",
         ),
     )
     connection.commit()
     connection.close()
 
-    repository = Repository(tmp_path)
-    with repository.connection() as current:
+    database = _migrated_database(tmp_path)
+    with database.connection() as current:
         record = current.execute(
             "SELECT normalized_identifier,state FROM calculation_records WHERE id=?", (calculation_id,)
         ).fetchone()

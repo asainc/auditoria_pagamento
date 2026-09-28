@@ -18,7 +18,7 @@ from backend.container import Services
 from backend.errors import ServiceError
 from backend.models import Contract
 from backend.version import APP_VERSION, API_CONTRACT_VERSION, API_PREFIX, LEGACY_API_PREFIXES
-from backend.routers import audit, batches, calculations, documents, extractions, indices
+from backend.routers import audit, batches, calculations, documents, extractions, indices, quality
 from backend.services.extraction import ExtractionProvider
 
 
@@ -99,7 +99,7 @@ def create_app(settings: Settings | None = None, provider: ExtractionProvider | 
         """Informa disponibilidade sem revelar configuração interna."""
         return Health()
 
-    for router in (documents.router, extractions.router, calculations.router, indices.router, batches.router, audit.router):
+    for router in (documents.router, extractions.router, calculations.router, indices.router, batches.router, audit.router, quality.router):
         api.include_router(router)
     app.include_router(api, prefix=API_PREFIX)
     for legacy_prefix in LEGACY_API_PREFIXES:

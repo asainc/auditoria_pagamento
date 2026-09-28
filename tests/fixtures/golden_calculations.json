@@ -17,7 +17,6 @@
         "mes_atualizacao": "março",
         "ano_atualizacao": 2026,
         "juros_moratorios_tipo": "sem_juros",
-        "juros_compensatorios_tipo": "sem_juros",
         "auto_atualizar_planilhas_indices": false
       },
       "expected": {
@@ -40,14 +39,10 @@
             "data_inicio_prescricao": null,
             "prescricao_data_referencia_tipo": null,
             "prescricao_data_referencia": null,
-            "data_inicio_juros_compensatorios_efetiva": "2025-01-01",
             "data_inicio_juros_moratorios_efetiva": "2025-01-01",
             "fator_correcao": "1",
             "valor_atualizado": "1234.56",
             "base_juros_moratorios": "1234.56",
-            "n_juros_compensatorios": "0",
-            "percentual_juros_compensatorios": "0",
-            "juros_compensatorios": "0.00",
             "n_juros_moratorios": "0",
             "percentual_juros_moratorios": "0",
             "juros_moratorios": "0.00",
@@ -145,10 +140,6 @@
             "valor": "1234.56"
           },
           {
-            "campo": "total_juros_compensatorios",
-            "valor": "0.00"
-          },
-          {
             "campo": "total_juros_moratorios",
             "valor": "0.00"
           },
@@ -237,7 +228,6 @@
         "juros_moratorios_tipo": "capitalizacao_simples",
         "juros_moratorios_taxa": "1",
         "juros_moratorios_periodicidade": "mensal",
-        "juros_compensatorios_tipo": "sem_juros",
         "multa_percentual": "2",
         "honorarios": "10",
         "honorarios_tipo": "percentual",
@@ -264,14 +254,10 @@
             "data_inicio_prescricao": null,
             "prescricao_data_referencia_tipo": null,
             "prescricao_data_referencia": null,
-            "data_inicio_juros_compensatorios_efetiva": "2025-01-01",
             "data_inicio_juros_moratorios_efetiva": "2025-01-01",
             "fator_correcao": "1",
             "valor_atualizado": "1000.00",
             "base_juros_moratorios": "1000.00",
-            "n_juros_compensatorios": "0",
-            "percentual_juros_compensatorios": "0",
-            "juros_compensatorios": "0.00",
             "n_juros_moratorios": "14",
             "percentual_juros_moratorios": "14.00",
             "juros_moratorios": "140.00",
@@ -369,10 +355,6 @@
             "valor": "1000.00"
           },
           {
-            "campo": "total_juros_compensatorios",
-            "valor": "0.00"
-          },
-          {
             "campo": "total_juros_moratorios",
             "valor": "140.00"
           },
@@ -466,7 +448,6 @@
         "mes_atualizacao": "março",
         "ano_atualizacao": 2026,
         "juros_moratorios_tipo": "sem_juros",
-        "juros_compensatorios_tipo": "sem_juros",
         "compensacao_flag": true,
         "compensacao_tipo_calculo": "percentual",
         "compensacao_valor": "10",
@@ -492,14 +473,10 @@
             "data_inicio_prescricao": null,
             "prescricao_data_referencia_tipo": null,
             "prescricao_data_referencia": null,
-            "data_inicio_juros_compensatorios_efetiva": "2025-01-01",
             "data_inicio_juros_moratorios_efetiva": "2025-01-01",
             "fator_correcao": "1",
             "valor_atualizado": "1200.00",
             "base_juros_moratorios": "1200.00",
-            "n_juros_compensatorios": "0",
-            "percentual_juros_compensatorios": "0",
-            "juros_compensatorios": "0.00",
             "n_juros_moratorios": "0",
             "percentual_juros_moratorios": "0",
             "juros_moratorios": "0.00",
@@ -540,14 +517,10 @@
             "data_inicio_prescricao": null,
             "prescricao_data_referencia_tipo": null,
             "prescricao_data_referencia": null,
-            "data_inicio_juros_compensatorios_efetiva": "2025-02-01",
             "data_inicio_juros_moratorios_efetiva": "2025-02-01",
             "fator_correcao": "1",
             "valor_atualizado": "300.00",
             "base_juros_moratorios": "300.00",
-            "n_juros_compensatorios": "0",
-            "percentual_juros_compensatorios": "0",
-            "juros_compensatorios": "0.00",
             "n_juros_moratorios": "0",
             "percentual_juros_moratorios": "0",
             "juros_moratorios": "0.00",
@@ -555,16 +528,16 @@
             "multa_manual": "0.00",
             "multa": "0.00",
             "total": "300.00",
-            "incide_multa_manual": true,
-            "incide_art_523": true,
+            "incide_multa_manual": false,
+            "incide_art_523": false,
             "honorarios_informados_linha": "0.00",
-            "base_art_523": "300.00",
+            "base_art_523": "0.00",
             "multa_art_523": "0.00",
             "honorarios_art_523": "0.00",
             "total_art_523": "0.00",
             "total_com_honorarios_e_art_523": "300.00",
-            "compensacao_linha": "30.00",
-            "total_liquido_apos_compensacao": "270.00",
+            "compensacao_linha": "0.00",
+            "total_liquido_apos_compensacao": "300.00",
             "valor_original": "300.00",
             "multiplicador_configurado": null,
             "multiplicador_aplicado": 1,
@@ -645,10 +618,6 @@
             "valor": "1500.00"
           },
           {
-            "campo": "total_juros_compensatorios",
-            "valor": "0.00"
-          },
-          {
             "campo": "total_juros_moratorios",
             "valor": "0.00"
           },
@@ -710,11 +679,11 @@
           },
           {
             "campo": "valor_compensacao",
-            "valor": "150.00"
+            "valor": "120.00"
           },
           {
             "campo": "total_geral",
-            "valor": "1350.00"
+            "valor": "1380.00"
           }
         ]
       }
@@ -742,7 +711,6 @@
         "mes_atualizacao": "março",
         "ano_atualizacao": 2026,
         "juros_moratorios_tipo": "sem_juros",
-        "juros_compensatorios_tipo": "sem_juros",
         "duplo_indice_flag": true,
         "duplo_indice_primeiro_indice": "sem_correcao",
         "duplo_indice_primeiro_data_inicio": "2024-01-01",
@@ -772,14 +740,10 @@
             "data_inicio_prescricao": null,
             "prescricao_data_referencia_tipo": null,
             "prescricao_data_referencia": null,
-            "data_inicio_juros_compensatorios_efetiva": "2024-06-01",
             "data_inicio_juros_moratorios_efetiva": "2024-06-01",
             "fator_correcao": "1",
             "valor_atualizado": "100.00",
             "base_juros_moratorios": "100.00",
-            "n_juros_compensatorios": "0",
-            "percentual_juros_compensatorios": "0",
-            "juros_compensatorios": "0.00",
             "n_juros_moratorios": "0",
             "percentual_juros_moratorios": "0",
             "juros_moratorios": "0.00",
@@ -820,14 +784,10 @@
             "data_inicio_prescricao": null,
             "prescricao_data_referencia_tipo": null,
             "prescricao_data_referencia": null,
-            "data_inicio_juros_compensatorios_efetiva": "2025-06-01",
             "data_inicio_juros_moratorios_efetiva": "2025-06-01",
             "fator_correcao": "1",
             "valor_atualizado": "200.00",
             "base_juros_moratorios": "200.00",
-            "n_juros_compensatorios": "0",
-            "percentual_juros_compensatorios": "0",
-            "juros_compensatorios": "0.00",
             "n_juros_moratorios": "0",
             "percentual_juros_moratorios": "0",
             "juros_moratorios": "0.00",
@@ -923,10 +883,6 @@
           {
             "campo": "total_atualizado",
             "valor": "300.00"
-          },
-          {
-            "campo": "total_juros_compensatorios",
-            "valor": "0.00"
           },
           {
             "campo": "total_juros_moratorios",

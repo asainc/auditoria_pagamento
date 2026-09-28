@@ -7,6 +7,7 @@ import math
 import sqlite3
 from datetime import date, datetime, time as clock_time, timezone
 from decimal import Decimal, InvalidOperation
+from typing import Callable
 from uuid import uuid4
 
 from backend.calculation_identity import display_process_number, normalize_manual_identifier, normalize_process_number
@@ -73,13 +74,24 @@ class CalculationRepository:
         *,
         request: CalculationRequest,
         response: CalculationResponse,
-        pdf: bytes,
         actor: str,
+        pdf: bytes | None = None,
+        pdf_factory: Callable[[str, int], bytes] | None = None,
         calculation_id: str | None = None,
         base_version: int | None = None,
         expected_current_version: int | None = None,
     ) -> tuple[CalculationVersionRef, CalculationExecutionRef]:
-        """Cria versão somente para novo estado funcional e sempre registra execução."""
+        """Cria versão somente para novo estado funcional e sempre registra execução.
+
+        O PDF pode ser fornecido pronto ou por ``pdf_factory``. A factory é preferida
+        no fluxo versionado porque só é chamada depois que a versão exata foi
+        resolvida dentro da mesma transação, garantindo que o número impresso na
+        memória corresponda ao snapshot persistido.
+        """
+        if pdf is None and pdf_factory is None:
+            raise ValueError("A memória PDF é obrigatória para registrar uma execução.")
+        if pdf is not None and pdf_factory is not None:
+            raise ValueError("Informe pdf ou pdf_factory, nunca ambos.")
         moment = timestamp()
         request_payload = request.model_dump(mode="json")
         state_hash = business_hash(request_payload)
@@ -203,6 +215,11 @@ class CalculationRepository:
                     created = True
                     version_created_at = moment
 
+            assert calculation_id is not None
+            memory_pdf = pdf_factory(calculation_id, version) if pdf_factory is not None else pdf
+            if memory_pdf is None:
+                raise ValueError("A memória PDF não pôde ser gerada para a execução.")
+
             execution_id = f"exec_{uuid4().hex}"
             metadata = response.metadata
             connection.execute(
@@ -224,7 +241,7 @@ class CalculationRepository:
                     id,execution_id,kind,sha256,size_bytes,mime_type,content,created_at
                 ) VALUES(?,?,?,?,?,'application/pdf',?,?)
                 """,
-                (f"art_{uuid4().hex}", execution_id, "memoria", _artifact_hash(pdf), len(pdf), sqlite3.Binary(pdf), moment),
+                (f"art_{uuid4().hex}", execution_id, "memoria", _artifact_hash(memory_pdf), len(memory_pdf), sqlite3.Binary(memory_pdf), moment),
             )
             connection.execute("UPDATE calculation_records SET updated_at=? WHERE id=?", (moment, calculation_id))
 
@@ -452,46 +469,32 @@ class CalculationRepository:
             total_itens=total, total_paginas=math.ceil(total / page_size) if total else 0,
         )
 
-    def version_pdf(self, calculation_id: str, version: int, *, audit: bool) -> bytes | None:
-        """Lê artefato congelado; ``audit`` existe apenas para históricos legados.
-
-        Novas execuções persistem somente ``memoria``. Para não alterar a tela de
-        Histórico nesta entrega, solicitações legadas por ``memoria_auditavel``
-        usam a memória padrão quando o artefato antigo não existe. Nenhum PDF
-        adicional é gerado.
-        """
-        kinds = ("memoria_auditavel", "memoria") if audit else ("memoria",)
+    def version_pdf(self, calculation_id: str, version: int) -> bytes | None:
+        """Lê a memória de cálculo congelada quando a versão foi executada."""
         with self.database.connection() as connection:
-            for kind in kinds:
-                row = connection.execute(
-                    """
-                    SELECT a.content
-                    FROM calculation_executions e
-                    JOIN calculation_artifacts a ON a.execution_id=e.id AND a.kind=?
-                    WHERE e.calculation_id=? AND e.version=?
-                    ORDER BY e.executed_at,e.id
-                    LIMIT 1
-                    """,
-                    (kind, calculation_id, version),
-                ).fetchone()
-                if row and row["content"] is not None:
-                    return bytes(row["content"])
-        return None
+            row = connection.execute(
+                """
+                SELECT a.content
+                FROM calculation_executions e
+                JOIN calculation_artifacts a ON a.execution_id=e.id AND a.kind='memoria'
+                WHERE e.calculation_id=? AND e.version=?
+                ORDER BY e.executed_at,e.id
+                LIMIT 1
+                """,
+                (calculation_id, version),
+            ).fetchone()
+            return bytes(row["content"]) if row and row["content"] is not None else None
 
-    def execution_pdf(self, calculation_id: str, execution_id: str, *, audit: bool) -> bytes | None:
-        """Lê a memória da execução; ``audit`` mantém somente compatibilidade legada."""
-        kinds = ("memoria_auditavel", "memoria") if audit else ("memoria",)
+    def execution_pdf(self, calculation_id: str, execution_id: str) -> bytes | None:
+        """Lê a memória de cálculo produzida por uma execução específica."""
         with self.database.connection() as connection:
-            for kind in kinds:
-                row = connection.execute(
-                    """
-                    SELECT a.content
-                    FROM calculation_executions e
-                    JOIN calculation_artifacts a ON a.execution_id=e.id AND a.kind=?
-                    WHERE e.calculation_id=? AND e.id=?
-                    """,
-                    (kind, calculation_id, execution_id),
-                ).fetchone()
-                if row and row["content"] is not None:
-                    return bytes(row["content"])
-        return None
+            row = connection.execute(
+                """
+                SELECT a.content
+                FROM calculation_executions e
+                JOIN calculation_artifacts a ON a.execution_id=e.id AND a.kind='memoria'
+                WHERE e.calculation_id=? AND e.id=?
+                """,
+                (calculation_id, execution_id),
+            ).fetchone()
+            return bytes(row["content"]) if row and row["content"] is not None else None

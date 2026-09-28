@@ -3,7 +3,7 @@
 O contrato HTTP permanece plano para não quebrar clientes existentes. Antes de
 entrar na orquestração, os campos são convertidos para objetos coesos e tipados,
 separando atualização, juros, valores percentuais/fixos, prescrição e duplo índice.
-O motor legado continua recebendo o contrato plano por meio de ``contrato_flat``.
+O motor recebe o contrato plano por meio de ``contrato_flat``; a estrutura agrupada fica restrita ao domínio do backend.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ class AmountRule:
 
     @classmethod
     def build(cls, tipo: str | None, valor: Decimal | None) -> "AmountRule | None":
-        """Converte o par legado tipo/valor sem misturar taxa e dinheiro no domínio."""
+        """Converte o par tipo/valor sem misturar taxa percentual e dinheiro no domínio."""
         if tipo is None or valor is None:
             return None
         decimal_value = Decimal(str(valor))
@@ -56,7 +56,6 @@ class InterestRule:
     periodicidade: str | None
     pro_rata: bool | None
     data_inicio: date | None
-    sobre_compensatorios: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -93,7 +92,6 @@ class NormalizedCalculationParameters:
     """Visão interna orientada ao domínio; não é serializada diretamente na API."""
 
     atualizacao: MonetaryUpdateRule
-    juros_compensatorios: InterestRule
     juros_moratorios: InterestRule
     multa: AmountRule | None
     honorarios: AmountRule | None
@@ -121,20 +119,12 @@ def normalize_parameters(parameters: CalculationParameters) -> NormalizedCalcula
             deflacionar=parameters.deflacionar_valor_nominal,
             competencia_final_taxa_legal=parameters.competencia_final_taxa_legal,
         ),
-        juros_compensatorios=InterestRule(
-            tipo=parameters.juros_compensatorios_tipo,
-            taxa=_decimal(parameters.juros_compensatorios_taxa),
-            periodicidade=parameters.juros_compensatorios_periodicidade,
-            pro_rata=parameters.juros_compensatorios_pro_rata,
-            data_inicio=parameters.juros_compensatorios_data_inicio,
-        ),
         juros_moratorios=InterestRule(
             tipo=parameters.juros_moratorios_tipo,
             taxa=_decimal(parameters.juros_moratorios_taxa),
             periodicidade=parameters.juros_moratorios_periodicidade,
             pro_rata=parameters.juros_moratorios_pro_rata,
             data_inicio=parameters.juros_moratorios_data_inicio,
-            sobre_compensatorios=parameters.juros_moratorios_sobre_compensatorios,
         ),
         multa=AmountRule.build(parameters.multa_tipo, parameters.multa_valor),
         honorarios=AmountRule.build(parameters.honorarios_tipo, parameters.honorarios),

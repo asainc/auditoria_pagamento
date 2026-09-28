@@ -1,3 +1,8 @@
+"""Seleciona a forma de calcular juros moratórios a partir do tipo configurado.
+
+O módulo não decide qual regra deve ser usada juridicamente; ele executa a regra
+recebida em parâmetros previamente revisados.
+"""
 from __future__ import annotations
 
 from datetime import date
@@ -46,8 +51,6 @@ def calcular_juros(
     data_fim_selic_stj1368: date | None = None,
     competencia_final_taxa_legal_stj1368: str | None = None,
     usar_selic_mensal_sem_deducao: bool = False,
-    valor_referencia_percentual_stj1368: Decimal | None = None,
-    valor_incidencia_stj1368: Decimal | None = None,
 ) -> tuple[Decimal, Decimal, Decimal]:
     """Seleciona e executa a regra de juros aplicável.
 
@@ -74,15 +77,7 @@ def calcular_juros(
         inicio = data_primeiro_dia(competencia_data(inicio))
 
     if tipo in TIPOS_JUROS_MORATORIOS_DIARIOS_SELIC_IPCAE:
-        # Compatibilidade com o conjunto de validação do projeto:
-        # - mora apenas sobre o valor atualizado: soma a planilha diária até o
-        #   último dia disponível;
-        # - mora sobre valor atualizado + compensatórios: aplica a extensão
-        #   mensal calibrada para cenários de mar/2026.
-        aplicar_extensao = (
-            valor_referencia_percentual_stj1368 is not None
-            and Decimal(valor_base) != Decimal(valor_referencia_percentual_stj1368)
-        )
+        aplicar_extensao = False
         return calcular_juros_moratorios_diario(
             valor_base=valor_base,
             data_inicio=inicio,
@@ -117,8 +112,6 @@ def calcular_juros(
             data_fim_selic_stj1368=data_fim_selic_stj1368,
             competencia_final_taxa_legal_stj1368=competencia_final_taxa_legal_stj1368,
             usar_selic_mensal_sem_deducao=usar_selic_mensal_sem_deducao,
-            valor_referencia_percentual=valor_referencia_percentual_stj1368,
-            valor_incidencia=valor_incidencia_stj1368,
         )
     if tipo in TIPOS_JUROS_MORATORIOS_CTN_LEI_14905:
         return soma_juros_moratorios_ctn_lei_14905(

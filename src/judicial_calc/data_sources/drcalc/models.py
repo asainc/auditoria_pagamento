@@ -46,7 +46,7 @@ class DrCalcSeries:
 
 @dataclass
 class DrCalcUpdateResult:
-    """Resultado auditável da tentativa de atualização."""
+    """Resultado rastreável da tentativa de atualização."""
 
     executed: bool
     skipped: bool
@@ -69,7 +69,7 @@ class DrCalcUpdateResult:
     errors: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serializa o resultado da atualização do DrCalc para um dicionário simples e auditável."""
+        """Serializa o resultado da atualização do DrCalc para um dicionário simples e rastreável."""
         return asdict(self)
 
 

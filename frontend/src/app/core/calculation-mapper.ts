@@ -1,16 +1,19 @@
 /** Único adaptador de formulário camelCase para os contratos snake_case. */
 import {
   CalculationParameters_Input,
+  DamageFinancialCriteria_Input,
   CalculationRequest,
   CalculationVersionDetail,
   ExtractionResult,
   Installment_Input,
   VersionedCalculationResponse,
 } from './contracts';
-import { MANUAL_DEFAULT_PARAMETERS, PARAM_FIELDS, ParameterKey, REQUIRED_PARAMETER_KEYS } from '../calculation/parameter-fields';
+import { DAMAGE_SCOPED_PARAMETER_KEYS, MANUAL_DEFAULT_PARAMETERS, PARAM_FIELDS, PROCESS_DEFAULT_PARAMETERS, ParameterKey, REQUIRED_PARAMETER_KEYS } from '../calculation/parameter-fields';
 
 export type CalculationOrigin = 'manual' | 'processo';
 export type ParameterForm = Partial<Record<ParameterKey, string | number | boolean | null>>;
+export type DamageTypeKey = 'dano_material' | 'dano_moral';
+export type DamageParameterForms = Record<DamageTypeKey, ParameterForm>;
 export type InstallmentForm = Omit<Installment_Input, 'valor_singelo'> & {valor_singelo: string};
 
 export interface WorkspaceDraft {
@@ -20,6 +23,7 @@ export interface WorkspaceDraft {
   identificadorCalculo: string;
   installments: InstallmentForm[];
   parameters: ParameterForm;
+  damageParameters: DamageParameterForms;
   humanReviewed: boolean;
   revision: number;
   result: VersionedCalculationResponse | null;
@@ -42,6 +46,34 @@ function newDraftId(): string {
   return `draft_${Date.now()}_${Math.random().toString(36).slice(2, 14)}`;
 }
 
+function damageDefaults(origin: CalculationOrigin): DamageParameterForms {
+  // Em processo real, defaults operacionais só podem entrar depois da extração:
+  // preencher antes faria um padrão bloquear um valor explicitamente documentado.
+  const defaults = origin === 'manual' ? MANUAL_DEFAULT_PARAMETERS : {};
+  const scoped = Object.fromEntries(DAMAGE_SCOPED_PARAMETER_KEYS
+    .filter(key => defaults[key] !== undefined)
+    .map(key => [key, defaults[key]])) as ParameterForm;
+  return {dano_material:{...scoped}, dano_moral:{...scoped}};
+}
+
+function scopedParameters(source: Partial<CalculationParameters_Input>): ParameterForm {
+  return Object.fromEntries(DAMAGE_SCOPED_PARAMETER_KEYS
+    .filter(key => source[key] !== undefined && source[key] !== null && source[key] !== '')
+    .map(key => [key, source[key]])) as ParameterForm;
+}
+
+function serializeParameters(source: ParameterForm): ParameterForm {
+  const result: ParameterForm = {};
+  for (const field of PARAM_FIELDS) {
+    const value = source[field.key];
+    if (value === '' || value === null || value === undefined) continue;
+    if (field.type === 'number') result[field.key] = Number(value);
+    else if (field.type === 'text' && /taxa$|percentual$|honorarios$|valor$|valor_parcela$/.test(field.key)) result[field.key] = decimalText(String(value));
+    else result[field.key] = value;
+  }
+  return result;
+}
+
 /**
  * Cria um rascunho isolado para processo real ou cálculo manual.
  *
@@ -57,6 +89,7 @@ export function blankDraft(process: string, origin: CalculationOrigin = 'process
     identificadorCalculo: origin === 'processo' ? process : '',
     installments: [],
     parameters: origin === 'manual' ? {...MANUAL_DEFAULT_PARAMETERS} as ParameterForm : {},
+    damageParameters: damageDefaults(origin),
     humanReviewed: false,
     revision: 0,
     result: null,
@@ -86,6 +119,15 @@ export function draftFromCalculationVersion(detail: CalculationVersionDetail): W
       valor_singelo:String(row.valor_singelo),
     })),
     parameters:{...request.parametros} as ParameterForm,
+    damageParameters: request.parametros_por_dano
+      ? {
+          dano_material:{...request.parametros_por_dano.dano_material} as ParameterForm,
+          dano_moral:{...request.parametros_por_dano.dano_moral} as ParameterForm,
+        }
+      : {
+          dano_material:scopedParameters(request.parametros),
+          dano_moral:scopedParameters(request.parametros),
+        },
     humanReviewed:false,
     revision:0,
     result:{
@@ -121,7 +163,20 @@ export function decimalText(value: string | number): string {
 
 /** Checagens locais orientam preenchimento; a validação oficial ocorre no FastAPI. */
 export function missingFields(draft: WorkspaceDraft): string[] {
-  const labels = REQUIRED_PARAMETER_KEYS.filter(key => !draft.parameters[key]).map(key => PARAM_FIELDS.find(field => field.key === key)?.label ?? key);
+  const labels: string[] = [];
+  const activeDamages = new Set(draft.installments
+    .filter(row => row.data || row.valor_singelo)
+    .map(row => row.verba_tipo)
+    .filter((value): value is DamageTypeKey => value === 'dano_material' || value === 'dano_moral'));
+  for (const damage of activeDamages) {
+    const title = damage === 'dano_material' ? 'Dano Material' : 'Dano Moral';
+    for (const key of REQUIRED_PARAMETER_KEYS) {
+      const value = DAMAGE_SCOPED_PARAMETER_KEYS.includes(key)
+        ? (draft.damageParameters[damage][key] ?? draft.parameters[key])
+        : draft.parameters[key];
+      if (!value) labels.push(`${PARAM_FIELDS.find(field => field.key === key)?.label ?? key} (${title})`);
+    }
+  }
   if (draft.calculationOrigin === 'processo' && !draft.numeroProcesso) labels.push('Processo a calcular');
   if (draft.calculationOrigin === 'manual' && !draft.identificadorCalculo.trim()) labels.push('Identificador do cálculo manual');
   if (!draft.installments.some(row => row.data || row.valor_singelo)) labels.push('Ao menos uma parcela');
@@ -134,20 +189,30 @@ export function toCalculationRequest(draft: WorkspaceDraft): CalculationRequest 
   const missing = missingFields(draft);
   if (missing.length) throw new Error('Complete: ' + missing.join('; ') + '.');
   if (!draft.humanReviewed) throw new Error('Confirme a revisão dos dados antes de calcular.');
-  const params: ParameterForm = {};
-  for (const field of PARAM_FIELDS) {
-    const value = draft.parameters[field.key];
-    if (value === '' || value === null || value === undefined) continue;
-    if (field.type === 'number') params[field.key] = Number(value);
-    else if (field.type === 'text' && /taxa$|percentual$|honorarios$|valor$|valor_parcela$/.test(field.key)) params[field.key] = decimalText(String(value));
-    else params[field.key] = value;
+  const globalParams = serializeParameters(draft.parameters);
+  const materialParams = serializeParameters(draft.damageParameters.dano_material);
+  const moralParams = serializeParameters(draft.damageParameters.dano_moral);
+  // Quando o bloco por tipo de dano não está preenchido, os campos financeiros
+  // gerais são usados somente para preencher campos ainda vazios daquele dano.
+  for (const key of DAMAGE_SCOPED_PARAMETER_KEYS) {
+    const fallbackValue = globalParams[key];
+    if (fallbackValue === undefined || fallbackValue === null || fallbackValue === '') continue;
+    if (materialParams[key] === undefined || materialParams[key] === null || materialParams[key] === '') materialParams[key] = fallbackValue;
+    if (moralParams[key] === undefined || moralParams[key] === null || moralParams[key] === '') moralParams[key] = fallbackValue;
   }
+  const hasMaterial = draft.installments.some(row => row.verba_tipo === 'dano_material');
+  const fallbackFinancial = hasMaterial ? materialParams : moralParams;
+  const params = {...globalParams, ...fallbackFinancial};
   return {
     origem_calculo: draft.calculationOrigin,
     numero_processo: draft.calculationOrigin === 'processo' ? draft.numeroProcesso : null,
     identificador_calculo: draft.calculationOrigin === 'processo' ? draft.numeroProcesso : draft.identificadorCalculo.trim(),
     parcelas: draft.installments.filter(row => row.data || row.valor_singelo || row.descricao).map(row => ({...row, valor_singelo:decimalText(row.valor_singelo)})),
     parametros: params as CalculationParameters_Input,
+    parametros_por_dano:{
+      dano_material:materialParams as DamageFinancialCriteria_Input,
+      dano_moral:moralParams as DamageFinancialCriteria_Input,
+    },
     revisao_humana_confirmada:true,
     honorarios_sobre_danos_morais:draft.feesOnMoralDamages,
     competencia_automatica:draft.automaticCompetence,
@@ -158,37 +223,80 @@ export function toCalculationRequest(draft: WorkspaceDraft): CalculationRequest 
 export function applyExtraction(draft: WorkspaceDraft, result: ExtractionResult, job: string, extractedAt = ''): WorkspaceDraft {
   if (draft.calculationOrigin !== 'processo') return draft;
   const parameters = {...draft.parameters};
+  const damageParameters: DamageParameterForms = {
+    dano_material:{...draft.damageParameters.dano_material},
+    dano_moral:{...draft.damageParameters.dano_moral},
+  };
+  // Quando um rascunho contém somente o valor financeiro geral, esse valor
+  // revisado é tratado como valor existente dos dois danos até que cada ramo
+  // seja editado/extraído de forma independente.
+  for (const key of DAMAGE_SCOPED_PARAMETER_KEYS) {
+    const fallbackValue = parameters[key];
+    if (fallbackValue === undefined || fallbackValue === null || fallbackValue === '') continue;
+    for (const damage of ['dano_material','dano_moral'] as DamageTypeKey[]) {
+      const current = damageParameters[damage][key];
+      if (current === undefined || current === null || current === '') damageParameters[damage][key] = fallbackValue;
+    }
+  }
   for (const field of PARAM_FIELDS) {
-    const current = parameters[field.key];
-    if (current !== undefined && current !== '' && current !== null) continue;
-    const path = `parametros.${field.key}`;
-    const consolidated = result.parametros_consolidados?.[field.key];
-    if (consolidated !== undefined && consolidated !== null) {
-      parameters[field.key] = consolidated;
-      continue;
+    const isScoped = DAMAGE_SCOPED_PARAMETER_KEYS.includes(field.key);
+    const targets: Array<DamageTypeKey | null> = isScoped ? ['dano_material','dano_moral'] : [null];
+    for (const damage of targets) {
+      const target = damage ? damageParameters[damage] : parameters;
+      const current = target[field.key];
+      if (current !== undefined && current !== '' && current !== null) continue;
+      const scopedKey = damage ? `${damage}.${String(field.key)}` : String(field.key);
+      const scopedPath = damage ? `parametros_por_dano.${damage}.${String(field.key)}` : `parametros.${String(field.key)}`;
+      const fallbackPath = `parametros.${String(field.key)}`;
+      const consolidated = result.parametros_consolidados?.[scopedKey] ?? result.parametros_consolidados?.[String(field.key)];
+      if (consolidated !== undefined && consolidated !== null) {
+        target[field.key] = consolidated;
+        continue;
+      }
+      const chronologyDecision = [...(result.decisoes_cronologicas ?? [])].reverse().find(item => item.campo === scopedPath)
+        ?? [...(result.decisoes_cronologicas ?? [])].reverse().find(item => item.campo === fallbackPath);
+      if (chronologyDecision) {
+        if (chronologyDecision.valor !== null && chronologyDecision.valor !== undefined) target[field.key] = chronologyDecision.valor;
+        continue;
+      }
+      const candidates = result.campos.filter(row => (row.campo === scopedPath || row.campo === fallbackPath) && row.escopo === 'caso_concreto' && row.valor !== null);
+      const values = new Set(candidates.map(row => JSON.stringify(row.valor)));
+      if (values.size === 1) target[field.key] = candidates[0].valor;
     }
-    const chronologyDecision = [...(result.decisoes_cronologicas ?? [])].reverse().find(item => item.campo === path);
-    if (chronologyDecision) {
-      if (chronologyDecision.valor !== null && chronologyDecision.valor !== undefined) parameters[field.key] = chronologyDecision.valor;
-      continue;
-    }
-    const candidates = result.campos.filter(row => row.campo === path && row.escopo === 'caso_concreto' && row.valor !== null);
-    const values = new Set(candidates.map(row => JSON.stringify(row.valor)));
-    if (values.size === 1) parameters[field.key] = candidates[0].valor;
+  }
+  // Mantém o bloco plano apenas como espelho do contrato plano quando ambos os
+  // danos continuam iguais. Divergências reais permanecem somente nos ramos.
+  for (const key of DAMAGE_SCOPED_PARAMETER_KEYS) {
+    const material = damageParameters.dano_material[key];
+    const moral = damageParameters.dano_moral[key];
+    if (material !== undefined && material !== null && material !== '' && material === moral) parameters[key] = material;
   }
   for (const adjustment of result.ajustes_operacionais ?? []) {
     const field = PARAM_FIELDS.find(field => `parametros.${field.key}` === adjustment.campo);
+    if (!field) continue;
     const chronologyDecision = [...(result.decisoes_cronologicas ?? [])].reverse().find(item => item.campo === adjustment.campo);
-    const currentValue = field ? parameters[field.key] : undefined;
-    if (field && !chronologyDecision && (currentValue === undefined || currentValue === '' || currentValue === null)) parameters[field.key] = adjustment.valor;
+    if (chronologyDecision) continue;
+    if (DAMAGE_SCOPED_PARAMETER_KEYS.includes(field.key)) {
+      for (const damage of ['dano_material','dano_moral'] as DamageTypeKey[]) {
+        const currentValue = damageParameters[damage][field.key];
+        if (currentValue === undefined || currentValue === '' || currentValue === null) damageParameters[damage][field.key] = adjustment.valor;
+      }
+      const material = damageParameters.dano_material[field.key];
+      const moral = damageParameters.dano_moral[field.key];
+      if (material === moral && material !== undefined && material !== null && material !== '') parameters[field.key] = material;
+      continue;
+    }
+    const currentValue = parameters[field.key];
+    if (currentValue === undefined || currentValue === '' || currentValue === null) parameters[field.key] = adjustment.valor;
   }
   const hasRows = draft.installments.some(row => row.data || row.valor_singelo);
   return {
     ...draft,
     parameters,
+    damageParameters,
     installments:hasRows ? draft.installments : result.parcelas,
     feesOnMoralDamages:hasRows ? draft.feesOnMoralDamages : Boolean(result.honorarios_sobre_danos_morais),
-    automaticCompetence:!draft.parameters.mes_atualizacao && !draft.parameters.ano_atualizacao ? Boolean(result.competencia_automatica) : draft.automaticCompetence,
+    automaticCompetence:(!draft.damageParameters.dano_material.mes_atualizacao && !draft.damageParameters.dano_moral.mes_atualizacao) ? Boolean(result.competencia_automatica) : draft.automaticCompetence,
     humanReviewed:false,
     result:null,
     confirmedRequest:null,

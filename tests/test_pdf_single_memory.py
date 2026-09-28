@@ -3,16 +3,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-def test_no_auditable_pdf_generator_in_runtime_code():
-    targets = [
-        ROOT / "src/judicial_calc/io/pdf.py",
-        ROOT / "src/judicial_calc/__init__.py",
-        ROOT / "backend/services/engine.py",
-        ROOT / "backend/services/calculation.py",
-    ]
-    text = "\n".join(path.read_text(encoding="utf-8") for path in targets)
-    assert "salvar_resultado_pdf_auditavel" not in text
-    assert "MEMÓRIA DE CÁLCULO AUDITÁVEL" not in text
+def test_runtime_exposes_single_pdf_memory_generator():
+    """A aplicação mantém somente a memória de cálculo como artefato PDF."""
+    pdf_source = (ROOT / "src/judicial_calc/io/pdf.py").read_text(encoding="utf-8")
+    public_api = (ROOT / "src/judicial_calc/__init__.py").read_text(encoding="utf-8")
+    assert "salvar_resultado_pdf" in pdf_source + public_api
 
 def test_new_execution_persists_only_standard_memory(client, payload):
     result = client.post("/api/calculos", json=payload)

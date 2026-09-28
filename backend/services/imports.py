@@ -4,7 +4,7 @@ from __future__ import annotations
 import csv
 import io
 import json
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 

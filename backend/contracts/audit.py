@@ -18,7 +18,14 @@ class ParameterChangeInput(Contract):
 
     @model_validator(mode="after")
     def validate_change(self) -> "ParameterChangeInput":
-        if self.campo not in parameter_keys():
+        valid_fields = set(parameter_keys())
+        scoped_match = self.campo.split(".", 1) if "." in self.campo else None
+        scoped_valid = bool(
+            scoped_match
+            and scoped_match[0] in {"dano_material", "dano_moral"}
+            and scoped_match[1] in valid_fields
+        )
+        if self.campo not in valid_fields and not scoped_valid:
             raise ValueError("campo não pertence ao catálogo de parâmetros.")
         if self.origem_calculo == "manual" and self.numero_processo is not None:
             raise ValueError("Revisão manual não deve informar numero_processo.")

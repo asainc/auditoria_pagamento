@@ -14,7 +14,7 @@
 
 .document-workspace{
   display:grid;
-  grid-template-columns:minmax(0,1fr) clamp(300px,34%,460px);
+  grid-template-columns:minmax(0,1fr) clamp(340px,40%,520px);
   grid-template-areas:"pdf tray";
   grid-template-rows:minmax(0,1fr);
   gap:12px;
@@ -79,7 +79,7 @@
   .workspace.sidebar-collapsed{grid-template-columns:minmax(0,1fr)}
   .document-workspace{
     display:grid;
-    grid-template-columns:minmax(0,1fr) clamp(280px,35%,400px);
+    grid-template-columns:minmax(0,1fr) clamp(320px,40%,460px);
     grid-template-areas:"pdf tray";
     grid-template-rows:minmax(0,1fr);
     min-height:0;
@@ -104,7 +104,7 @@
   .document-workspace{
     display:grid;
     flex-direction:initial;
-    grid-template-columns:minmax(0,1fr) clamp(250px,38%,340px);
+    grid-template-columns:minmax(0,1fr) clamp(280px,42%,380px);
     grid-template-areas:"pdf tray";
     grid-template-rows:minmax(0,1fr);
     gap:10px;

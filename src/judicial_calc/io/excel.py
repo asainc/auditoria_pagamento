@@ -1,3 +1,8 @@
+"""Exportação do resultado do cálculo para planilha Excel auditável.
+
+Entrada principal: ``ResultadoCalculo``. Saída principal: arquivo ``.xlsx`` com
+memória, resumo e informações de rastreabilidade quando disponíveis.
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -41,7 +46,7 @@ def _write_if_not_empty(writer: pd.ExcelWriter, sheet_name: str, value: Any) -> 
 
 
 def salvar_resultado_excel(resultado: ResultadoCalculo, caminho: str | Path) -> None:
-    """Salva a memória, resumo e trilha auditável do cálculo em Excel.
+    """Salva a memória, resumo e trilha rastreável do cálculo em Excel.
 
     Além das abas históricas ``memoria`` e ``resumo``, o export agora inclui
     evidências, documentos, conflitos, verbas, validações

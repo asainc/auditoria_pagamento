@@ -24,7 +24,6 @@ def test_authorized_defaults_fill_only_absent_fields():
     expected_month={1:"janeiro",2:"fevereiro",3:"março",4:"abril",5:"maio",6:"junho",7:"julho",8:"agosto",9:"setembro",10:"outubro",11:"novembro",12:"dezembro"}[int(coverage.maximum_update_competence[5:7])]
     assert values["parametros.indice"]=="tjsp_inpc_ipca15_lei_14905"
     assert values["parametros.juros_moratorios_tipo"]=="taxa_legal_12_aa_6_aa"
-    assert values["parametros.juros_compensatorios_tipo"]=="taxa_legal_12_aa_6_aa"
     assert values["parametros.art_523"]=="nao_aplicar"
     assert values["parametros.mes_atualizacao"]==expected_month
     assert values["parametros.ano_atualizacao"]==expected_year
@@ -35,12 +34,11 @@ def test_authorized_defaults_fill_only_absent_fields():
 
 
 def test_explicit_index_and_capitalization_are_preserved():
-    source=result([("parametros.indice","sem_correcao"),("parametros.juros_moratorios_tipo","capitalizacao_simples"),("parametros.juros_moratorios_taxa","1"),("parametros.juros_compensatorios_tipo","sem_juros"),("parametros.art_523","aplicar_multa"),("parametros.mes_atualizacao","março"),("parametros.ano_atualizacao",2026)])
+    source=result([("parametros.indice","sem_correcao"),("parametros.juros_moratorios_tipo","capitalizacao_simples"),("parametros.juros_moratorios_taxa","1"),("parametros.art_523","aplicar_multa"),("parametros.mes_atualizacao","março"),("parametros.ano_atualizacao",2026)])
     output=OperationalPolicy().apply(source,date(2027,2,12))
     values=adjustments(output)
     assert "parametros.indice" not in values
     assert "parametros.juros_moratorios_tipo" not in values
-    assert "parametros.juros_compensatorios_tipo" not in values
     assert "parametros.art_523" not in values
     assert "parametros.mes_atualizacao" not in values
     assert not output.competencia_automatica
@@ -131,11 +129,9 @@ def test_request_defaults_depend_on_origin(payload):
     manual["identificador_calculo"] = "manual-defaults"
     manual["parametros"] = dict(payload["parametros"])
     manual["parametros"].pop("juros_moratorios_tipo", None)
-    manual["parametros"].pop("juros_compensatorios_tipo", None)
     manual["parametros"].pop("art_523", None)
     validated_manual = CalculationRequest.model_validate(manual)
     assert validated_manual.parametros.juros_moratorios_tipo == "sem_juros"
-    assert validated_manual.parametros.juros_compensatorios_tipo == "sem_juros"
     assert validated_manual.parametros.art_523 == "nao_aplicar"
 
     real = dict(payload)
@@ -143,11 +139,9 @@ def test_request_defaults_depend_on_origin(payload):
     real["numero_processo"] = "1001"
     real["parametros"] = dict(payload["parametros"])
     real["parametros"].pop("juros_moratorios_tipo", None)
-    real["parametros"].pop("juros_compensatorios_tipo", None)
     real["parametros"].pop("art_523", None)
     validated_real = CalculationRequest.model_validate(real)
     assert validated_real.parametros.juros_moratorios_tipo == "taxa_legal_12_aa_6_aa"
-    assert validated_real.parametros.juros_compensatorios_tipo == "taxa_legal_12_aa_6_aa"
     assert validated_real.parametros.art_523 == "nao_aplicar"
 
 

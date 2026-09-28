@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import copy
+import io
+
+from pypdf import PdfReader
 
 
 def history_page(client, **params):
@@ -29,6 +32,14 @@ def test_first_process_calculation_creates_version_one_and_execution(client, pay
     assert execution["execucao_id"].startswith("exec_")
     assert execution["versao"] == 1
     assert execution["nova_versao"] is True
+
+    pdf_response = client.get(f"/api/calculos/{registration['calculo_id']}/execucoes/{execution['execucao_id']}/memoria-pdf")
+    assert pdf_response.status_code == 200
+    pdf_text = " ".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(pdf_response.content)).pages)
+    assert "Identificador do cálculo" in pdf_text
+    assert payload["identificador_calculo"] in pdf_text
+    assert "Versão do cálculo" in pdf_text
+    assert "V1" in pdf_text
 
     history = history_page(client)
     assert history["total_itens"] == 1
@@ -70,6 +81,12 @@ def test_parameter_change_creates_new_version_with_complete_diff(client, payload
     assert installment["antes"]["valor_singelo"] == "1234.56"
     assert installment["depois"]["valor_singelo"] == "2000.00"
 
+    pdf_response = client.get(f"/api/calculos/{calculation_id}/versoes/2/memoria-pdf")
+    assert pdf_response.status_code == 200
+    pdf_text = " ".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(pdf_response.content)).pages)
+    assert "Versão do cálculo" in pdf_text
+    assert "V2" in pdf_text
+
 
 def test_historical_snapshot_is_immutable_and_can_be_reopened(client, payload):
     first = client.post("/api/calculos", json=payload).json()
@@ -92,11 +109,8 @@ def test_historical_snapshot_is_immutable_and_can_be_reopened(client, payload):
     assert v1.json()["resultado"]["resumo"] != v2.json()["resultado"]["resumo"]
 
     normal_pdf = client.get(f"/api/calculos/{calculation_id}/versoes/1/memoria-pdf")
-    legacy_audit_request = client.get(f"/api/calculos/{calculation_id}/versoes/1/memoria-pdf", params={"auditavel": "true"})
-    assert normal_pdf.status_code == legacy_audit_request.status_code == 200
+    assert normal_pdf.status_code == 200
     assert normal_pdf.content.startswith(b"%PDF-")
-    # Compatibilidade da tela Histórico: sem artefato auditável novo, a API devolve a mesma memória padrão.
-    assert legacy_audit_request.content == normal_pdf.content
 
 
 def test_any_historical_version_can_be_edited_with_current_version_token(client, payload):
@@ -474,8 +488,8 @@ def test_version_execution_artifact_storage_is_normalized_and_immutable(client, 
         version_columns = {row[1] for row in connection.execute("PRAGMA table_info(calculation_versions)").fetchall()}
         execution_columns = {row[1] for row in connection.execute("PRAGMA table_info(calculation_executions)").fetchall()}
         artifact_columns = {row[1] for row in connection.execute("PRAGMA table_info(calculation_artifacts)").fetchall()}
-        assert {"response", "pdf", "audit_pdf"}.isdisjoint(version_columns)
-        assert {"pdf", "audit_pdf"}.isdisjoint(execution_columns)
+        assert {"response", "pdf"}.isdisjoint(version_columns)
+        assert {"pdf"}.isdisjoint(execution_columns)
         assert {"execution_id", "kind", "sha256", "content"}.issubset(artifact_columns)
         assert connection.execute(
             "SELECT COUNT(*) FROM calculation_versions WHERE calculation_id=?", (calculation_id,)

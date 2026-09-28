@@ -25,9 +25,15 @@ def _calcular_valor_compensacao(cfg: CalculoParams, total_geral_bruto: Decimal) 
 
 
 def _aplicar_compensacao_na_memoria(memoria: pd.DataFrame, valor_compensacao: Decimal) -> pd.DataFrame:
-    """Rateia a compensação final entre parcelas para manter memória auditável."""
+    """Rateia a compensação final entre parcelas para manter memória rastreável."""
     memoria = memoria.copy()
-    pesos = [D(v) for v in memoria["total_com_honorarios_e_art_523"]]
+    if "verba_tipo" in memoria.columns:
+        pesos = [
+            D(total) if str(verba) == "dano_material" else Decimal("0")
+            for total, verba in zip(memoria["total_com_honorarios_e_art_523"], memoria["verba_tipo"])
+        ]
+    else:
+        pesos = [D(v) for v in memoria["total_com_honorarios_e_art_523"]]
     memoria["compensacao_linha"] = _rateio_monetario(valor_compensacao, pesos)
     memoria["total_liquido_apos_compensacao"] = [
         moeda(D(total) - D(desconto))

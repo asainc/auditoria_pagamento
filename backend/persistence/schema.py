@@ -11,7 +11,7 @@ from backend.calculation_identity import normalize_manual_identifier, normalize_
 from backend.contracts.calculation import CalculationDiff, CalculationFieldDiff, Installment, InstallmentDiff
 from backend.persistence.sqlite import SQLiteDatabase
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 def timestamp() -> str:
@@ -278,7 +278,7 @@ def _create_normalized_calculation_tables(connection: sqlite3.Connection) -> Non
         CREATE TABLE IF NOT EXISTS calculation_artifacts(
             id TEXT PRIMARY KEY CHECK(id GLOB 'art_[0-9a-f]*'),
             execution_id TEXT NOT NULL,
-            kind TEXT NOT NULL CHECK(kind IN ('memoria','memoria_auditavel')),
+            kind TEXT NOT NULL CHECK(kind = 'memoria'),
             sha256 TEXT NOT NULL,
             size_bytes INTEGER NOT NULL CHECK(size_bytes >= 0),
             mime_type TEXT NOT NULL DEFAULT 'application/pdf',
@@ -373,7 +373,6 @@ def _normalize_calculation_storage(connection: sqlite3.Connection) -> None:
                 "indices_hash": version_row.get("indices_hash") or "legacy",
                 "duration_ms": 0.0,
                 "pdf": version_row.get("pdf"),
-                "audit_pdf": version_row.get("audit_pdf"),
             }]
         for execution in execution_rows:
             execution_id = str(execution.get("id") or f"exec_{uuid4().hex}")
@@ -399,19 +398,128 @@ def _normalize_calculation_storage(connection: sqlite3.Connection) -> None:
                     str(execution.get("indices_hash") or version_row.get("indices_hash") or "legacy"), duration,
                 ),
             )
-            existing_artifacts = artifacts_by_execution.get(execution_id) or []
+            existing_artifacts = [artifact for artifact in (artifacts_by_execution.get(execution_id) or []) if str(artifact.get("kind") or "") == "memoria"]
             if existing_artifacts:
-                for artifact in existing_artifacts:
-                    content = bytes(artifact.get("content") or b"")
-                    _insert_artifact(connection, execution_id, str(artifact.get("kind") or "memoria"), content, str(artifact.get("created_at") or timestamp()))
+                artifact = existing_artifacts[0]
+                content = bytes(artifact.get("content") or b"")
+                _insert_artifact(connection, execution_id, "memoria", content, str(artifact.get("created_at") or timestamp()))
             else:
                 normal = execution.get("pdf") if "pdf" in execution else version_row.get("pdf")
-                audited = execution.get("audit_pdf") if "audit_pdf" in execution else version_row.get("audit_pdf")
                 if normal is not None:
                     _insert_artifact(connection, execution_id, "memoria", bytes(normal), str(execution.get("executed_at") or timestamp()))
-                if audited is not None:
-                    _insert_artifact(connection, execution_id, "memoria_auditavel", bytes(audited), str(execution.get("executed_at") or timestamp()))
 
+
+
+def _ensure_learning_and_finops(connection: sqlite3.Connection) -> None:
+    """Cria estruturas imutáveis de feedback supervisionado e FinOps da IA."""
+    connection.executescript("""
+        CREATE TABLE IF NOT EXISTS extraction_feedback(
+            id TEXT PRIMARY KEY CHECK(id GLOB 'fb_[0-9a-f]*'),
+            event_fingerprint TEXT NOT NULL UNIQUE CHECK(length(event_fingerprint)=64),
+            process TEXT,
+            draft TEXT NOT NULL,
+            extraction_job TEXT,
+            field TEXT NOT NULL,
+            action TEXT NOT NULL CHECK(action IN ('confirmed','corrected','removed','added','not_found','ambiguous')),
+            reason_code TEXT NOT NULL,
+            comment TEXT,
+            model_value TEXT,
+            human_value TEXT,
+            document_name TEXT,
+            page INTEGER CHECK(page IS NULL OR page >= 1),
+            model_evidence TEXT,
+            document_type TEXT,
+            prompt_version TEXT,
+            model_name TEXT,
+            pipeline_version TEXT NOT NULL,
+            reviewer_hash TEXT NOT NULL CHECK(length(reviewer_hash)=64),
+            created_at TEXT NOT NULL,
+            curation_status TEXT NOT NULL DEFAULT 'pending' CHECK(curation_status IN ('pending','approved','rejected')),
+            curated_by_hash TEXT,
+            curated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS training_examples(
+            id TEXT PRIMARY KEY CHECK(id GLOB 'ex_[0-9a-f]*'),
+            feedback_id TEXT NOT NULL UNIQUE,
+            field TEXT NOT NULL,
+            task TEXT NOT NULL,
+            evidence TEXT,
+            model_value TEXT,
+            expected_value TEXT,
+            reason_code TEXT NOT NULL,
+            content_sha256 TEXT NOT NULL CHECK(length(content_sha256)=64),
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(feedback_id) REFERENCES extraction_feedback(id) ON DELETE RESTRICT
+        );
+        CREATE TABLE IF NOT EXISTS training_dataset_versions(
+            id TEXT PRIMARY KEY CHECK(id GLOB 'ds_[0-9a-f]*'),
+            created_at TEXT NOT NULL,
+            created_by_hash TEXT NOT NULL CHECK(length(created_by_hash)=64),
+            sha256 TEXT NOT NULL UNIQUE CHECK(length(sha256)=64),
+            example_count INTEGER NOT NULL CHECK(example_count >= 0),
+            example_ids TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS ai_usage_events(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            job TEXT,
+            stage TEXT NOT NULL,
+            model TEXT NOT NULL,
+            request_sha256 TEXT NOT NULL CHECK(length(request_sha256)=64),
+            cache_hit INTEGER NOT NULL DEFAULT 0 CHECK(cache_hit IN (0,1)),
+            success INTEGER NOT NULL DEFAULT 1 CHECK(success IN (0,1)),
+            input_chars INTEGER NOT NULL CHECK(input_chars >= 0),
+            output_chars INTEGER NOT NULL CHECK(output_chars >= 0),
+            input_tokens_actual INTEGER CHECK(input_tokens_actual IS NULL OR input_tokens_actual >= 0),
+            cached_input_tokens_actual INTEGER CHECK(cached_input_tokens_actual IS NULL OR cached_input_tokens_actual >= 0),
+            output_tokens_actual INTEGER CHECK(output_tokens_actual IS NULL OR output_tokens_actual >= 0),
+            input_tokens_estimated INTEGER NOT NULL CHECK(input_tokens_estimated >= 0),
+            output_tokens_estimated INTEGER NOT NULL CHECK(output_tokens_estimated >= 0),
+            cost_estimated_usd TEXT,
+            duration_ms REAL NOT NULL CHECK(duration_ms >= 0),
+            pages INTEGER CHECK(pages IS NULL OR pages >= 0),
+            structural_repair INTEGER NOT NULL DEFAULT 0 CHECK(structural_repair IN (0,1))
+        );
+        CREATE TABLE IF NOT EXISTS ai_prompt_cache(
+            request_sha256 TEXT PRIMARY KEY CHECK(length(request_sha256)=64),
+            model TEXT NOT NULL,
+            stage TEXT NOT NULL,
+            response_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            last_hit_at TEXT,
+            hit_count INTEGER NOT NULL DEFAULT 0 CHECK(hit_count >= 0)
+        );
+        CREATE INDEX IF NOT EXISTS idx_feedback_status_created ON extraction_feedback(curation_status, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_feedback_field_action ON extraction_feedback(field, action);
+        CREATE INDEX IF NOT EXISTS idx_feedback_process ON extraction_feedback(process, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_training_examples_task ON training_examples(task, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_ai_usage_created ON ai_usage_events(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_ai_usage_stage ON ai_usage_events(stage, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_ai_usage_job ON ai_usage_events(job, id);
+
+        CREATE TRIGGER IF NOT EXISTS trg_feedback_immutable_delete
+        BEFORE DELETE ON extraction_feedback
+        BEGIN SELECT RAISE(ABORT, 'feedback events cannot be deleted'); END;
+        CREATE TRIGGER IF NOT EXISTS trg_training_examples_immutable_update
+        BEFORE UPDATE ON training_examples
+        BEGIN SELECT RAISE(ABORT, 'training examples are immutable'); END;
+        CREATE TRIGGER IF NOT EXISTS trg_training_examples_immutable_delete
+        BEFORE DELETE ON training_examples
+        BEGIN SELECT RAISE(ABORT, 'training examples are immutable'); END;
+        CREATE TRIGGER IF NOT EXISTS trg_dataset_versions_immutable_update
+        BEFORE UPDATE ON training_dataset_versions
+        BEGIN SELECT RAISE(ABORT, 'dataset versions are immutable'); END;
+        CREATE TRIGGER IF NOT EXISTS trg_dataset_versions_immutable_delete
+        BEFORE DELETE ON training_dataset_versions
+        BEGIN SELECT RAISE(ABORT, 'dataset versions are immutable'); END;
+    """)
+    # Compatibilidade com instalações que tenham criado a tabela de telemetria
+    # numa versão intermediária sem a coluna de sucesso.
+    usage_columns = _columns(connection, "ai_usage_events")
+    if "success" not in usage_columns:
+        connection.execute(
+            "ALTER TABLE ai_usage_events ADD COLUMN success INTEGER NOT NULL DEFAULT 1 CHECK(success IN (0,1))"
+        )
 
 def _indexes(connection: sqlite3.Connection) -> None:
     connection.executescript("""
@@ -484,6 +592,7 @@ def migrate(database: SQLiteDatabase) -> None:
         _ensure_parameter_changes(connection)
         _ensure_calculation_records(connection)
         _normalize_calculation_storage(connection)
+        _ensure_learning_and_finops(connection)
         _indexes(connection)
         connection.execute(
             "INSERT OR REPLACE INTO schema_migrations(version,applied_at) VALUES(?,?)",

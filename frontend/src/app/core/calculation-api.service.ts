@@ -90,18 +90,12 @@ export class CalculationApiService {
     return this.http.get<CalculationVersionDetail>(`${this.config.baseUrl}/calculos/${encodeURIComponent(calculationId)}/versoes/${version}`);
   }
 
-  versionPdf(calculationId: string, version: number, audit = false) {
-    return this.http.get(`${this.config.baseUrl}/calculos/${encodeURIComponent(calculationId)}/versoes/${version}/memoria-pdf`, {
-      responseType:'blob',
-      params:{auditavel:audit},
-    });
+  versionPdf(calculationId: string, version: number) {
+    return this.http.get(`${this.config.baseUrl}/calculos/${encodeURIComponent(calculationId)}/versoes/${version}/memoria-pdf`, {responseType:'blob'});
   }
 
-  executionPdf(calculationId: string, executionId: string, audit = false) {
-    return this.http.get(`${this.config.baseUrl}/calculos/${encodeURIComponent(calculationId)}/execucoes/${encodeURIComponent(executionId)}/memoria-pdf`, {
-      responseType:'blob',
-      params:{auditavel:audit},
-    });
+  executionPdf(calculationId: string, executionId: string) {
+    return this.http.get(`${this.config.baseUrl}/calculos/${encodeURIComponent(calculationId)}/execucoes/${encodeURIComponent(executionId)}/memoria-pdf`, {responseType:'blob'});
   }
 
   /** Exportação do request atual sem criar nova versão; o fluxo normal usa a execução persistida. */

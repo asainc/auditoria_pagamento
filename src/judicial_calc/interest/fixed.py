@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from judicial_calc.core.dates import competencias_entre, competencia_data, somar_meses
+from judicial_calc.core.dates import competencias_entre, competencia_data
 from judicial_calc.core.numbers import D, moeda
 
 

@@ -1,344 +1,208 @@
-# Plataforma Jurídica — Auditoria de Pagamentos
+# Calculadora Judicial
 
-Aplicação web para extração assistida, revisão humana e cálculo de débitos judiciais. O frontend utiliza Angular 21.2.19; o backend usa FastAPI; o motor `judicial_calc` permanece determinístico e separado da camada de IA.
+Aplicação web para leitura assistida de documentos judiciais, revisão humana dos parâmetros e cálculo determinístico de débitos. O projeto mantém três responsabilidades separadas: a interface Angular coleta e apresenta informações; o backend FastAPI valida, audita e coordena o fluxo; o pacote Python `judicial_calc` executa as fórmulas financeiras.
 
-## Arquitetura
+A IA é usada somente para sugerir informações extraídas dos documentos. Ela não substitui a revisão humana e não executa as fórmulas do cálculo. Critérios jurídicos, regulatórios, de retenção e de uso institucional precisam ser validados pelo Jurídico, Compliance e/ou DPO quando aplicável.
 
-```text
-PDFs enviados pelo usuário
-        ↓
-DocumentService (persistência local controlada)
-        ↓
-PyMuPDF (leitura local da camada de texto)
-        ↓
-string com documento/página
-        ↓
-prompts especializados 00..09
-        ↓
-gpt_bradesco.text_generator
-        ↓
-JSON validado pelo Pydantic
-        ↓
-ChronologyReducer + OperationalPolicy
-        ↓
-revisão humana obrigatória
-        ↓
-CalculationService → EngineFacade → judicial_calc
-        ↓
-cadastro do cálculo, versão de negócio e execução técnica
+## 1. Como iniciar
+
+### Backend em desenvolvimento
+
+Use o iniciador do projeto, e não `uvicorn --reload` diretamente na raiz:
+
+```powershell
+.\scripts\start-backend-dev.ps1
 ```
 
-A IA não executa fórmulas financeiras. Ela transforma conteúdo documental em sugestões estruturadas, sempre acompanhadas de evidência rastreável. O cálculo final só é liberado após revisão humana.
-
-
-## Contrato HTTP e erros públicos
-
-A rota canônica desta versão é `/api/v2`. Os prefixos `/api` e `/api/v1` existem apenas como aliases temporários de compatibilidade e não aparecem no OpenAPI. O health check retorna contrato `2.0.0`, e todas as respostas incluem `X-API-Version: 2.0.0`.
-
-Falhas esperadas usam um envelope estável para que o Angular não dependa do texto da mensagem:
-
-```json
-{
-  "code": "CALCULATION_VERSION_CONFLICT",
-  "message": "Mensagem segura para o usuário.",
-  "fields": [],
-  "retryable": false,
-  "request_id": "identificador-tecnico"
-}
-```
-
-O `request_id` é apropriado para suporte e correlação de logs; conteúdo dos PDFs, parâmetros sensíveis, tokens e cabeçalhos de autenticação não são incluídos no erro público.
-
-## Cadastro, versões e execuções dos cálculos
-
-Todo cálculo concluído é salvo automaticamente no histórico. Em cálculos documentais, o número do processo é normalizado para uma chave somente com dígitos; máscaras diferentes do mesmo processo apontam para o mesmo cadastro. Em cálculos manuais, a interface exige um identificador próprio antes da execução. A normalização é técnica e não substitui eventual validação jurídica do número CNJ.
-
-```text
-Processo / identificador manual
-            ↓
-          Cálculo
-            ├── V1 (estado de parâmetros + parcelas)
-            │     ├── Execução 1
-            │     └── Execução 2
-            ├── V2
-            │     └── Execução 3
-            └── VN
-```
-
-**Versão de negócio** e **execução técnica** são conceitos separados. Uma nova versão nasce somente quando parâmetros, parcelas ou `honorarios_sobre_danos_morais` mudam. Recalcular o mesmo estado não cria V2/V3: a versão existente é reutilizada e uma nova execução é registrada com seus próprios hashes, duração, resultado e Memória PDF.
-
-O backend usa hash canônico do estado versionável e uma transação `BEGIN IMMEDIATE`. `versao_base` identifica o snapshot que o usuário decidiu editar e pode apontar para qualquer versão histórica. Separadamente, `versao_atual_esperada` registra qual era a versão mais recente quando a edição foi aberta. Se outro usuário criar uma nova versão nesse intervalo, a gravação é rejeitada com conflito e deve ser recarregada antes de continuar. Assim é possível partir de V1 mesmo quando o cálculo está em V4 sem perder o controle otimista de concorrência.
-
-Cada versão preserva o request funcional e o diff contra a versão base. O resultado técnico fica em `calculation_executions`, e a memória de cálculo PDF fica em `calculation_artifacts`, ligada à execução por hash. Para reabrir uma versão, o backend resolve sua execução inicial e seu artefato sem recalcular o passado. Assim, reexecuções com índices ou motor diferentes permanecem rastreáveis sem criar uma versão funcional falsa.
-
-A tela **Histórico** usa paginação no backend e lazy loading das versões. Ela oferece busca e filtros por origem, estado, índice atual, usuário técnico e período, além de ordenação por processo/criação/atualização. Ao expandir um cálculo, as versões são buscadas sob demanda; as execuções de cada versão também são carregadas somente quando solicitadas. O Histórico expõe somente a **Memória PDF**; a opção de PDF auditável não faz parte da interface.
-
-O comparador permite selecionar duas versões do mesmo cálculo e mostra valores anteriores/novos dos parâmetros, diferenças por parcela e o impacto no total. O ciclo de vida do cálculo pode ser `ativo`, `arquivado` ou `cancelado`; arquivar/cancelar preserva integralmente o histórico e bloqueia novas execuções até reativação.
-
-Qualquer versão de um cálculo ativo pode ser aberta para edição pela interface. A confirmação humana anterior não é reaproveitada. Ao salvar uma mudança, a versão escolhida permanece como `versao_base`, enquanto `versao_atual_esperada` protege a operação contra alterações concorrentes ocorridas após a abertura da edição.
-
-## Integração corporativa de IA
-
-Os PDFs não são enviados para OCR nem para File Manager. O backend lê a camada de texto localmente com `PyMuPDF`, preserva marcadores de documento e página e monta uma string para cada lote de contexto. Cada string é combinada com o prompt especializado e enviada exclusivamente a `gpt_bradesco.text_generator`.
-
-Não existe fallback automático para OCR. Se uma página for imagem sem camada textual, a aplicação gera um alerta para revisão humana em vez de inventar conteúdo.
-
-## Configuração do backend
-
-Copie `.env.example` para `.env` na raiz. Nunca versione credenciais reais.
-
-A autenticação pode permanecer integralmente dentro do `gpt_bradesco.py` corporativo. Os campos `BRADESCO_AUTHORIZATION_TOKEN`, `BRADESCO_IDENTIFICADOR` e `BRADESCO_SENHA` só precisam ser preenchidos quando a versão do módulo expuser `configure_iagen` e a equipe responsável determinar esse fluxo. Não há configuração de container ou workflow de OCR.
-
-Parâmetros principais:
-
-```text
-BRADESCO_IAGEN_AMBIENTE=dev
-BRADESCO_TEXT_MODEL=gpt-5.1
-BRADESCO_TEXT_TEMPERATURE=1
-BRADESCO_TEXT_MAX_TOKENS=16384
-BRADESCO_PROMPT_MAX_CHARS=55000
-```
-
-O nome do deployment precisa existir no ambiente corporativo. A aplicação não inventa substitutos quando ele não está disponível.
-
-## Execução sem ambiente virtual
-
-Em computadores onde ambientes virtuais não são permitidos, use o Python corporativo já instalado. Os scripts de inicialização configuram `PYTHONPATH` automaticamente para localizar `src/judicial_calc`, sem exigir instalação editável do projeto.
-
-No CMD do Windows:
+No CMD:
 
 ```cmd
-scripts\start-backend.cmd
+scripts\start-backend-dev.cmd
 ```
 
-No PowerShell:
+No Linux/macOS:
+
+```bash
+./scripts/start-backend-dev.sh
+```
+
+Todos esses arquivos chamam o mesmo ponto de entrada:
+
+```bash
+python scripts/run_backend.py --reload
+```
+
+### Backend sem recarga automática
 
 ```powershell
 .\scripts\start-backend.ps1
 ```
 
-Ou manualmente, a partir da raiz:
+### Backend e frontend juntos
 
-```cmd
-set "PYTHONPATH=%CD%\src;%CD%"
-python -m uvicorn backend.principal:aplicacao --reload --host 127.0.0.1 --port 8000
+Depois de instalar as dependências do frontend:
+
+```powershell
+.\scripts\start-dev.ps1
 ```
 
-Se o comando `python` corporativo tiver outro caminho, defina `BACKEND_PYTHON` antes de iniciar.
+ou:
 
-Teste antes:
-
-```cmd
-python -c "import judicial_calc.data; import gpt_bradesco; print('Imports OK')"
+```bash
+./scripts/start-dev.sh
 ```
 
-O projeto inclui `src/judicial_calc/data/` com as planilhas exigidas pelo motor.
+O iniciador conjunto lê `config/runtime.json`, aguarda o backend ficar saudável e só então inicia o Angular. A configuração de proxy do Angular é criada temporariamente com o host e a porta efetivamente usados pelo backend.
 
-### Atualização sobre instalações anteriores
+## 2. Correção do warning do WatchFiles
 
-Ao iniciar o backend, o repositório SQLite aplica migrações locais antes de criar os índices. Isso permite abrir uma base `business.sqlite3` criada por versões anteriores, inclusive quando a tabela `parameter_changes` ainda não possuía `draft` e `origin`. A tabela anterior é preservada como `parameter_changes_legacy_vN` antes da materialização do contrato atual.
+O warning mostrado no terminal ocorria quando o observador de arquivos do Uvicorn enxergava a raiz inteira do projeto. Como `frontend/node_modules` contém milhares de arquivos Python internos de dependências como `node-gyp`, alterações feitas pelo npm eram interpretadas como mudanças no backend e provocavam mensagens do tipo:
 
-O pacote `backend` também coloca `<raiz>/src` no início do caminho de importação. Esse comportamento evita que computadores corporativos sem ambiente virtual carreguem acidentalmente outra instalação de `judicial_calc` presente no perfil do usuário.
+```text
+WatchFiles detected changes in 'frontend/node_modules/...'. Reloading...
+```
 
-## Frontend corporativo
-
-Baseline utilizado:
-
-- Node.js 22.12.0;
-- npm 10.9.0;
-- Angular 21.2.19.
-
-A instalação corporativa aceita os `.tgz` oficiais baixados localmente conforme `docs/INSTALACAO_FRONTEND_NEXUS_TARBALLS.md`. Os overrides atuais refletem as versões informadas como disponíveis no ambiente corporativo e devem ser revalidados se o catálogo do Nexus mudar.
-
-## Prompts especializados
-
-Os prompts ficam em `prompts/`:
-
-- `_base.md`: regras comuns, segurança e contrato de evidência;
-- `00_classificacao.md`: tipo documental e marcos processuais;
-- `01_parcelas.md`: dano material, moral, honorários e custas;
-- `02_correcao.md`: atualização monetária;
-- `03_moratorios.md`: juros moratórios;
-- `04_compensatorios.md`: juros compensatórios;
-- `05_encargos.md`: multa, honorários e art. 523;
-- `06_prescricao.md`: prescrição;
-- `07_compensacao.md`: compensação;
-- `08_duplo_indice.md`: períodos com índices diferentes;
-- `09_valor_dobrado.md`: restituição/devolução em dobro determinada pelo título, aplicada somente às parcelas de dano material.
-
-O backend envia somente o subcontrato de parâmetros necessário a cada tarefa. Antes da chamada ao `text_generator`, o `PromptPageRouter` seleciona deterministicamente as páginas mais relevantes para aquela tarefa e preserva páginas representativas como fallback. O empacotamento respeita limites de caracteres sem cortar páginas silenciosamente; a telemetria registra quantas páginas e caracteres foram enviados para permitir auditoria da seleção.
-
-## Telemetria
-
-A aplicação registra apenas informações observáveis: número de chamadas, modelo/serviço, duração, páginas de contexto, caracteres enviados, uso de reparo estrutural, hashes dos prompts e contagem de evidências aceitas/rejeitadas. O contrato corporativo atualmente usado pelo projeto não devolve contagem de tokens nem cobrança; por isso esses campos ficam `null` e nenhum valor financeiro é estimado sem fonte verificável. Conteúdo documental, prompt integral e credenciais não são persistidos nos logs técnicos.
-
-## Estrutura principal
+A inicialização foi centralizada em `scripts/run_backend.py`. Quando `--reload` está ativo, somente estes diretórios são observados:
 
 ```text
 backend/
-  repository.py                 fachada retrocompatível, sem SQL
-  repositories/
-    calculation_repository.py   Cálculo → Versão → Execução → Artefato
-    document_repository.py      documentos e processos
-    extraction_repository.py    jobs/resultados de extração
-    audit_repository.py         trilha de auditoria
-    index_repository.py         estado da atualização de índices
-  persistence/
-    sqlite.py                   conexão/transações SQLite
-    schema.py                   schema, constraints e migrações
-  contracts/                    contratos separados por domínio
-  domain/calculation_parameters.py representação interna dos parâmetros
-  services/bradesco_bridge.py   facade do módulo corporativo
-  services/extraction.py        orquestrador da extração
-  services/pdf_text_extractor.py leitura PyMuPDF + qualidade textual
-  services/prompt_router.py     seleção determinística de páginas
-  services/prompt_executor.py   execução e métricas do text_generator
-  services/structured_output.py normalização estrutural local
-  services/evidence_validator.py validação e consolidação de evidências
-  services/extraction_jobs.py   workers da fila durável
-  services/ai_usage.py          telemetria conservadora
+src/
 config/
-  app.settings.json             configuração não secreta
-  calculation_policy.json       políticas operacionais
-  extraction_tasks.json         limite de saída por tarefa
-frontend/                        Angular 21.2.19
-  src/app/history/               histórico e reabertura de versões
-prompts/                         prompts especializados
-src/judicial_calc/               motor financeiro determinístico
-gpt_bradesco.py                  cliente corporativo integrado
-tests/                           testes automatizados
-docs/                            documentação técnica
+prompts/
 ```
 
-## Regeneração de artefatos
+Além disso, `frontend/` e `frontend/node_modules/` estão explicitamente excluídos. Os tipos observados são `*.py`, `*.json` e `*.md`, permitindo que alterações reais no backend, configurações e prompts reiniciem a API sem acompanhar arquivos do npm.
 
-Após alterar contratos Python:
+A regra fica em `config/runtime.json`, e a suíte contém testes que impedem a reintrodução acidental de `frontend/node_modules` no escopo de recarga.
+
+## 3. Visão rápida da arquitetura
+
+```mermaid
+flowchart LR
+    U[Usuário] --> A[Angular]
+    A -->|HTTP /api| B[FastAPI]
+    B --> D[Documentos e extrações]
+    D --> L[Serviço corporativo de texto]
+    L --> D
+    D --> R[Revisão humana]
+    R --> C[CalculationService]
+    C --> E[EngineFacade]
+    E --> M[judicial_calc]
+    M --> I[Índices e juros]
+    M --> P[Memória e resumo]
+    C --> S[(SQLite)]
+    C --> F[Memória PDF]
+```
+
+A explicação detalhada dos componentes, limites entre camadas e fluxo de dados está em [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md).
+
+## 4. Organização do projeto
+
+```text
+backend/                 API, contratos, serviços, repositórios e persistência
+config/                  parâmetros de execução e políticas do sistema
+docs/                    documentação técnica e operacional
+evals/                   casos de avaliação da extração por IA
+examples/                exemplos sem dados reais de produção
+frontend/                aplicação Angular
+prompts/                 instruções especializadas da extração documental
+scripts/                 inicialização, validações e geração de documentação
+src/judicial_calc/       motor determinístico de cálculo
+tests/                   testes unitários, integração e cenários de referência
+```
+
+Para entender o objetivo de cada arquivo/módulo, consulte [`docs/GUIA_MODULOS.md`](docs/GUIA_MODULOS.md). Para assinaturas de classes, métodos e funções, consulte [`docs/REFERENCIA_CODIGO.md`](docs/REFERENCIA_CODIGO.md).
+
+## 5. Configuração centralizada
+
+A configuração está separada por responsabilidade:
+
+| Arquivo | Responsabilidade |
+|---|---|
+| `config/runtime.json` | host, portas, workers e escopo de recarga automática |
+| `config/app.settings.json` | limites operacionais não secretos do backend |
+| `config/calculation_policy.json` | campos, opções e padrões da política de cálculo |
+| `config/extraction_tasks.json` | limites de saída das tarefas de extração |
+| `.env` | credenciais e valores específicos do ambiente; nunca deve ser versionado |
+| `frontend/public/app-config.json` | caminho público da API e parâmetros do navegador |
+
+Variáveis de ambiente têm precedência sobre valores de execução quando há um mapeamento explícito. Exemplos e regras estão em [`docs/CONFIGURACAO.md`](docs/CONFIGURACAO.md).
+
+## 6. Fluxo do cálculo
+
+Em alto nível, uma execução segue estas etapas:
+
+1. o Angular monta o pedido com parcelas e parâmetros revisados;
+2. o FastAPI valida o contrato recebido;
+3. `CalculationService.execute()` normaliza o pedido, calcula hashes de rastreabilidade e controla a execução;
+4. `EngineFacade.calculate()` converte o contrato HTTP para os tipos do motor;
+5. `calcular_debitos()` prepara as parcelas, cria os contextos por tipo de dano, calcula cada linha e aplica os ajustes finais;
+6. o motor devolve `ResultadoCalculo`, contendo a memória detalhada e o resumo;
+7. o backend serializa a resposta, registra auditoria e, quando aplicável, persiste o estado funcional, a execução e o PDF.
+
+[`docs/FLUXO_CALCULO.md`](docs/FLUXO_CALCULO.md) contém um exemplo numérico verificado pela suíte, com cada função chamada, objetivo, entrada tipada e saída esperada.
+
+## 7. Documentação principal
+
+- [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md): arquitetura detalhada e diagramas.
+- [`docs/FLUXO_CALCULO.md`](docs/FLUXO_CALCULO.md): execução passo a passo de um cálculo.
+- [`docs/GUIA_MODULOS.md`](docs/GUIA_MODULOS.md): escopo e responsabilidade dos módulos.
+- [`docs/CONFIGURACAO.md`](docs/CONFIGURACAO.md): arquivos de configuração e variáveis de ambiente.
+- [`docs/MANUTENCAO.md`](docs/MANUTENCAO.md): roteiro seguro para manutenção e testes.
+- [`docs/PARAMETROS.md`](docs/PARAMETROS.md): catálogo gerado dos parâmetros de cálculo.
+- [`docs/REFERENCIA_CODIGO.md`](docs/REFERENCIA_CODIGO.md): referência gerada a partir das assinaturas e docstrings.
+- [`docs/EXTRACAO_IA.md`](docs/EXTRACAO_IA.md): funcionamento da extração documental.
+- [`docs/FEEDBACK_APRENDIZADO.md`](docs/FEEDBACK_APRENDIZADO.md): curadoria de exemplos revisados.
+- [`docs/IA_TELEMETRIA_E_OTIMIZACAO.md`](docs/IA_TELEMETRIA_E_OTIMIZACAO.md): telemetria e limites de consumo.
+- [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md): escopo, limitações e controles da camada de IA.
+- [`docs/DECISOES.md`](docs/DECISOES.md): decisões técnicas vigentes e suas justificativas.
+
+## 8. Dados, segurança e privacidade
+
+- Não coloque credenciais, tokens ou senhas em código, testes, prints, documentação ou arquivos JSON versionados.
+- Não use dados reais de produção não anonimizados em desenvolvimento, exemplos ou testes.
+- O arquivo `.env` é local. Use `.env.example` apenas como modelo sem segredos.
+- O backend remove segredos do ambiente do processo Angular quando os dois serviços são iniciados juntos.
+- Logs devem registrar eventos técnicos e identificadores seguros, sem reproduzir conteúdo integral de documentos ou credenciais.
+- A política de retenção, acesso, descarte e eventual base legal para dados pessoais deve ser homologada institucionalmente antes do uso em produção.
+
+## 9. Testes e validações
+
+Backend e motor:
 
 ```bash
-python scripts/generate_contracts.py
+PYTHONPATH="src:." pytest -q
+python scripts/validate_architecture.py
+python -m compileall -q backend src scripts
+```
+
+Frontend, depois de instalar as dependências:
+
+```bash
+cd frontend
+npm test
+npm run build
+```
+
+Validação de sintaxe do iniciador conjunto:
+
+```bash
+node --check scripts/start-dev.mjs
+```
+
+## 10. Artefatos gerados
+
+Alguns arquivos são derivados do próprio código e devem ser regenerados quando a fonte correspondente mudar:
+
+```bash
 python scripts/generate_parameter_catalog.py
 python scripts/generate_parameter_docs.py
 python scripts/generate_code_reference.py
 python scripts/generate_engine_manifest.py
 ```
 
-## Testes
+`docs/motor_sha256.json` representa a integridade do código de `src/judicial_calc`. Ele não deve ser editado manualmente.
 
-```bash
-python -m pytest
-python scripts/validate_architecture.py
-```
+## 11. Regra de manutenção
 
-No frontend, quando as dependências estiverem instaladas:
-
-```powershell
-cd frontend
-npm test
-npm run build
-```
-
-Os testes corporativos de integração usam dublês e não chamam rede real. A primeira execução real deve ser feita em ambiente autorizado, com PDF sintético, antes de qualquer uso com documentos reais.
-
-## Governança e privacidade
-
-- segredos não ficam no código, exemplos, logs ou documentação;
-- PDFs, texto extraído e prompts não são registrados nos logs técnicos;
-- os PDFs permanecem no armazenamento controlado do backend e não são enviados ao serviço de OCR;
-- evidências são revalidadas contra o texto extraído da página antes de chegar à revisão;
-- versões, execuções e artefatos são imutáveis e relacionam estado funcional, resultado técnico e memórias para rastreabilidade; o prazo de retenção deve ser definido institucionalmente;
-- qualquer interpretação jurídica, política de retenção ou uso de dados pessoais precisa de validação do Jurídico/Compliance e do DPO conforme o caso de uso.
-
-Consulte `docs/EXTRACAO_IA.md`, `docs/OPERACAO.md`, `docs/FLUXO_EXTRACAO_VISUAL.md`, `docs/MODEL_CARD.md` e `docs/VALIDACAO.md`.
-
-## Correção da conexão com text_generator — 24/09/2026
-
-O backend agora encaminha ambiente e CA mesmo quando as credenciais vêm do
-processo. O cliente distribuído recebe o timeout definido no backend e aceita
-BRADESCO_TEXT_URL e BRADESCO_IDENTITY_URL no `.env` (URLs HTTPS completas,
-confirmadas pela equipe da API). Campos vazios preservam as rotas existentes.
-
-1. Extraia esta versão em uma pasta nova e mantenha seu `.env` local protegido.
-2. Confira `BRADESCO_IAGEN_AMBIENTE`, `BRADESCO_TEXT_MODEL` e autenticação:
-   token válido ou identificador e senha fornecidos pela equipe responsável.
-3. Para TLS, deixe `BRADESCO_CA_BUNDLE` vazio quando a CA corporativa já estiver
-   instalada no Windows: esta versão usa o repositório confiável do sistema operacional.
-   Preencha `BRADESCO_CA_BUNDLE` somente quando a infraestrutura fornecer um bundle PEM
-   específico. Confira também `BRADESCO_TIMEOUT_SECONDS`.
-4. Reinicie o backend e execute `python scripts/test_text_generator_connection.py`.
-   O diagnóstico deve informar `tls_origem_confianca: sistema_operacional` quando o
-   bundle estiver vazio, ou `bundle_corporativo` quando um PEM explícito estiver ativo.
-5. Depois do diagnóstico sintético, execute a extração de um PDF sintético pesquisável.
-6. Se persistir: envie somente a mensagem sanitizada/código HTTP, sem tokens,
-   credenciais, documentos reais ou cabeçalhos Authorization.
-
-Falhas TLS agora indicam se a confiança vem do sistema operacional ou de bundle explícito;
-falhas de rede orientam a verificação de VPN, DNS, proxy e URLs; HTTP 401/403 exige revisar autenticação/permissões;
-HTTP 400 exige confirmar deployment e contrato; HTTP 404 pode indicar rota ou
-recurso incorreto. Presença de configuração não comprova conectividade.
-
-Validação desta correção: suíte Python completa executada localmente, sem acesso ao
-serviço corporativo real. Os testes cobrem seleção do ambiente, autenticação simulada,
-classificação de falhas e a política de confiança TLS. A comprovação final do handshake
-continua dependente da estação/rede corporativa. O motor de cálculo não foi alterado.
-
-## Correção da lista de índices — 24/09/2026
-
-A verificação de conexão do frontend agora aceita a versão `2.0.0` informada
-pelo backend deste pacote. Antes, exigia `1.0.0` e interrompia a inicialização
-antes de consultar `/api/v2/indices`. O carregamento de índices também foi separado
-do resultado da busca de processos: uma falha nesta busca não descarta o catálogo.
-Quando não houver índices carregados, o painel informa a falha/carregamento e
-oferece **Tentar novamente**, mantendo o seletor indisponível até receber a lista.
-
-Para aplicar, atualize o frontend com os arquivos deste pacote e reinicie o
-servidor Angular. Em instalações com build publicado, gere e publique novamente
-o frontend. Recarregue o navegador para remover a versão anterior da aplicação.
-As correções anteriores de conexão com text_generator estão incluídas.
-
-## Cobertura real dos índices e competência automática — 24/09/2026
-
-O seletor de índices não usa mais datas de cobertura escritas manualmente. O backend lê
-`src/judicial_calc/data/taxas_mensais.xlsx` e calcula, para cada coluna, a primeira e a
-última competência efetivamente preenchidas. O Angular recebe essas informações por
-`GET /api/v2/indices` e mostra o intervalo observado no próprio arquivo instalado.
-
-Para índices mensais de variação, como IPCA, INPC e IPCA-15, uma atualização no mês `M`
-usa a taxa até `M-1`. Portanto, se a última taxa disponível for `2026-04`, a maior
-competência de atualização suportada é `2026-05`. Para séries de número-índice, a maior
-competência de atualização é a própria última competência existente na série.
-
-Quando mês e ano forem automáticos, o frontend consulta:
-
-```text
-GET /api/v2/calculos/padroes?indice=<chave_do_indice>
-```
-
-e o backend limita a competência ao menor valor entre o mês corrente e o limite real da
-série. Nenhuma taxa futura é estimada. Se o operador informar manualmente uma competência
-acima do limite, o cálculo é bloqueado com uma mensagem específica, por exemplo:
-
-```text
-IPCA-15 (IBGE) não possui taxa para ago/2026. Última competência disponível: abr/2026.
-A competência máxima de atualização suportada é mai/2026.
-```
-
-Na gestão de índices, uma consulta externa bem-sucedida somente recebe o estado
-`atualizado` quando ao menos uma série avança sua competência máxima. Se a fonte responder,
-mas não trouxer período posterior ao instalado, o estado passa a `sem_novidade`. Falhas de
-rede, parsing ou validação preservam as planilhas anteriores. Se ocorrer uma falha durante
-a troca física dos arquivos após o backup, o atualizador tenta restaurar automaticamente o
-conjunto anterior para evitar mistura de versões.
-
-## Validação final desta entrega
-
-Consulte `docs/VALIDACAO_FINAL_2026-09-24.md` para os testes executados e os limites de validação.
-
-## Multa percentual ou fixa
-
-A multa comum aceita duas modalidades no mesmo bloco de parâmetros:
-
-- `Percentual`: aplica o valor informado sobre a base de incidência configurada;
-- `Valor fixo`: acrescenta o valor monetário uma única vez ao cálculo. O rateio técnico entre parcelas existe somente para manter a memória de cálculo consistente e preserva exatamente o total informado.
-
-O contrato novo usa `multa_valor` + `multa_tipo`. O backend aceita `multa_percentual` apenas como compatibilidade de entrada para cálculos/snapshots legados; novas telas e extrações usam os campos canônicos.
-
+Evite colocar regra financeira no Angular ou nos routers HTTP. A interface apresenta e coleta dados; os routers validam e encaminham; os serviços coordenam; `src/judicial_calc` concentra o cálculo. Antes de alterar uma fórmula, adicione ou ajuste um teste de cenário que descreva claramente a entrada e a saída esperada.

@@ -7,31 +7,42 @@ from typing import Literal
 from pydantic import Field
 
 from backend.calculation_policy import CalculationOrigin
-from backend.contracts.base import Contract, DamageType, EvidenceEffect, EvidenceNature, ProcessId, Rate, Scalar
-from backend.contracts.calculation import CalculationParameters, Installment
+from backend.contracts.base import Contract, DamageType, EvidenceEffect, EvidenceNature, ProcessId, Scalar
+from backend.contracts.calculation import Installment
 from backend.contracts.document import DocumentMetadata
 
 
 class AiUsage(Contract):
     etapa: str
     modelo: str
+    # Contadores reais, somente quando o gateway os fornece explicitamente.
     tokens_entrada: int | None = Field(default=None, ge=0)
     tokens_entrada_cache: int | None = Field(default=None, ge=0)
     tokens_saida: int | None = Field(default=None, ge=0)
     tokens_total: int | None = Field(default=None, ge=0)
+    # Estimativas locais são separadas dos contadores reais e nunca tratadas como cobrança.
+    tokens_estimados_entrada: int | None = Field(default=None, ge=0)
+    tokens_estimados_saida: int | None = Field(default=None, ge=0)
+    origem_tokens: Literal["gateway", "estimativa_local", "cache", "indisponivel"] = "indisponivel"
     custo_estimado_usd: Decimal | None = Field(default=None, ge=0, decimal_places=6)
     duracao_ms: float = Field(ge=0)
     paginas_contexto: int | None = Field(default=None, ge=0)
     caracteres_entrada: int | None = Field(default=None, ge=0)
+    caracteres_saida: int | None = Field(default=None, ge=0)
+    cache_hit: bool = False
+    request_sha256: str | None = Field(default=None, min_length=64, max_length=64)
     correcao_estrutural: bool = False
 
 
 class AiUsageSummary(Contract):
     chamadas: int = Field(ge=0)
+    chamadas_api: int = Field(default=0, ge=0)
+    acertos_cache: int = Field(default=0, ge=0)
     tokens_entrada: int | None = Field(default=None, ge=0)
     tokens_entrada_cache: int | None = Field(default=None, ge=0)
     tokens_saida: int | None = Field(default=None, ge=0)
     tokens_total: int | None = Field(default=None, ge=0)
+    tokens_estimados_total: int | None = Field(default=None, ge=0)
     custo_estimado_usd: Decimal | None = Field(default=None, ge=0, decimal_places=6)
     duracao_total_ms: float = Field(default=0, ge=0)
     detalhamento: list[AiUsage] = Field(default_factory=list)

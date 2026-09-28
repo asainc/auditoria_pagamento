@@ -1,318 +1,540 @@
-# Fluxo completo do cálculo
+# Fluxo completo de um cálculo
 
-Este documento acompanha uma execução do início ao fim, indicando arquivo, função, entrada e saída. Ele explica o caminho; assinaturas individuais são geradas em `REFERENCIA_CODIGO.md`.
+Este documento acompanha um cálculo sintético do início ao fim. O objetivo é permitir que uma pessoa sem conhecimento prévio do projeto entenda qual função é chamada, o que ela recebe e o que devolve.
 
-## 1. Bootstrap
+O exemplo abaixo foi executado contra o próprio motor e também corresponde a um cenário de referência da suíte de testes. Ele serve apenas para explicar o fluxo técnico; não define qual índice, juros ou critério deve ser usado em um processo real.
 
-### `frontend/src/main.ts`
+## 1. Entrada usada no exemplo
 
-Inicializa o Angular e registra `AppComponent`.
+### Parcelas
 
-**Entrada:** bundle compilado e navegador.  
-**Saída:** aplicação Angular ativa.
+Tipo esperado pelo motor:
 
-### `frontend/src/app/app.routes.ts`
-
-A rota principal do cálculo é `/auditoria-pagamentos/calculo`. BJN e AI Ready usam páginas template e não participam do motor.
-
-## 2. Criação do rascunho
-
-### `blankDraft(process, origin)` — `frontend/src/app/core/calculation-mapper.ts`
-
-Cria o estado inicial.
-
-**Manual:** `origin='manual'`, sem número de processo, defaults de teste vindos do catálogo gerado.  
-**Processo:** `origin='processo'`, número do processo definido e parâmetros inicialmente vazios para receber extração/política.
-
-Cada rascunho possui `draftId` técnico aleatório usado na trilha de alterações manuais.
-
-## 3. Processo real: documentos e extração
-
-### `WorkspaceStore.selectProcess(process)`
-
-1. desliga o modo manual;
-2. seleciona o processo;
-3. cria/recupera o rascunho específico;
-4. carrega histórico de alterações do processo;
-5. busca documentos;
-6. inicia polling do job de extração.
-
-### `DocumentService.receive()` — `backend/services/documents.py`
-
-No upload, valida PDF, associação pelo nome, tamanho, hash e páginas; persiste metadados e bytes em área controlada.
-
-### `ExtractionService.start()` / execução em background
-
-Obtém documentos ordenados pela sequência, monta contexto e executa os prompts especializados.
-
-### `PromptContextBuilder.build()` — `backend/services/prompt_context.py`
-
-**Entrada:** processo e metadados dos documentos.  
-**Saída:** `PromptContext` com `_base.md`, cronologia, catálogo de índices e schema de parâmetros.
-
-O contexto é construído uma vez por job e reutilizado nas dez tarefas.
-
-### `ExtractionProvider.extract()` — `backend/services/extraction.py`
-
-**Entrada:** prompt completo e PDFs.  
-**Saída:** `ExtractionFragment` validado.
-
-A chamada ao provedor usa Structured Outputs e `store=False`. Os modelos externos de `extraction_wire.py` exigem estrutura explícita, inclusive `natureza` e `efeito` de cada evidência.
-
-### validação/consolidação
-
-`ExtractionService.consolidate()` valida fonte, página, trecho, escopo, campo e tipo. Depois chama:
-
-```text
-ChronologyReducer.reduce(campos)
+```python
+list[dict[str, Any]] | pandas.DataFrame
 ```
 
-**Saída:** `parametros_consolidados`, `decisoes_cronologicas` e alertas não resolvidos.
+Exemplo:
 
-`OperationalPolicy.apply()` completa campos autorizados quando não existe valor documental efetivo. Cada complemento entra em `ajustes_operacionais` com motivo.
-
-## 4. Aplicação da extração no Angular
-
-### `WorkspaceStore.loadExtraction()`
-
-Busca o resultado ainda vigente e chama `applyExtraction()`.
-
-### `applyExtraction(draft, result, job)`
-
-Prioridade para parâmetro vazio:
-
-```text
-parametros_consolidados
-    ↓ se ausente
-valor bruto único e válido
-    ↓ se ausente
-ajuste_operacional
-```
-
-Valores já editados pelo humano não são substituídos. Parcelas previamente digitadas também são preservadas.
-
-## 5. Edição e auditoria
-
-### `WorkspaceStore.updateParameter(key, value)`
-
-Atualiza o formulário e invalida resultado/revisão anteriores. Em seguida enfileira evento com debounce de 650 ms. Eventos pendentes são enviados imediatamente antes de trocar de processo, confirmar revisão ou calcular. Se a persistência obrigatória falhar, a operação é bloqueada e o evento permanece pendente para nova tentativa.
-
-### `RevisionAuditApiService.record()` → `POST /api/v2/auditoria/parametros`
-
-### `RevisionAuditService.record()`
-
-Enriquece a alteração com a origem automática conhecida pelo servidor. A preferência é:
-
-1. decisão cronológica consolidada;
-2. ajuste operacional;
-3. evidência bruta única.
-
-`Repository.add_parameter_change()` persiste o evento em SQLite. Registros não são atualizados ou apagados pelo fluxo normal.
-
-## 6. Confirmação humana
-
-### `WorkspaceStore.review(true)`
-
-Se a competência é automática, consulta `/api/v2/calculos/padroes`. O rascunho só é marcado como revisado se não tiver mudado durante a requisição.
-
-Qualquer edição posterior redefine `humanReviewed=false` e remove resultado confirmado.
-
-## 7. Montagem do request
-
-### `toCalculationRequest(draft)`
-
-Valida localmente campos mínimos, parcelas completas e confirmação humana.
-
-**Exemplo sintético de saída manual válida:**
-
-```json
-{
-  "origem_calculo": "manual",
-  "numero_processo": null,
-  "parcelas": [
+```python
+installments = [
     {
-      "data": "2025-01-01",
-      "valor_singelo": "1000.00",
-      "descricao": "Parcela sintética para teste",
-      "verba_tipo": "dano_material",
-      "origem": "informada"
+        "item": 1,
+        "data": "2025-01-01",
+        "valor_singelo": "1234.56",
+        "descricao": "Base",
+        "verba_tipo": "dano_material",
     }
-  ],
-  "parametros": {
+]
+```
+
+### Parâmetros
+
+Tipo esperado:
+
+```python
+dict[str, Any]
+```
+
+Exemplo:
+
+```python
+parameters = {
+    "indice": "sem_correcao",
     "mes_atualizacao": "março",
     "ano_atualizacao": 2026,
-    "indice": "sem_correcao",
     "juros_moratorios_tipo": "sem_juros",
-    "juros_compensatorios_tipo": "sem_juros",
-    "art_523": "nao_aplicar"
-  },
-  "revisao_humana_confirmada": true,
-  "honorarios_sobre_danos_morais": false,
-  "competencia_automatica": false
+    "auto_atualizar_planilhas_indices": False,
 }
 ```
 
-O modo `processo` usa o mesmo contrato, com `origem_calculo='processo'` e `numero_processo` obrigatório. Nesse modo, os parâmetros podem ter origem documental ou operacional, mas a requisição final contém os valores efetivos já revisados pelo operador.
+Nesse cenário, o valor foi escolhido para demonstrar a passagem pelos módulos sem depender de uma tabela externa: não há correção monetária, juros, multa, honorários nem compensação.
 
-Valores monetários permanecem texto decimal na fronteira HTTP.
+## 2. Caminho completo pela aplicação
 
-## 8. Validação FastAPI
-
-### `CalculationRequest` — `backend/models.py`
-
-O `model_validator` aplica `apply_missing_defaults()` segundo a origem e valida a relação entre origem/número de processo.
-
-`CalculationParameters.require_active_fields()` valida dependências: juros de capitalização, prescrição, compensação e duplo índice.
-
-### `validate_prepared_request()`
-
-Impede inconsistências de honorários gerados e competência automática vencida.
-
-## 9. Serviço de cálculo
-
-### `CalculationService.execute()` — `backend/services/calculation.py`
-
-Responsabilidades:
-
-- validar estado preparado;
-- calcular SHA-256 canônico da entrada aceita (`entrada_sha256`);
-- obter o SHA-256 da política central (`politica_sha256`);
-- chamar `EngineFacade`;
-- medir duração;
-- retornar `CalculationResponse` ou PDF;
-- anexar hashes técnicos e confirmação humana.
-
-Ele não reimplementa matemática do motor.
-
-### `EngineFacade.calculate()` — `backend/services/engine.py`
-
-Converte contratos Pydantic para estruturas aceitas por `judicial_calc.calcular_debitos()` e mantém a fronteira do motor em um único ponto.
-
-## 10. Motor determinístico
-
-### `CalculoParams.from_raw()` — `services/calculation_parameters.py`
-
-Normaliza:
-
-- competência;
-- tipos de juros;
-- prescrição;
-- compensação;
-- valor em dobro para restituição material, quando expressamente determinado;
-- duplo índice;
-- Art. 523.
-
-Combinações inválidas lançam `CalculationValidationError` com código e campos relacionados.
-
-### `calcular_debitos()` — `services/calculation_service.py`
-
-O orquestrador delega regras coesas para `calculation_prescription.py`, `calculation_penalties.py`, `calculation_adjustments.py` e `calculation_summary.py`. A ordem principal é:
-
-1. verifica/atualiza planilhas de índices conforme configuração;
-2. valida colunas mínimas das parcelas;
-3. normaliza datas e parâmetros;
-4. aplica corte de prescrição;
-5. pré-carrega tabelas necessárias;
-6. calcula correção e juros por parcela;
-7. calcula multa comum e honorários informados;
-8. aplica Art. 523 e rateios monetários;
-9. monta resumo bruto;
-10. aplica compensação;
-11. mantém rastreabilidade da aplicação de valor em dobro nas parcelas materiais quando a flag estiver ativa;
-12. monta `ResultadoCalculo` com memória, resumo e parâmetros efetivos.
-
-As estratégias de índice e juros ficam em módulos próprios e são escolhidas por configuração; não há fórmula jurídica no Angular.
-
-## 11. Resposta e rastreabilidade
-
-`CalculationResponse` devolve:
-
-- origem e processo quando aplicável;
-- tabela de memória;
-- resumo;
-- parâmetros efetivos;
-- `entrada_sha256`;
-- `politica_sha256`;
-- `motor_sha256`;
-- `indices_sha256`;
-- duração medida;
-- confirmação humana.
-
-O frontend exibe esses valores sem recalculá-los.
-
-## 12. Falha do motor
-
-`CalculationValidationError` informa `code` e `fields`. `engine_error_guidance()` converte as chaves em rótulos do catálogo central e devolve orientação como “ajuste X e Y”. O texto original e valores recebidos não são analisados por regex nem ecoados.
-
-## 13. Cadastro, versionamento e execução técnica
-
-Após um cálculo concluído, `CalculationService.execute()` produz uma única memória de cálculo PDF a partir do resultado e chama `CalculationRepository.append_version()`. A persistência separa o estado funcional escolhido pelo usuário da execução técnica que produziu um resultado.
+Quando a chamada vem pela interface web, o caminho é:
 
 ```text
-processo/identificador normalizado
-    ↓
-calculation_records
-    ↓
-calculation_versions                  calculation_executions
-    ├── V1  ←──────────────────────── Execução A
-    │    └─────────────────────────── Execução B (mesmo estado funcional)
-    ├── V2  ←──────────────────────── Execução C
-    └── VN
+Angular
+  -> CalculationApiService
+  -> router de cálculos FastAPI
+  -> CalculationService.execute()
+  -> EngineFacade.calculate()
+  -> calcular_debitos()
+  -> ResultadoCalculo
+  -> resposta HTTP
+  -> Angular
 ```
 
-O `business_hash` é calculado de forma canônica somente sobre:
+Quando o motor é chamado diretamente em Python, o caminho começa em `calcular_debitos()`.
 
-- parâmetros de cálculo;
-- parcelas;
-- `honorarios_sobre_danos_morais`.
+## 3. Etapa A — contrato HTTP
 
-Se o hash já existir naquele cálculo, nenhuma nova versão é criada; é registrada apenas uma nova execução técnica ligada à versão correspondente. Mudanças de motor, política ou índices ficam, portanto, auditáveis na execução sem gerar uma versão de negócio artificial.
+### Componente
 
-Quando um novo estado funcional precisa ser persistido, `versao_base` funciona como trava otimista. O SQLite inicia `BEGIN IMMEDIATE` antes de decidir o número da versão. Se a versão atual já tiver avançado em relação à base editada pelo usuário, o backend retorna conflito e nenhuma versão parcial é criada.
+`backend/contracts/calculation_input.py`
 
-Cada versão guarda request/result da criação, PDFs históricos, hashes, `business_hash`, versão base e diff estruturado. Cada execução guarda request/result efetivamente executados, PDFs da execução, hashes técnicos, duração, ator e instante UTC.
+### Objetivo
 
-## 14. Normalização da identidade do processo
+Representar o pedido de cálculo com tipos conhecidos antes que a regra financeira seja executada.
 
-`backend/calculation_identity.py` remove pontuação do número do processo para formar a chave de identidade. Quando há exatamente 20 dígitos, a máscara CNJ é reaplicada somente para exibição. Essa transformação evita cadastros duplicados por formatação e não deve ser interpretada como validação jurídica do número ou do dígito verificador.
+### Entrada
 
-Documentos recém-enviados também usam a apresentação canônica. Consultas de documentos toleram a máscara histórica já persistida.
+JSON recebido pela API.
 
-## 15. Histórico paginado e lazy loading
+### Saída
 
-`GET /api/v2/calculos/historico` devolve apenas resumos dos cálculos, com paginação e filtros. As versões não fazem parte dessa resposta. Os principais filtros são busca, origem, estado, índice atual, criador, período de atualização e ordenação.
+Objeto Pydantic `CalculationRequest` com parcelas e parâmetros validados.
 
-Ao expandir um cálculo, o Angular chama `GET /api/v2/calculos/{calculo_id}/versoes`. A paginação das versões é independente. Ao solicitar detalhes técnicos de uma versão, `GET /api/v2/calculos/{calculo_id}/versoes/{versao}/execucoes` carrega as execuções sob demanda.
+### Por que existe
 
-Esse desenho mantém a resposta principal pequena mesmo com grande quantidade de versões e reexecuções.
+A validação na entrada impede que uma estrutura inesperada chegue ao meio do cálculo. Em vez de falhar depois de várias etapas, o sistema informa o problema na fronteira.
 
-## 16. Comparador e diff completo
+## 4. Etapa B — `CalculationService.execute()`
 
-`GET /api/v2/calculos/{calculo_id}/comparar` compara diretamente duas versões escolhidas. A resposta contém:
+### Arquivo
 
-- total da versão de origem;
-- total da versão de destino;
-- diferença aritmética dos totais já produzidos pelo motor;
-- valores anterior/novo dos parâmetros alterados;
-- parcelas adicionadas/removidas/alteradas;
-- snapshots anterior/novo e campos modificados de cada parcela.
+`backend/services/calculation.py`
 
-O comparador é somente leitura e não recalcula o motor.
+### Assinatura principal
 
-## 17. Estado do cálculo
+```python
+CalculationService.execute(
+    payload: CalculationRequest,
+    pdf: bool = False,
+    expected_indices_hash: str | None = None,
+    *,
+    calculation_id: str | None = None,
+    base_version: int | None = None,
+    expected_current_version: int | None = None,
+    actor: str = "system",
+    persist_version: bool = True,
+) -> VersionedCalculationResponse | bytes
+```
 
-O cadastro pode estar `ativo`, `arquivado` ou `cancelado`. A alteração de estado é auditada e não remove dados. Cálculos arquivados/cancelados continuam consultáveis e seus PDFs permanecem disponíveis, mas novas execuções são recusadas até reativação.
+### Objetivo
 
-## 18. Reabertura segura
+Coordenar uma execução completa. Essa função não contém as fórmulas. Ela:
 
-A interface permite editar a versão atual de um cálculo ativo. Ao abrir:
+1. normaliza a estrutura de parâmetros;
+2. cria hashes de rastreabilidade;
+3. impede que uma atualização concorrente de índices mude a execução no meio;
+4. chama `EngineFacade.calculate()`;
+5. monta metadados;
+6. persiste execução/histórico quando solicitado;
+7. registra auditoria;
+8. devolve JSON estruturado ou PDF.
 
-1. o Angular consulta o snapshot imutável da versão;
-2. materializa o request como rascunho editável;
-3. invalida a confirmação humana anterior;
-4. preserva `calculo_id` e `versao_base`;
-5. qualquer nova execução exige nova confirmação humana;
-6. se outro usuário criar uma versão antes da gravação, o backend retorna conflito;
-7. se os parâmetros/parcelas forem idênticos a um estado já registrado, a versão é reutilizada e apenas uma nova execução é criada.
+### Entrada
 
-Os PDFs da versão e da execução são lidos do armazenamento persistido. Nenhum endpoint histórico chama `judicial_calc` para reconstruir o passado.
+`CalculationRequest` já validado.
+
+### Saída
+
+`VersionedCalculationResponse` no cálculo normal ou `bytes` quando a rota solicita PDF.
+
+## 5. Etapa C — `EngineFacade.calculate()`
+
+### Arquivo
+
+`backend/services/engine.py`
+
+### Assinatura
+
+```python
+def calculate(self, payload: CalculationRequest) -> ResultadoCalculo
+```
+
+### Objetivo
+
+Fazer a tradução entre o contrato HTTP e o motor. É a única fachada do backend para o cálculo determinístico.
+
+### O que recebe
+
+`CalculationRequest`.
+
+### O que faz
+
+1. transforma os parâmetros Pydantic em `dict[str, Any]`;
+2. inclui critérios separados por tipo de dano quando existem;
+3. valida combinações operacionais;
+4. desativa atualização automática de arquivos nessa etapa, porque a atualização é controlada pelo backend;
+5. converte as parcelas para `list[dict[str, Any]]`;
+6. chama `calcular_debitos(installments, **params)`.
+
+### Saída
+
+`ResultadoCalculo`, definido em `src/judicial_calc/core/types.py`, contendo:
+
+- `memoria: pandas.DataFrame`;
+- `resumo: pandas.DataFrame`;
+- `parametros: dict[str, Any]`.
+
+## 6. Etapa D — `calcular_debitos()`
+
+### Arquivo
+
+`src/judicial_calc/services/calculation_service.py`
+
+### Assinatura
+
+```python
+def calcular_debitos(
+    parcelas: pandas.DataFrame | list[dict[str, Any]],
+    **params: Any,
+) -> ResultadoCalculo
+```
+
+### Objetivo
+
+Ser o ponto principal do motor. A função coordena quatro fases e deixa cada regra específica em uma função menor.
+
+### Fluxo interno
+
+```mermaid
+flowchart TD
+    A[parcelas + params] --> B[_executar_atualizacao_indices_se_necessario]
+    B --> C[_prepare_installments]
+    C --> D[_build_damage_contexts]
+    D --> E[_aplicar_prescricao_somente_material]
+    E --> F[_build_memory]
+    F --> G[_apply_calculation_post_processing]
+    G --> H[ResultadoCalculo]
+```
+
+## 7. Etapa E — atualização controlada de índices
+
+### Função
+
+```python
+_executar_atualizacao_indices_se_necessario(params: dict[str, Any]) -> dict[str, Any]
+```
+
+### Objetivo
+
+Decidir se as planilhas locais precisam ser verificadas/atualizadas antes do cálculo.
+
+### Entrada
+
+Dicionário de parâmetros.
+
+### Saída
+
+Dicionário de status com informações como `executed`, `skipped`, `success` e `message`.
+
+No exemplo, `auto_atualizar_planilhas_indices=False`, então nenhuma chamada externa é necessária.
+
+## 8. Etapa F — `_prepare_installments()`
+
+### Assinatura
+
+```python
+def _prepare_installments(
+    parcelas: pandas.DataFrame | list[dict[str, Any]],
+) -> pandas.DataFrame
+```
+
+### Objetivo
+
+Criar uma tabela interna segura antes das fórmulas.
+
+### Entrada do exemplo
+
+```text
+item=1
+data="2025-01-01"
+valor_singelo="1234.56"
+descricao="Base"
+verba_tipo="dano_material"
+```
+
+### Validações
+
+A função exige as colunas:
+
+```text
+item
+data
+valor_singelo
+```
+
+Se `descricao` não vier, ela cria a coluna vazia. A data é convertida uma única vez para `datetime.date` e guardada em `_data_parcela`.
+
+### Saída
+
+`pandas.DataFrame` novo. O objeto original não é alterado.
+
+## 9. Etapa G — `_build_damage_contexts()`
+
+### Assinatura
+
+```python
+def _build_damage_contexts(
+    frame: pandas.DataFrame,
+    params: dict[str, Any],
+) -> tuple[
+    CalculoParams,
+    dict[str, DamageCalculationContext],
+    DamageCalculationContext,
+]
+```
+
+### Objetivo
+
+Preparar tudo que será reutilizado pelas parcelas antes do loop principal.
+
+### Entrada
+
+- `frame`: parcelas já preparadas;
+- `params`: parâmetros brutos do cálculo.
+
+### Trabalho executado
+
+1. `CalculoParams.from_raw(params)` converte e valida os parâmetros;
+2. `_parametros_por_dano(params)` separa critérios de dano material e dano moral;
+3. `_precarregar_tabelas(...)` carrega somente as tabelas necessárias para cada contexto;
+4. cada contexto reúne parâmetros, configuração tipada e tabelas.
+
+### Saída
+
+- configuração geral `CalculoParams`;
+- dicionário de contextos por natureza de dano;
+- contexto geral para uma linha que não tenha natureza reconhecida.
+
+No exemplo existe somente `dano_material`.
+
+## 10. Etapa H — prescrição
+
+### Função
+
+```python
+_aplicar_prescricao_somente_material(
+    df: pandas.DataFrame,
+    cfg: CalculoParams,
+) -> pandas.DataFrame
+```
+
+### Objetivo
+
+Aplicar o corte temporal somente quando a configuração determina prescrição.
+
+### Entrada do exemplo
+
+A flag de prescrição está desativada por padrão.
+
+### Saída do exemplo
+
+A mesma parcela continua no cálculo.
+
+## 11. Etapa I — `_build_memory()`
+
+### Assinatura
+
+```python
+def _build_memory(
+    frame: pandas.DataFrame,
+    contexts: dict[str, DamageCalculationContext],
+    general_context: DamageCalculationContext,
+) -> pandas.DataFrame
+```
+
+### Objetivo
+
+Percorrer as parcelas e produzir a memória detalhada linha a linha.
+
+### Como o loop funciona
+
+Para cada registro:
+
+1. identifica `verba_tipo`;
+2. seleciona o contexto correspondente;
+3. chama `_linha_memoria(...)`;
+4. guarda o dicionário calculado na lista `rows`;
+5. ao final, transforma a lista em `DataFrame` e ordena por `item`.
+
+### Entrada de `_linha_memoria()`
+
+Um dicionário de parcela, `CalculoParams`, os parâmetros daquele tipo de dano e `TabelasCalculo`.
+
+### Saída de `_linha_memoria()`
+
+Um `dict[str, Any]` com os valores intermediários e finais daquela parcela.
+
+No exemplo:
+
+```text
+valor_singelo              = 1234.56
+fator_correcao             = 1
+valor_atualizado           = 1234.56
+juros_moratorios           = 0.00
+multa                      = 0.00
+total                      = 1234.56
+```
+
+O fator é `1` porque o índice escolhido foi `sem_correcao`; os juros são `0.00` porque o tipo foi `sem_juros`.
+
+## 12. Etapa J — `_apply_calculation_post_processing()`
+
+### Assinatura
+
+```python
+def _apply_calculation_post_processing(
+    memory: pandas.DataFrame,
+    params: dict[str, Any],
+    config: CalculoParams,
+) -> tuple[pandas.DataFrame, pandas.DataFrame]
+```
+
+### Objetivo
+
+Aplicar regras que precisam enxergar o conjunto completo das parcelas. Elas não ficam dentro do loop porque isso poderia duplicar um valor global para cada linha.
+
+### Ordem
+
+1. `_aplicar_multa_fixa_na_memoria()`;
+2. calcula totais necessários aos honorários;
+3. `_calcular_honorarios_informados()`;
+4. `_aplicar_art_523_na_memoria()`;
+5. `_montar_resumo()`;
+6. obtém `valor_compensacao` no resumo;
+7. `_aplicar_compensacao_na_memoria()`.
+
+### Saída
+
+Tupla:
+
+```python
+(memory: pandas.DataFrame, summary: pandas.DataFrame)
+```
+
+No exemplo, todas essas parcelas adicionais são zero.
+
+## 13. Etapa K — `_montar_resumo()`
+
+### Arquivo
+
+`src/judicial_calc/services/calculation_summary.py`
+
+### Assinatura
+
+```python
+def _montar_resumo(
+    memoria: pandas.DataFrame,
+    params: dict[str, Any],
+    cfg: CalculoParams,
+) -> pandas.DataFrame
+```
+
+### Objetivo
+
+Consolidar os totais do cálculo em pares `campo`/`valor`.
+
+### Saída verificada do exemplo
+
+Os principais campos são:
+
+```text
+total_singelo              = 1234.56
+total_atualizado           = 1234.56
+total_juros_moratorios     = 0.00
+total_multa                = 0.00
+honorarios                 = 0.00
+valor_compensacao          = 0.00
+total_geral                = 1234.56
+```
+
+## 14. Etapa L — `ResultadoCalculo`
+
+Ao final, `calcular_debitos()` devolve:
+
+```python
+ResultadoCalculo(
+    memoria=<DataFrame>,
+    resumo=<DataFrame>,
+    parametros=<dict>,
+)
+```
+
+Para a parcela do exemplo, a memória final contém, entre outros campos:
+
+```text
+item                                  = 1
+data                                  = 2025-01-01
+valor_singelo                         = 1234.56
+indice_correcao                       = sem_correcao
+fator_correcao                        = 1
+valor_atualizado                      = 1234.56
+juros_moratorios                      = 0.00
+multa                                 = 0.00
+total_com_honorarios_e_art_523        = 1234.56
+compensacao_linha                     = 0.00
+total_liquido_apos_compensacao        = 1234.56
+```
+
+## 15. Etapa M — volta ao backend
+
+`EngineFacade.calculate()` recebe `ResultadoCalculo` e devolve para `CalculationService.execute()`.
+
+O serviço converte os `DataFrame` para contratos serializáveis, gera metadados de rastreabilidade e registra a execução conforme a configuração da chamada.
+
+Os metadados podem incluir hashes do pedido, política, motor e índices, além da duração. Esses dados permitem explicar qual conjunto técnico produziu o resultado sem colocar o conteúdo integral dos documentos nos logs.
+
+## 16. Etapa N — PDF
+
+Quando o usuário solicita a memória em PDF:
+
+```text
+CalculationService.execute(pdf=True)
+    -> EngineFacade.pdf()
+    -> salvar_resultado_pdf()
+    -> bytes
+```
+
+`EngineFacade.pdf()` usa diretório temporário, grava `memoria.pdf`, lê os bytes e remove o diretório ao sair do contexto.
+
+## 17. Como testar exatamente este exemplo
+
+O cenário está coberto pelos testes de referência. Também pode ser executado diretamente:
+
+```python
+from judicial_calc import calcular_debitos
+
+result = calcular_debitos(
+    [
+        {
+            "item": 1,
+            "data": "2025-01-01",
+            "valor_singelo": "1234.56",
+            "descricao": "Base",
+            "verba_tipo": "dano_material",
+        }
+    ],
+    indice="sem_correcao",
+    mes_atualizacao="março",
+    ano_atualizacao=2026,
+    juros_moratorios_tipo="sem_juros",
+    auto_atualizar_planilhas_indices=False,
+)
+
+print(result.memoria)
+print(result.resumo)
+```
+
+Resultado esperado para `total_geral`: `Decimal("1234.56")`.
+
+## 18. Onde alterar cada tipo de regra
+
+| Necessidade | Local principal |
+|---|---|
+| validação/normalização de parâmetros | `services/calculation_parameters.py` |
+| prescrição | `services/calculation_prescription.py` |
+| multa e art. 523 | `services/calculation_penalties.py` |
+| compensação | `services/calculation_adjustments.py` |
+| totais e honorários | `services/calculation_summary.py` |
+| coordenação linha a linha | `services/calculation_service.py` |
+| correção monetária | `indices/` |
+| juros moratórios | `interest/` |
+| fontes externas/planilhas | `data_sources/` |
+| PDF/Excel | `io/` |
+
+Ao alterar um desses pontos, teste a função específica e depois a suíte completa para confirmar que outros cenários não foram afetados.

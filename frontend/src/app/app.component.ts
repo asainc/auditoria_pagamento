@@ -78,6 +78,7 @@ type ApplicationDescriptor = {
               <nav aria-label="Navegação principal" class="top-level-nav">
                 <a routerLink="/auditoria-pagamentos/calculo" routerLinkActive="active">Cálculo</a>
                 <a routerLink="/auditoria-pagamentos/historico" routerLinkActive="active">Histórico</a>
+                <a routerLink="/auditoria-pagamentos/qualidade-ia" routerLinkActive="active">Qualidade IA</a>
               </nav>
             } @else {
               <div class="top-level-nav top-level-nav--placeholder">

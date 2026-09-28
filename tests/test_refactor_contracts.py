@@ -13,7 +13,6 @@ def _parameters(**overrides):
         "mes_atualizacao": "janeiro",
         "ano_atualizacao": 2026,
         "indice": "sem_correcao",
-        "juros_compensatorios_tipo": "sem_juros",
         "juros_moratorios_tipo": "sem_juros",
     }
     base.update(overrides)

@@ -23,7 +23,7 @@ from judicial_calc.extraction.sgs import baixar_sgs
 from judicial_calc.indices.registry import resolve_index_strategy
 from judicial_calc.indices.sgs_percentage import INDICES_SGS, SGSPercentageCorrectionIndex
 from judicial_calc.data_sources.local_excel import load_taxa_legal_mensal_percentual
-from judicial_calc.data_sources.drcalc_updater import atualizar_planilhas_drcalc_se_necessario
+from judicial_calc.data_sources.drcalc.service import atualizar_planilhas_drcalc_se_necessario
 from judicial_calc.interest.service import calcular_juros
 from judicial_calc.interest.taxa_legal import (
     COMPETENCIA_FIM_TAXA_LEGAL_STJ1368_SEM_DEDUCAO,
@@ -58,6 +58,62 @@ from judicial_calc.services.calculation_summary import (
 
 Tabela = pd.DataFrame | list[dict[str, Any]] | None
 
+DAMAGE_FINANCIAL_FIELDS = (
+    "mes_atualizacao",
+    "ano_atualizacao",
+    "indice",
+    "deflacionar_valor_nominal",
+    "competencia_final_taxa_legal",
+    "juros_moratorios_tipo",
+    "juros_moratorios_taxa",
+    "juros_moratorios_periodicidade",
+    "juros_moratorios_pro_rata",
+    "juros_moratorios_data_inicio",
+)
+
+
+def _parametros_por_dano(params: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Resolve atualização e juros independentes para material e moral.
+
+    Quando ``parametros_por_dano`` não existe, os campos financeiros gerais são
+    usados como valor de segurança para ambos os tipos de dano.
+    Regras exclusivas de dano material (prescrição, multa, art. 523,
+    compensação, duplo índice e valor dobrado) são desligadas no ramo moral.
+    """
+    raw = params.get("parametros_por_dano")
+    scoped = raw if isinstance(raw, dict) else {}
+    resolved: dict[str, dict[str, Any]] = {}
+    for damage in ("dano_material", "dano_moral"):
+        branch = dict(params)
+        branch.pop("parametros_por_dano", None)
+        override = scoped.get(damage) if isinstance(scoped, dict) else None
+        if isinstance(override, dict):
+            for field in DAMAGE_FINANCIAL_FIELDS:
+                if field in override and override[field] not in (None, ""):
+                    branch[field] = override[field]
+        if damage == "dano_moral":
+            branch.update({
+                "prescricao_flag": False,
+                "multa_valor": "0",
+                "multa_percentual": "0",
+                "art_523": "nao_aplicar",
+                "compensacao_flag": False,
+                "duplo_indice_flag": False,
+                "valor_dobrado_flag": False,
+            })
+        resolved[damage] = branch
+    return resolved
+
+
+def _aplicar_prescricao_somente_material(df: pd.DataFrame, cfg: CalculoParams) -> pd.DataFrame:
+    """Aplica o corte prescricional exclusivamente às parcelas materiais."""
+    if not cfg.tem_prescricao or "verba_tipo" not in df.columns:
+        return _aplicar_prescricao(df, cfg) if cfg.tem_prescricao else df
+    material = df[df["verba_tipo"].astype(str) == "dano_material"]
+    outros = df[df["verba_tipo"].astype(str) != "dano_material"]
+    material = _aplicar_prescricao(material, cfg) if not material.empty else material
+    return pd.concat([material, outros], ignore_index=True)
+
 @dataclass
 class TabelasCalculo:
     """Conjunto de tabelas pré-carregadas para evitar chamadas repetidas.
@@ -75,6 +131,27 @@ class TabelasCalculo:
     taxa_legal_diaria_selic_ipcae: Tabela = None
     taxa_legal_diaria_12_6: Tabela = None
     indices_por_indice: dict[str, Tabela] | None = None
+
+
+@dataclass
+class DamageCalculationContext:
+    """Agrupa tudo que uma natureza de dano precisa para calcular suas parcelas.
+
+    Entrada de construção:
+        ``params``: parâmetros já separados para a natureza do dano.
+        ``config``: parâmetros convertidos e validados em ``CalculoParams``.
+        ``tables``: séries externas pré-carregadas para evitar leituras repetidas.
+
+    Saída/uso:
+        A estrutura não executa cálculo. Ela apenas mantém juntos os três objetos
+        que seriam passados separadamente a cada parcela. Isso deixa o loop
+        principal menor e reduz o risco de misturar critérios de dano material e
+        dano moral.
+    """
+
+    params: dict[str, Any]
+    config: CalculoParams
+    tables: TabelasCalculo
 
 
 # ---------------------------------------------------------------------------
@@ -170,16 +247,12 @@ def _data_inicio_juros_efetiva(params: dict[str, Any], cfg: CalculoParams, prefi
 
 
 def _datas_inicio_juros(df: pd.DataFrame, cfg: CalculoParams, tipos: set[str]) -> list:
-    """Obtém as datas iniciais dos juros que usam determinado conjunto de tipos."""
-    datas = []
+    """Obtém a data inicial dos juros moratórios quando o tipo exige série externa."""
+    if cfg.tipo_juros_moratorios not in tipos:
+        return []
     menor_data_parcela = min(df["_data_parcela"])
-    if cfg.tipo_juros_compensatorios in tipos:
-        inicio = parse_data(cfg.data_inicio_compensatorios) if cfg.data_inicio_compensatorios else menor_data_parcela
-        datas.append(_data_inicio_com_prescricao(inicio, cfg))
-    if cfg.tipo_juros_moratorios in tipos:
-        inicio = parse_data(cfg.data_inicio_moratorios) if cfg.data_inicio_moratorios else menor_data_parcela
-        datas.append(_data_inicio_com_prescricao(inicio, cfg))
-    return datas
+    inicio = parse_data(cfg.data_inicio_moratorios) if cfg.data_inicio_moratorios else menor_data_parcela
+    return [_data_inicio_com_prescricao(inicio, cfg)]
 
 
 def _precarregar_indices(df: pd.DataFrame, cfg: CalculoParams, tabelas: TabelasCalculo) -> None:
@@ -326,7 +399,7 @@ def _parametros_stj1368(cfg: CalculoParams) -> dict[str, Any]:
     }
 
 
-def _calcular_juros_da_linha(
+def _calcular_juros_moratorios_da_linha(
     *,
     params: dict[str, Any],
     cfg: CalculoParams,
@@ -334,25 +407,19 @@ def _calcular_juros_da_linha(
     valor_base: Decimal,
     valor_nominal: Decimal,
     data_parcela,
-    prefixo: str,
-    valor_referencia_percentual_stj1368: Decimal | None = None,
-    valor_incidencia_stj1368: Decimal | None = None,
 ) -> tuple[Decimal, Decimal, Decimal]:
-    """Calcula juros compensatórios ou moratórios de uma linha.
-
-    ``prefixo`` deve ser ``juros_compensatorios`` ou ``juros_moratorios``.
-    """
-    data_inicio_efetiva = _data_inicio_juros_efetiva(params, cfg, prefixo, data_parcela)
+    """Calcula exclusivamente os juros moratórios de uma parcela."""
+    data_inicio_efetiva = _data_inicio_juros_efetiva(params, cfg, "juros_moratorios", data_parcela)
     try:
         return calcular_juros(
             valor_base=valor_base,
             valor_nominal=valor_nominal,
             data_parcela=data_parcela,
             competencia_atualizacao=cfg.competencia_atualizacao,
-            taxa=params.get(f"{prefixo}_taxa", "0"),
-            periodicidade=params.get(f"{prefixo}_periodicidade", "mensal"),
-            pro_rata=bool(params.get(f"{prefixo}_pro_rata", False)),
-            tipo=params.get(f"{prefixo}_tipo", "capitalizacao_simples"),
+            taxa=params.get("juros_moratorios_taxa", "0"),
+            periodicidade=params.get("juros_moratorios_periodicidade", "mensal"),
+            pro_rata=bool(params.get("juros_moratorios_pro_rata", False)),
+            tipo=params.get("juros_moratorios_tipo", "capitalizacao_simples"),
             data_inicio=data_inicio_efetiva,
             tabela_taxa_legal=tabelas.taxa_legal,
             tabela_selic=tabelas.selic,
@@ -361,8 +428,6 @@ def _calcular_juros_da_linha(
             tabela_taxa_legal_diaria_selic_ipcae=tabelas.taxa_legal_diaria_selic_ipcae,
             tabela_taxa_legal_diaria_12_6=tabelas.taxa_legal_diaria_12_6,
             competencia_final_taxa_legal=cfg.competencia_final_taxa_legal,
-            valor_referencia_percentual_stj1368=valor_referencia_percentual_stj1368,
-            valor_incidencia_stj1368=valor_incidencia_stj1368,
             **_parametros_stj1368(cfg),
         )
     except CalculationValidationError:
@@ -370,12 +435,9 @@ def _calcular_juros_da_linha(
     except (ValueError, KeyError, ArithmeticError) as exc:
         raise CalculationValidationError(
             "invalid_interest_configuration",
-            [f"{prefixo}_tipo", f"{prefixo}_taxa", f"{prefixo}_periodicidade", f"{prefixo}_data_inicio"],
-            "Revise o tipo, a taxa, a periodicidade e a data inicial dos juros.",
+            ["juros_moratorios_tipo", "juros_moratorios_taxa", "juros_moratorios_periodicidade", "juros_moratorios_data_inicio"],
+            "Revise o tipo, a taxa, a periodicidade e a data inicial dos juros moratórios.",
         ) from exc
-
-
-
 
 
 
@@ -409,41 +471,26 @@ def _linha_memoria(row: dict[str, Any], cfg: CalculoParams, params: dict[str, An
     )
     valor_atualizado = moeda(valor_singelo * fator)
 
-    data_inicio_comp_efetiva = _data_inicio_juros_efetiva(params, cfg, "juros_compensatorios", data_parcela)
     data_inicio_mora_efetiva = _data_inicio_juros_efetiva(params, cfg, "juros_moratorios", data_parcela)
 
-    juros_comp, pct_comp, n_comp = _calcular_juros_da_linha(
-        params=params,
-        cfg=cfg,
-        tabelas=tabelas,
-        valor_base=valor_atualizado,
-        valor_nominal=valor_singelo,
-        data_parcela=data_parcela,
-        prefixo="juros_compensatorios",
-    )
-
-    base_mora = valor_atualizado + juros_comp if cfg.juros_mora_sobre_compensatorios else valor_atualizado
-    juros_mora, pct_mora, n_mora = _calcular_juros_da_linha(
+    base_mora = valor_atualizado
+    juros_mora, pct_mora, n_mora = _calcular_juros_moratorios_da_linha(
         params=params,
         cfg=cfg,
         tabelas=tabelas,
         valor_base=base_mora,
         valor_nominal=valor_singelo,
         data_parcela=data_parcela,
-        prefixo="juros_moratorios",
-        valor_referencia_percentual_stj1368=valor_atualizado,
-        valor_incidencia_stj1368=base_mora,
     )
 
     multa_detalhe = _calcular_multa_linha(
         data_parcela=data_parcela,
         valor_atualizado=valor_atualizado,
-        juros_comp=juros_comp,
         juros_mora=juros_mora,
         cfg=cfg,
         params=params,
     )
-    total = moeda(valor_atualizado + juros_comp + juros_mora + multa_detalhe.total)
+    total = moeda(valor_atualizado + juros_mora + multa_detalhe.total)
 
     linha = {
         "item": _normalizar_inteiro_flexivel(row["item"], "parcelas.item"),
@@ -463,14 +510,10 @@ def _linha_memoria(row: dict[str, Any], cfg: CalculoParams, params: dict[str, An
         "data_inicio_prescricao": cfg.data_inicio_prescricao.isoformat() if cfg.data_inicio_prescricao else None,
         "prescricao_data_referencia_tipo": cfg.prescricao_data_referencia_tipo,
         "prescricao_data_referencia": cfg.prescricao_data_referencia.isoformat() if cfg.prescricao_data_referencia else None,
-        "data_inicio_juros_compensatorios_efetiva": data_inicio_comp_efetiva.isoformat(),
         "data_inicio_juros_moratorios_efetiva": data_inicio_mora_efetiva.isoformat(),
         "fator_correcao": fator,
         "valor_atualizado": valor_atualizado,
         "base_juros_moratorios": base_mora,
-        "n_juros_compensatorios": n_comp,
-        "percentual_juros_compensatorios": pct_comp * Decimal("100"),
-        "juros_compensatorios": juros_comp,
         "n_juros_moratorios": n_mora,
         "percentual_juros_moratorios": pct_mora * Decimal("100"),
         "juros_moratorios": juros_mora,
@@ -478,10 +521,10 @@ def _linha_memoria(row: dict[str, Any], cfg: CalculoParams, params: dict[str, An
         "multa_manual": multa_detalhe.manual,
         "multa": multa_detalhe.total,
         "total": total,
-        "incide_multa_manual": _multa_pode_incidir(data_parcela, cfg),
+        "incide_multa_manual": verba_tipo == "dano_material" and _multa_pode_incidir(data_parcela, cfg),
         # Campos preenchidos após o cálculo dos honorários informados.
         # O art. 523 é aplicado depois desses honorários, conforme o critério de referência.
-        "incide_art_523": _multa_pode_incidir(data_parcela, cfg),
+        "incide_art_523": verba_tipo == "dano_material" and _multa_pode_incidir(data_parcela, cfg),
         "honorarios_informados_linha": Decimal("0.00"),
         "base_art_523": Decimal("0.00"),
         "multa_art_523": Decimal("0.00"),
@@ -509,9 +552,179 @@ def _linha_memoria(row: dict[str, Any], cfg: CalculoParams, params: dict[str, An
 
 
 # ---------------------------------------------------------------------------
-# API principal
+# Preparação e composição do cálculo
 # ---------------------------------------------------------------------------
 
+
+def _prepare_installments(parcelas: pd.DataFrame | list[dict[str, Any]]) -> pd.DataFrame:
+    """Converte as parcelas recebidas em uma tabela interna validada.
+
+    Entrada:
+        ``parcelas`` pode ser um ``DataFrame`` ou uma lista de dicionários. Cada
+        linha precisa conter ``item``, ``data`` e ``valor_singelo``.
+
+    Saída:
+        Um novo ``DataFrame`` que nunca altera o objeto recebido. A coluna
+        ``_data_parcela`` contém a data já convertida para ``datetime.date`` e
+        ``descricao`` sempre existe, mesmo quando veio ausente.
+
+    Por que existe:
+        A validação fica concentrada em um único ponto antes de qualquer fórmula.
+        Isso evita que erros de estrutura apareçam somente no meio do cálculo.
+    """
+    frame = pd.DataFrame(parcelas).copy()
+    required_columns = {"item", "data", "valor_singelo"}
+    missing_columns = required_columns - set(frame.columns)
+    if missing_columns:
+        raise CalculationValidationError(
+            "missing_installment_columns",
+            [],
+            "As parcelas não possuem todos os campos obrigatórios.",
+        )
+
+    if "descricao" not in frame.columns:
+        frame["descricao"] = ""
+
+    # A conversão é feita uma vez por parcela. As funções financeiras recebem a
+    # data pronta e não precisam repetir interpretação de texto durante os loops.
+    frame["_data_parcela"] = frame["data"].apply(parse_data)
+    return frame
+
+
+def _build_damage_contexts(
+    frame: pd.DataFrame,
+    params: dict[str, Any],
+) -> tuple[CalculoParams, dict[str, DamageCalculationContext], DamageCalculationContext]:
+    """Prepara parâmetros e tabelas para cada natureza de dano.
+
+    Entrada:
+        ``frame``: parcelas já validadas por ``_prepare_installments``.
+        ``params``: parâmetros brutos recebidos pelo motor.
+
+    Saída:
+        Uma tupla com:
+        1. configuração geral, usada pelas regras que pertencem ao cálculo todo;
+        2. dicionário ``dano_material``/``dano_moral`` com seus próprios critérios;
+        3. contexto geral de segurança para linhas com natureza não reconhecida.
+
+    Observação de desempenho:
+        Cada conjunto de séries é carregado uma vez antes do loop das parcelas.
+        A função ``_linha_memoria`` apenas consulta essas tabelas em memória.
+    """
+    general_config = CalculoParams.from_raw(params)
+    scoped_params = _parametros_por_dano(params)
+    scoped_configs = {damage: CalculoParams.from_raw(values) for damage, values in scoped_params.items()}
+
+    contexts: dict[str, DamageCalculationContext] = {}
+    for damage in ("dano_material", "dano_moral"):
+        # Se a coluna não existe, todas as parcelas são tratadas como dano material,
+        # que é o comportamento padrão do contrato do motor.
+        if "verba_tipo" in frame.columns:
+            subset = frame[frame["verba_tipo"].astype(str) == damage]
+        else:
+            subset = frame if damage == "dano_material" else frame.iloc[0:0]
+
+        if subset.empty:
+            continue
+
+        damage_params = scoped_params[damage]
+        damage_config = scoped_configs[damage]
+        contexts[damage] = DamageCalculationContext(
+            params=damage_params,
+            config=damage_config,
+            tables=_precarregar_tabelas(subset, damage_config, damage_params),
+        )
+
+    # O contexto geral preserva o tratamento de uma eventual natureza de verba
+    # desconhecida. Ele também evita decisões silenciosas caso novos tipos sejam
+    # adicionados sem que esta função seja atualizada.
+    general_context = DamageCalculationContext(
+        params=params,
+        config=general_config,
+        tables=_precarregar_tabelas(frame, general_config, params),
+    )
+    return general_config, contexts, general_context
+
+
+def _build_memory(
+    frame: pd.DataFrame,
+    contexts: dict[str, DamageCalculationContext],
+    general_context: DamageCalculationContext,
+) -> pd.DataFrame:
+    """Calcula cada parcela e monta a memória tabular completa.
+
+    Entrada:
+        ``frame``: parcelas preparadas e, quando aplicável, já filtradas pela
+        prescrição.
+        ``contexts``: critérios separados por natureza de dano.
+        ``general_context``: critérios de segurança para natureza não reconhecida.
+
+    Saída:
+        ``DataFrame`` ordenado por ``item``. Cada linha contém valor nominal,
+        correção, juros, multas e totais intermediários produzidos pelo motor.
+    """
+    rows: list[dict[str, Any]] = []
+
+    # Cada registro é convertido para dicionário porque ``_linha_memoria`` trabalha
+    # com nomes de campos. O contexto é escolhido pela natureza da verba e todas as
+    # fórmulas continuam concentradas nas funções já existentes.
+    for row in frame.to_dict("records"):
+        damage = str(row.get("verba_tipo", "dano_material"))
+        context = contexts.get(damage, general_context)
+        rows.append(_linha_memoria(row, context.config, context.params, context.tables))
+
+    return pd.DataFrame(rows).sort_values("item").reset_index(drop=True)
+
+
+def _apply_calculation_post_processing(
+    memory: pd.DataFrame,
+    params: dict[str, Any],
+    config: CalculoParams,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Aplica regras que dependem do conjunto completo de parcelas.
+
+    Entrada:
+        ``memory``: memória calculada linha a linha.
+        ``params``: parâmetros gerais do cálculo.
+        ``config``: parâmetros gerais já validados.
+
+    Saída:
+        ``(memory, summary)`` após multa fixa, honorários, art. 523 e compensação.
+
+    Motivo da ordem:
+        Algumas regras usam totais produzidos por etapas anteriores. Por isso elas
+        não podem ser executadas dentro do loop de parcelas sem duplicar valores.
+    """
+    # Multa fixa é um valor único do cálculo; o rateio acontece somente depois
+    # que todas as linhas existem para que o mesmo valor não seja repetido.
+    memory = _aplicar_multa_fixa_na_memoria(memory, params)
+
+    # O art. 523 usa o subtotal já acrescido dos honorários informados. Primeiro
+    # calculamos esse subtotal e depois enriquecemos a memória com a regra legal.
+    total_updated = moeda(memory["valor_atualizado"].sum())
+    total_moratory_interest = moeda(memory["juros_moratorios"].sum())
+    total_penalty = _total_multa_resumo(memory, params)
+    _, informed_fees = _calcular_honorarios_informados(
+        total_atualizado=total_updated,
+        total_mora=total_moratory_interest,
+        total_multa=total_penalty,
+        params=params,
+    )
+    memory = _aplicar_art_523_na_memoria(
+        memoria=memory,
+        cfg=config,
+        honorarios_informados=informed_fees,
+    )
+
+    summary = _montar_resumo(memory, params, config)
+    compensation = D(summary.loc[summary["campo"] == "valor_compensacao", "valor"].iloc[0])
+    memory = _aplicar_compensacao_na_memoria(memory, compensation)
+    return memory, summary
+
+
+# ---------------------------------------------------------------------------
+# API principal
+# ---------------------------------------------------------------------------
 
 
 def _bool_param(valor: Any, default: bool = False) -> bool:
@@ -589,71 +802,47 @@ def calcular_debitos(parcelas: pd.DataFrame | list[dict[str, Any]], **params: An
     """
     atualizacao_indices = _executar_atualizacao_indices_se_necessario(params)
 
-    df = pd.DataFrame(parcelas).copy()
-    faltantes = {"item", "data", "valor_singelo"} - set(df.columns)
-    if faltantes:
-        raise CalculationValidationError(
-            "missing_installment_columns", [], "As parcelas não possuem todos os campos obrigatórios."
-        )
-    if "descricao" not in df.columns:
-        df["descricao"] = ""
-    df["_data_parcela"] = df["data"].apply(parse_data)
+    # 1) Toda entrada é validada e normalizada antes de alcançar as fórmulas.
+    frame = _prepare_installments(parcelas)
 
-    cfg = CalculoParams.from_raw(params)
-    df = _aplicar_prescricao(df, cfg)
-    tabelas = _precarregar_tabelas(df, cfg, params)
+    # 2) A configuração geral define regras comuns, como prescrição. O corte é
+    # aplicado antes de pré-carregar séries para não buscar períodos desnecessários.
+    config = CalculoParams.from_raw(params)
+    frame = _aplicar_prescricao_somente_material(frame, config)
 
-    memoria = pd.DataFrame([_linha_memoria(row, cfg, params, tabelas) for row in df.to_dict("records")])
-    memoria = memoria.sort_values("item").reset_index(drop=True)
-    # Multa fixa é um valor único do cálculo; o rateio só ocorre após a memória
-    # existir para não repetir o valor em cada parcela.
-    memoria = _aplicar_multa_fixa_na_memoria(memoria, params)
+    # 3) Os critérios e as séries são organizados por natureza do dano uma única
+    # vez. Depois disso, o loop de parcelas apenas seleciona o contexto correto.
+    config, damage_contexts, general_context = _build_damage_contexts(frame, params)
+    memoria = _build_memory(frame, damage_contexts, general_context)
 
-    # O art. 523 precisa ser calculado depois dos honorários informados,
-    # porque o critério de referência aplica a multa/honorários legais sobre o subtotal já
-    # acrescido desses honorários. Por isso, primeiro obtemos os honorários
-    # comuns e só então enriquecemos a memória com os campos do art. 523.
-    total_atualizado = moeda(memoria["valor_atualizado"].sum())
-    total_comp = moeda(memoria["juros_compensatorios"].sum())
-    total_mora = moeda(memoria["juros_moratorios"].sum())
-    total_multa = _total_multa_resumo(memoria, params)
-    _, honorarios_informados = _calcular_honorarios_informados(
-        total_atualizado=total_atualizado,
-        total_comp=total_comp,
-        total_mora=total_mora,
-        total_multa=total_multa,
-        params=params,
-    )
-    memoria = _aplicar_art_523_na_memoria(
-        memoria=memoria,
-        cfg=cfg,
-        honorarios_informados=honorarios_informados,
-    )
-
-    resumo = _montar_resumo(memoria, params, cfg)
-    valor_compensacao_resumo = D(resumo.loc[resumo["campo"] == "valor_compensacao", "valor"].iloc[0])
-    memoria = _aplicar_compensacao_na_memoria(memoria, valor_compensacao_resumo)
+    # 4) Regras que dependem de totais do conjunto inteiro são aplicadas após o
+    # cálculo linha a linha. A ordem é explícita e testável em função separada.
+    memoria, resumo = _apply_calculation_post_processing(memoria, params, config)
     parametros_resultado = {
         **params,
-        "competencia_atualizacao": cfg.competencia_atualizacao,
-        "prescricao_flag": cfg.prescricao_flag,
-        "prescricao_anos": cfg.prescricao_anos,
-        "prescricao_data_referencia_tipo": cfg.prescricao_data_referencia_tipo,
-        "prescricao_data_referencia": cfg.prescricao_data_referencia.isoformat() if cfg.prescricao_data_referencia else None,
-        "prescricao_data_inicio_calculo": cfg.data_inicio_prescricao.isoformat() if cfg.data_inicio_prescricao else None,
-        "compensacao_flag": cfg.compensacao_flag,
-        "compensacao_tipo_calculo": cfg.compensacao_tipo_calculo,
-        "compensacao_valor": cfg.compensacao_valor,
-        "duplo_indice_flag": cfg.duplo_indice_flag,
-        "duplo_indice_primeiro_indice": cfg.duplo_indice_primeiro.indice if cfg.duplo_indice_primeiro else None,
-        "duplo_indice_primeiro_data_inicio": cfg.duplo_indice_primeiro.data_inicio.isoformat() if cfg.duplo_indice_primeiro else None,
-        "duplo_indice_primeiro_data_fim": cfg.duplo_indice_primeiro.data_fim.isoformat() if cfg.duplo_indice_primeiro else None,
-        "duplo_indice_primeiro_valor_parcela": cfg.duplo_indice_primeiro.valor_parcela if cfg.duplo_indice_primeiro else None,
-        "duplo_indice_segundo_indice": cfg.duplo_indice_segundo.indice if cfg.duplo_indice_segundo else None,
-        "duplo_indice_segundo_data_inicio": cfg.duplo_indice_segundo.data_inicio.isoformat() if cfg.duplo_indice_segundo else None,
-        "duplo_indice_segundo_data_fim": cfg.duplo_indice_segundo.data_fim.isoformat() if cfg.duplo_indice_segundo else None,
-        "duplo_indice_segundo_valor_parcela": cfg.duplo_indice_segundo.valor_parcela if cfg.duplo_indice_segundo else None,
-        "valor_dobrado_flag": cfg.valor_dobrado_flag,
+        "competencia_atualizacao": config.competencia_atualizacao,
+        "prescricao_flag": config.prescricao_flag,
+        "prescricao_anos": config.prescricao_anos,
+        "prescricao_data_referencia_tipo": config.prescricao_data_referencia_tipo,
+        "prescricao_data_referencia": config.prescricao_data_referencia.isoformat() if config.prescricao_data_referencia else None,
+        "prescricao_data_inicio_calculo": config.data_inicio_prescricao.isoformat() if config.data_inicio_prescricao else None,
+        "compensacao_flag": config.compensacao_flag,
+        "compensacao_tipo_calculo": config.compensacao_tipo_calculo,
+        "compensacao_valor": config.compensacao_valor,
+        "duplo_indice_flag": config.duplo_indice_flag,
+        "duplo_indice_primeiro_indice": config.duplo_indice_primeiro.indice if config.duplo_indice_primeiro else None,
+        "duplo_indice_primeiro_data_inicio": config.duplo_indice_primeiro.data_inicio.isoformat() if config.duplo_indice_primeiro else None,
+        "duplo_indice_primeiro_data_fim": config.duplo_indice_primeiro.data_fim.isoformat() if config.duplo_indice_primeiro else None,
+        "duplo_indice_primeiro_valor_parcela": config.duplo_indice_primeiro.valor_parcela if config.duplo_indice_primeiro else None,
+        "duplo_indice_segundo_indice": config.duplo_indice_segundo.indice if config.duplo_indice_segundo else None,
+        "duplo_indice_segundo_data_inicio": config.duplo_indice_segundo.data_inicio.isoformat() if config.duplo_indice_segundo else None,
+        "duplo_indice_segundo_data_fim": config.duplo_indice_segundo.data_fim.isoformat() if config.duplo_indice_segundo else None,
+        "duplo_indice_segundo_valor_parcela": config.duplo_indice_segundo.valor_parcela if config.duplo_indice_segundo else None,
+        "valor_dobrado_flag": config.valor_dobrado_flag,
+        "parametros_por_dano": {
+            damage: {field: values.get(field) for field in DAMAGE_FINANCIAL_FIELDS if field in values}
+            for damage, values in _parametros_por_dano(params).items()
+        },
         "evidence_map": params.get("evidence_map", {}),
         "extraction_audit": params.get("extraction_audit", []),
         "document_roles": params.get("document_roles", []),

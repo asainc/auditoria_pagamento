@@ -1,4 +1,4 @@
-"""Gera o catálogo TypeScript a partir da política central versionada."""
+"""Gera o catálogo TypeScript a partir da política central."""
 from __future__ import annotations
 
 import json
@@ -19,6 +19,7 @@ def main() -> None:
     data = json.loads(SOURCE.read_text(encoding="utf-8-sig"))
     fields = data["fields"]
     keys = [field["key"] for field in fields]
+    damage_scoped_keys = [field["key"] for field in fields if field.get("section") in {"Atualização monetária", "Juros moratórios"}]
     if len(keys) != len(set(keys)):
         raise ValueError("Há parâmetros duplicados em calculation_policy.json.")
     content = f'''/** Gerado de config/calculation_policy.json. Não editar manualmente. */
@@ -31,6 +32,7 @@ export interface ParamField {{key: ParameterKey; label: string; type: 'text' | '
 
 export const PARAM_FIELDS: ParamField[] = {ts(fields)} as ParamField[];
 export const REQUIRED_PARAMETER_KEYS: ParameterKey[] = {ts(data['required_parameter_keys'])} as ParameterKey[];
+export const DAMAGE_SCOPED_PARAMETER_KEYS: ParameterKey[] = {ts(damage_scoped_keys)} as ParameterKey[];
 export const MANUAL_DEFAULT_PARAMETERS: Partial<CalculationParameters_Input> = {ts(data['origins']['manual']['defaults'])};
 export const PROCESS_DEFAULT_PARAMETERS: Partial<CalculationParameters_Input> = {ts(data['origins']['processo']['defaults'])};
 

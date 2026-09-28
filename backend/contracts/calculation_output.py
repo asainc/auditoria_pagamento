@@ -5,7 +5,7 @@ from pydantic import Field
 
 from backend.calculation_policy import CalculationOrigin
 from backend.contracts.base import Contract, Month, Scalar
-from backend.contracts.calculation_parameters import CalculationParameters
+from backend.contracts.calculation_parameters import CalculationParameters, DamageParameters
 
 
 class DataTable(Contract):
@@ -34,6 +34,7 @@ class CalculationResponse(Contract):
     memoria: DataTable
     resumo: list[SummaryEntry]
     parametros: CalculationParameters
+    parametros_por_dano: DamageParameters
     metadata: CalculationMetadata
 
 

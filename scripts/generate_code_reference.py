@@ -31,6 +31,46 @@ def _signature(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
     return f"{prefix} {node.name}({args}){returns}"
 
 
+def _parameter_summary(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
+    """Lista parâmetros e anotações sem executar o módulo analisado."""
+    positional = [*node.args.posonlyargs, *node.args.args]
+    values: list[str] = []
+    for argument in positional:
+        if argument.arg in {"self", "cls"}:
+            continue
+        annotation = ast.unparse(argument.annotation) if argument.annotation else "tipo não declarado"
+        values.append(f"`{argument.arg}: {annotation}`")
+    if node.args.vararg:
+        annotation = ast.unparse(node.args.vararg.annotation) if node.args.vararg.annotation else "tipo não declarado"
+        values.append(f"`*{node.args.vararg.arg}: {annotation}`")
+    for argument in node.args.kwonlyargs:
+        annotation = ast.unparse(argument.annotation) if argument.annotation else "tipo não declarado"
+        values.append(f"`{argument.arg}: {annotation}`")
+    if node.args.kwarg:
+        annotation = ast.unparse(node.args.kwarg.annotation) if node.args.kwarg.annotation else "tipo não declarado"
+        values.append(f"`**{node.args.kwarg.arg}: {annotation}`")
+    return ", ".join(values) if values else "nenhuma entrada explícita"
+
+
+def _return_summary(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
+    """Retorna a anotação de saída declarada ou informa quando ela não existe."""
+    return f"`{ast.unparse(node.returns)}`" if node.returns else "tipo de saída não declarado"
+
+
+def _class_attributes(node: ast.ClassDef) -> list[str]:
+    """Extrai atributos declarados diretamente na classe para facilitar leitura do estado."""
+    attributes: list[str] = []
+    for child in node.body:
+        if isinstance(child, ast.AnnAssign) and isinstance(child.target, ast.Name):
+            annotation = ast.unparse(child.annotation)
+            attributes.append(f"`{child.target.id}: {annotation}`")
+        elif isinstance(child, ast.Assign):
+            for target in child.targets:
+                if isinstance(target, ast.Name) and not target.id.startswith("_"):
+                    attributes.append(f"`{target.id}: tipo inferido em execução`")
+    return attributes
+
+
 def _python_section(path: Path) -> list[str]:
     """Gera seção de um arquivo Python usando AST e docstrings reais."""
     relative = path.relative_to(ROOT).as_posix()
@@ -46,12 +86,30 @@ def _python_section(path: Path) -> list[str]:
             bases = ", ".join(ast.unparse(base) for base in node.bases)
             suffix = f"({bases})" if bases else ""
             lines += [f"### `class {node.name}{suffix}`", "", _one_line(ast.get_docstring(node)), ""]
-            for child in node.body:
-                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    lines += [f"- `{_signature(child)}` — {_one_line(ast.get_docstring(child))}"]
+            attributes = _class_attributes(node)
+            if attributes:
+                lines += ["**Atributos declarados:** " + ", ".join(attributes) + ".", ""]
+            methods = [child for child in node.body if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))]
+            if methods:
+                lines += ["**Métodos:**", ""]
+                for child in methods:
+                    lines += [
+                        f"- `{_signature(child)}` — {_one_line(ast.get_docstring(child))}",
+                        f"  - Entrada: {_parameter_summary(child)}.",
+                        f"  - Saída: {_return_summary(child)}.",
+                    ]
             lines.append("")
         else:
-            lines += [f"### `{_signature(node)}`", "", _one_line(ast.get_docstring(node)), ""]
+            lines += [
+                f"### `{_signature(node)}`",
+                "",
+                _one_line(ast.get_docstring(node)),
+                "",
+                f"**Entrada:** {_parameter_summary(node)}.",
+                "",
+                f"**Saída:** {_return_summary(node)}.",
+                "",
+            ]
     return lines
 
 

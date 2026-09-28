@@ -146,12 +146,12 @@ def version_detail(calculo_id: str, versao: int, service: Dependency):
 
 
 @router.get("/{calculo_id}/versoes/{versao}/memoria-pdf", response_class=Response)
-def version_pdf(calculo_id: str, versao: int, service: Dependency, auditavel: bool = False):
+def version_pdf(calculo_id: str, versao: int, service: Dependency):
     """Baixa a memória congelada quando aquela versão de negócio foi criada."""
-    content = service.calculation_repository.version_pdf(calculo_id, versao, audit=auditavel)
+    content = service.calculation_repository.version_pdf(calculo_id, versao)
     if content is None:
         raise ServiceError("Memória da versão não encontrada.", 404)
-    filename = f"memoria_calculo_v{versao}{'_auditavel' if auditavel else ''}.pdf"
+    filename = f"memoria_calculo_v{versao}.pdf"
     return Response(
         content=content,
         media_type="application/pdf",
@@ -160,12 +160,12 @@ def version_pdf(calculo_id: str, versao: int, service: Dependency, auditavel: bo
 
 
 @router.get("/{calculo_id}/execucoes/{execucao_id}/memoria-pdf", response_class=Response)
-def execution_pdf(calculo_id: str, execucao_id: str, service: Dependency, auditavel: bool = False):
+def execution_pdf(calculo_id: str, execucao_id: str, service: Dependency):
     """Baixa a memória da execução atual, mesmo quando a versão foi reutilizada."""
-    content = service.calculation_repository.execution_pdf(calculo_id, execucao_id, audit=auditavel)
+    content = service.calculation_repository.execution_pdf(calculo_id, execucao_id)
     if content is None:
         raise ServiceError("Memória da execução não encontrada.", 404)
-    filename = f"memoria_execucao_{execucao_id[-8:]}{'_auditavel' if auditavel else ''}.pdf"
+    filename = f"memoria_execucao_{execucao_id[-8:]}.pdf"
     return Response(
         content=content,
         media_type="application/pdf",
@@ -194,7 +194,7 @@ def calculate(
 
 @router.post("/memoria-pdf", response_class=Response)
 def memory_pdf(payload: CalculationRequest, service: Dependency, indices_sha256: str | None = None):
-    """Exportação legada do request atual; não cria versão nem execução persistida."""
+    """Exporta o request atual sem criar estado funcional ou execução persistida."""
     content = service.calculations.execute(
         payload,
         pdf=True,

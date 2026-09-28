@@ -1,3 +1,8 @@
+"""Constantes compartilhadas por regras de datas e consulta de séries oficiais.
+
+Os valores deste arquivo não são segredos. Mudanças em códigos de séries ou
+marcos normativos exigem validação técnica e, quando aplicável, jurídica.
+"""
 from __future__ import annotations
 
 BCB_SGS_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados"

@@ -9,7 +9,9 @@ from backend.config import Settings
 from backend.models import AiUsage, ExtractionResult, FieldEvidence
 from backend.principal import create_app
 from backend.services.chronology import document_sequence, ordered_documents
-from backend.services.extraction import ExtractionFragment, ExtractionProvider, PdfTextDocument, PdfTextPage, ProviderResult
+from backend.services.extraction import ExtractionProvider
+from backend.services.extraction_types import ExtractionFragment, ProviderResult
+from backend.services.pdf_text_extractor import PdfTextDocument, PdfTextPage
 
 
 class SyntheticProvider(ExtractionProvider):
@@ -323,3 +325,19 @@ def test_pymupdf_quality_blocks_image_only_text_before_ai():
         assert exc.status_code == 422
     else:
         raise AssertionError("PDF sem texto deveria ser bloqueado antes do text_generator")
+
+
+def test_contract_number_is_added_to_installment_description():
+    """Contrato explícito acompanha a parcela sem criar campo novo no motor."""
+    from backend.services.structured_output import StructuredOutputParser
+
+    parsed = StructuredOutputParser().parse(
+        '{"campos":[],"parcelas":[{"data":"2026-01-10","valor_singelo":"1250.00",'
+        '"descricao":"Parcela 3","numero_contrato":"CTR-001-A","verba_tipo":"dano_material",'
+        '"multiplicador":null}],"alertas":[]}'
+    )
+    installment = parsed.parcelas[0]
+    assert installment.descricao == "Contrato: CTR-001-A — Parcela 3"
+    serialized = installment.model_dump()
+    assert "numero_contrato" not in serialized
+    assert serialized["descricao"] == "Contrato: CTR-001-A — Parcela 3"

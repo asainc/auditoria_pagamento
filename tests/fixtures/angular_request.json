@@ -14,8 +14,21 @@
     "indice": "sem_correcao",
     "mes_atualizacao": "março",
     "ano_atualizacao": 2026,
-    "juros_moratorios_tipo": "sem_juros",
-    "juros_compensatorios_tipo": "sem_juros"
+    "juros_moratorios_tipo": "sem_juros"
+  },
+  "parametros_por_dano": {
+    "dano_material": {
+      "indice": "sem_correcao",
+      "mes_atualizacao": "março",
+      "ano_atualizacao": 2026,
+      "juros_moratorios_tipo": "sem_juros"
+    },
+    "dano_moral": {
+      "indice": "sem_correcao",
+      "mes_atualizacao": "março",
+      "ano_atualizacao": 2026,
+      "juros_moratorios_tipo": "sem_juros"
+    }
   },
   "revisao_humana_confirmada": true,
   "honorarios_sobre_danos_morais": false,

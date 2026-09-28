@@ -54,4 +54,4 @@ O contrato de transporte aceita omissões que possuem defaults conservadores equ
 
 A calculadora chama `gpt_bradesco.text_generator` com o conjunto mínimo de parâmetros compartilhado pelas versões corporativas conhecidas: `deployment_name`, `temperature`, `max_tokens`, `async_mode=false`, `stream=false` e `message_format={"type":"text"}`. O JSON de extração é exigido pelo prompt e validado pelo Pydantic no backend. Essa decisão evita depender de `response_format=json_object`, que pode não estar habilitado em todos os deployments corporativos.
 
-Quando uma implementação legada lança uma exceção textual com código HTTP (por exemplo, `Erro na execução: 400 - ...`), somente o código é aproveitado para diagnóstico; o corpo da resposta não é propagado para a interface nem para logs de negócio.
+Quando o módulo corporativo lança uma exceção textual com código HTTP (por exemplo, `Erro na execução: 400 - ...`), somente o código é aproveitado para diagnóstico; o corpo da resposta não é propagado para a interface nem para logs de negócio.

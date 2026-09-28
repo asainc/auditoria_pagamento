@@ -61,3 +61,21 @@ def test_missing_explicit_env_file_is_an_error(isolated_settings, monkeypatch):
     monkeypatch.setenv("APP_ENV_FILE", str(isolated_settings / "inexistente.env"))
     with pytest.raises(ValueError, match="APP_ENV_FILE"):
         config.load_settings()
+
+
+def test_blank_optional_finops_values_are_treated_as_unconfigured(isolated_settings, monkeypatch, tmp_path):
+    env = tmp_path / ".env"
+    env.write_text(
+        "AI_FINOPS_INPUT_USD_PER_MILLION_TOKENS=\n"
+        "AI_FINOPS_OUTPUT_USD_PER_MILLION_TOKENS=\n"
+        "AI_FINOPS_CACHED_INPUT_USD_PER_MILLION_TOKENS=\n"
+        "AI_FINOPS_MONTHLY_BUDGET_USD=\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("APP_ENV_FILE", str(env))
+    from backend.config import load_settings
+    settings = load_settings()
+    assert settings.ai_finops_input_usd_per_million_tokens is None
+    assert settings.ai_finops_output_usd_per_million_tokens is None
+    assert settings.ai_finops_cached_input_usd_per_million_tokens is None
+    assert settings.ai_finops_monthly_budget_usd is None

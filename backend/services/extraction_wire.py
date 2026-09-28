@@ -1,6 +1,8 @@
 """Contrato externo tolerante a omissões seguras; limites permanecem no contrato interno."""
 from typing import Literal
 
+from pydantic import Field, model_validator
+
 from backend.models import (
     Contract,
     DamageType,
@@ -29,8 +31,20 @@ class WireInstallment(Contract):
     data: str
     valor_singelo: str
     descricao: str = ""
+    numero_contrato: str | None = Field(default=None, max_length=120, exclude=True)
     verba_tipo: DamageType
     multiplicador: Literal[1, 2] | None = None
+
+    @model_validator(mode="after")
+    def include_contract_in_description(self) -> "WireInstallment":
+        """Acrescenta o contrato à descrição sem criar novo campo no motor."""
+        contract = (self.numero_contrato or "").strip()
+        if not contract:
+            return self
+        marker = f"Contrato: {contract}"
+        if marker.casefold() not in self.descricao.casefold():
+            self.descricao = f"{marker} — {self.descricao}" if self.descricao else marker
+        return self
 
 
 class WireExtractionFragment(Contract):

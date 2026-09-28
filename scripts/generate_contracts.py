@@ -43,8 +43,8 @@ def main() -> None:
     for name, schema in sorted(schemas.items()):
         lines.append(f"export type {name.replace('-', '_')} = {type_name(schema)};")
     # Quando o mesmo modelo Pydantic é usado como entrada e saída, o OpenAPI pode
-    # gerar sufixos _Input/_Output. Mantemos o alias de entrada usado pelo Angular
-    # para evitar espalhar uma mudança puramente geracional pelo código da UI.
+    # gerar sufixos _Input/_Output. O alias de entrada usado pelo Angular mantém um nome único no código da interface
+    # quando o OpenAPI separa representações de entrada e saída.
     for name in sorted(schemas):
         if name.endswith("-Input"):
             base = name.removesuffix("-Input").replace("-", "_")

@@ -6,6 +6,7 @@ import re
 from pydantic import TypeAdapter, ValidationError
 
 from backend.models import CalculationParameters, DocumentMetadata, ExtractionResult, FieldEvidence, Installment
+from backend.contracts.calculation_parameters import DamageFinancialCriteria
 from backend.services.chronology import ChronologyReducer
 from backend.services.pdf_text_extractor import PdfTextDocument
 
@@ -32,7 +33,7 @@ class EvidenceValidator:
         valid: list[FieldEvidence] = []
         rejected = 0
         for evidence in result.campos:
-            # Compatibilidade com extrações/snapshots anteriores à introdução
+            # Quando o campo de escopo não estiver presente, aplica o valor padrão do contrato
             # de multa percentual ou fixa. Internamente toda nova evidência usa
             # ``multa_valor`` e ``multa_tipo``.
             if evidence.campo == "parametros.multa_percentual":
@@ -51,6 +52,12 @@ class EvidenceValidator:
                 result.alertas.append("Um parâmetro não reconhecido pelo contrato foi descartado.")
                 rejected += 1
                 continue
+            if evidence.campo.startswith("parametros_por_dano."):
+                parts = evidence.campo.split(".", 2)
+                if len(parts) != 3 or parts[1] not in {"dano_material", "dano_moral"} or parts[2] not in DamageFinancialCriteria.model_fields:
+                    result.alertas.append("Um parâmetro específico de dano não reconhecido pelo contrato foi descartado.")
+                    rejected += 1
+                    continue
             text = pages.get(evidence.documento, {}).get(evidence.pagina, "")
             quoted = re.sub(r"\s+", " ", evidence.trecho).strip().casefold()
             if text and quoted not in text:
@@ -65,6 +72,14 @@ class EvidenceValidator:
                     TypeAdapter(CalculationParameters.model_fields[key].rebuild_annotation()).validate_python(evidence.valor)
                 except ValidationError:
                     result.alertas.append(f"Campo {key} fora do contrato: preenchimento manual necessário.")
+                    rejected += 1
+                    continue
+            if evidence.campo.startswith("parametros_por_dano.") and evidence.valor is not None:
+                _, _, key = evidence.campo.split(".", 2)
+                try:
+                    TypeAdapter(DamageFinancialCriteria.model_fields[key].rebuild_annotation()).validate_python(evidence.valor)
+                except ValidationError:
+                    result.alertas.append(f"Campo específico de dano {key} fora do contrato: preenchimento manual necessário.")
                     rejected += 1
                     continue
             valid.append(evidence)
@@ -96,7 +111,10 @@ class EvidenceValidator:
         values: dict[str, set[str]] = {}
         for field in valid:
             values.setdefault(field.campo, set()).add(str(field.valor))
-        resolved_paths = {f"parametros.{key}" for key in result.parametros_consolidados}
+        resolved_paths = {
+            (f"parametros_por_dano.{key}" if key.startswith(("dano_material.", "dano_moral.")) else f"parametros.{key}")
+            for key in result.parametros_consolidados
+        }
         for field, alternatives in values.items():
             if len(alternatives) > 1 and field not in resolved_paths:
                 result.alertas.append(f"Conflito em {field}: escolha o critério após revisão do documento.")

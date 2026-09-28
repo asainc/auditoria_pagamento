@@ -6,7 +6,7 @@
 
 Na execução relatada, o Nexus devolveu URLs contendo duas vezes `/repository/jurianl-npm-central/` e o Angular falhou ao iniciar sem `@rollup/rollup-win32-x64-msvc`. Os prints mostram vários `.tgz` já baixados no computador corporativo. O arquivo `.tgz` e o registro de aprovação **não foram fornecidos aqui**; por isso, o projeto inclui inspeção local, sem embutir esses binários ou inventar SHA-512.
 
-O `package-lock.json` **não está no ZIP**: a variante anterior não o distribuía, e não seria correto fabricar um lock com URLs do Nexus ou hashes não conferidos. O responsável deve usar um lock corporativo existente e íntegro, gerado dentro do ambiente autorizado, ou gerar um novo pelo Nexus quando a resolução de metadados estiver funcionando. Se `ajv` ou outra dependência não estiver disponível no catálogo, o lock *não poderá ser gerado integralmente* apenas a partir dos poucos `.tgz` baixados. Nesse caso, é necessário o pacote oficial e o metadado correspondente no repositório aprovado, ou um lock corporativo já validado pela TI.
+O `package-lock.json` **não está no pacote** e não deve ser fabricado com URLs do Nexus ou hashes não conferidos. O responsável deve usar um lock corporativo existente e íntegro, gerado dentro do ambiente autorizado, ou gerar um novo pelo Nexus quando a resolução de metadados estiver funcionando. Se `ajv` ou outra dependência não estiver disponível no catálogo, o lock *não poderá ser gerado integralmente* apenas a partir dos poucos `.tgz` baixados. Nesse caso, é necessário o pacote oficial e o metadado correspondente no repositório aprovado, ou um lock corporativo já validado pela TI.
 
 ## 2. Modificações deliberadas no frontend
 
@@ -19,7 +19,7 @@ O `package-lock.json` **não está no ZIP**: a variante anterior não o distribu
 | readdirp | `4.1.2` somente sob `chokidar` | Usar a versão 4.x informada, sem forçar outros consumidores. | Confirmar faixas declaradas no lock. |
 | PostCSS | `8.5.25` (override) | Versão informada como disponível. | Confirmar faixas declaradas pelos consumidores. |
 
-**Atenção:** declarar o binding Windows como dependência direta faz desta variante uma instalação focada em Windows x64. Não use este mesmo manifesto para instalação Linux/macOS sem rever a dependência específica da plataforma. Os overrides são exceções documentadas, não evidência de aprovação corporativa.
+**Atenção:** declarar o binding Windows como dependência direta torna este procedimento específico para Windows x64. Não use este mesmo manifesto para instalação Linux/macOS sem rever a dependência específica da plataforma. Os overrides são exceções documentadas, não evidência de aprovação corporativa.
 
 ## 3. Passo a passo (CMD, sem permissões administrativas)
 
@@ -92,4 +92,4 @@ npm start
 
 Use `npm run governance:check` apenas com um catálogo de aprovações por nome, versão e integridade **fornecido pelo banco**. Ser oficial, estar no cache ou ter o hash correto **não significa** estar homologado. Antes de publicar: avaliação de licenças, SCA/CVEs, scripts de instalação e teste `npm run build` no computador alvo.
 
-Nenhuma fórmula do motor Python, rota FastAPI, prompt de extração ou componente visual foi alterado por esta variante. A pasta `src/judicial_calc/data/` permanece com as planilhas originais do ZIP de origem; nenhum dado de produção foi incluído.
+Este procedimento altera somente a instalação de dependências do frontend. A pasta `src/judicial_calc/data/` contém as planilhas distribuídas com o projeto; nenhum dado real de produção deve ser incluído.

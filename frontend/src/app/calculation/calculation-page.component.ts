@@ -8,8 +8,6 @@ import { DamageType } from './parameter-fields';
 import { ProcessSelectorComponent } from './process-selector.component';
 import { PdfViewerComponent } from './pdf-viewer.component';
 import { ParameterPanelComponent } from './parameter-panel.component';
-import { InstallmentEditorComponent } from './installment-editor.component';
-import { EvidencePanelComponent } from './evidence-panel.component';
 import { ResultPanelComponent } from './result-panel.component';
 import { ExtractionLogComponent } from './extraction-log.component';
 
@@ -21,8 +19,6 @@ import { ExtractionLogComponent } from './extraction-log.component';
     ProcessSelectorComponent,
     PdfViewerComponent,
     ParameterPanelComponent,
-    InstallmentEditorComponent,
-    EvidencePanelComponent,
     ResultPanelComponent,
     ExtractionLogComponent,
   ],
@@ -45,8 +41,6 @@ import { ExtractionLogComponent } from './extraction-log.component';
         </div>
 
         <nav class="section-navigation compact-section-navigation" aria-label="Navegação da conferência">
-          <button type="button" [class.active]="tab() === 'parcelas'" (click)="tab.set('parcelas')">Parcelas <span>{{ store.active().installments.length }}</span></button>
-          <button type="button" [class.active]="tab() === 'evidencias'" (click)="tab.set('evidencias')">Evidências</button>
           <button type="button" [class.active]="tab() === 'parametros'" (click)="tab.set('parametros')">Parâmetros @if (missing().length) { <span>{{ missing().length }}</span> }</button>
           <button type="button" [class.active]="tab() === 'logs'" (click)="tab.set('logs')">Logs</button>
           <button type="button" [class.active]="tab() === 'resultado'" (click)="tab.set('resultado')">Resultado</button>
@@ -87,11 +81,9 @@ import { ExtractionLogComponent } from './extraction-log.component';
         <section class="work-tray">
           <div class="tray-content no-tab-strip">
             @switch (tab()) {
-              @case ('parcelas') {<app-installment-editor [(damageType)]="damageType" />}
-              @case ('evidencias') {<app-evidence-panel />}
               @case ('parametros') {
                 <div class="parameters-tab">
-                  <app-parameter-panel [damageType]="damageType()" />
+                  <app-parameter-panel [(damageType)]="damageType" />
                   @if (store.canEdit() && missing().length) {
                     <div class="pending-fields">
                       <strong>Campos ainda necessários</strong>
@@ -118,7 +110,7 @@ export class CalculationPageComponent {
   private readonly route = inject(ActivatedRoute);
   readonly collapsed = signal(false);
   readonly damageType = signal<DamageType>('dano_material');
-  readonly tab = signal<'parcelas' | 'evidencias' | 'parametros' | 'logs' | 'resultado'>('parcelas');
+  readonly tab = signal<'parametros' | 'logs' | 'resultado'>('parametros');
   readonly missing = computed(() => missingFields(this.store.active()));
   private loadedVersionKey = '';
 

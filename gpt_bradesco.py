@@ -35,6 +35,7 @@ _LOGGER = logging.getLogger(__name__)
 _TOKEN_LOCK = threading.RLock()
 _TOKEN_CACHE: str | None = None
 _HTTP_LOCAL = threading.local()
+_TEXT_USAGE_LOCAL = threading.local()
 # As credenciais existem apenas na memória do processo, nunca em logs ou artefatos.
 _AUTH_CONFIG: dict[str, Any] = {}
 # Permite ao backend reconhecer as opções locais sem alterar módulos legados.
@@ -534,6 +535,39 @@ def _stream_call(
     return "".join(chunks)
 
 
+def _extract_text_usage(response: Mapping[str, Any]) -> dict[str, int | None]:
+    """Extrai somente contadores técnicos quando o gateway os disponibiliza.
+
+    O contrato corporativo pode variar entre deployments. Ausência de usage não é
+    transformada em estimativa aqui; o backend mantém essa distinção explicitamente.
+    """
+    usage = response.get("usage")
+    nested = response.get("response")
+    if not isinstance(usage, Mapping) and isinstance(nested, Mapping):
+        usage = nested.get("usage")
+    if not isinstance(usage, Mapping):
+        return {}
+    input_tokens = usage.get("input_tokens", usage.get("prompt_tokens"))
+    output_tokens = usage.get("output_tokens", usage.get("completion_tokens"))
+    cached = usage.get("cached_input_tokens")
+    details = usage.get("input_tokens_details") or usage.get("prompt_tokens_details")
+    if cached is None and isinstance(details, Mapping):
+        cached = details.get("cached_tokens")
+    def safe_int(value):
+        return int(value) if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+    return {
+        "input_tokens": safe_int(input_tokens),
+        "cached_input_tokens": safe_int(cached),
+        "output_tokens": safe_int(output_tokens),
+    }
+
+
+def get_last_text_usage() -> dict[str, int | None]:
+    """Retorna apenas metadados da última geração na thread atual."""
+    value = getattr(_TEXT_USAGE_LOCAL, "value", None)
+    return dict(value) if isinstance(value, dict) else {}
+
+
 def _extract_output_text(response: Mapping[str, Any]) -> str:
     """Extrai o texto gerado do envelope corporativo validado."""
     nested = response.get("response")
@@ -591,6 +625,7 @@ def text_generator(payload, llm_parameter: dict):
         payload=body,
         parameters=config,
     )
+    _TEXT_USAGE_LOCAL.value = _extract_text_usage(result)
     return _extract_output_text(result)
 
 def embedding_generator(payload: str, embedding_parameter: dict) -> list[float]:

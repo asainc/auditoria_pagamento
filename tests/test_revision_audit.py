@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from backend.models import ChronologyDecision, ExtractionResult, ExtractionStatus
-from backend.repository import timestamp
+from backend.persistence.schema import timestamp
 
 
 def test_manual_parameter_changes_are_persisted_in_order(client):
@@ -30,7 +30,7 @@ def test_manual_parameter_changes_are_persisted_in_order(client):
 
 
 def test_process_change_is_enriched_with_consolidated_document_source(client):
-    repository = client.app.state.services.repository
+    repository = client.app.state.services.extraction_repository
     status = ExtractionStatus(
         numero_processo="1001",
         identificador="job_audit_001",

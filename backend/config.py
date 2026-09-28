@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+from decimal import Decimal
 from pathlib import Path
 
 from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
@@ -22,7 +23,6 @@ class OperationalSettings(Contract):
     """
     default_index: str = Field(default_factory=lambda: str(defaults_for_origin("processo")["indice"]), frozen=True)
     default_moratory_type: InterestType = Field(default_factory=lambda: defaults_for_origin("processo")["juros_moratorios_tipo"], frozen=True)
-    default_compensatory_type: InterestType = Field(default_factory=lambda: defaults_for_origin("processo")["juros_compensatorios_tipo"], frozen=True)
     default_art_523: Literal["nao_aplicar", "aplicar_multa", "aplicar_multa_honorarios"] = Field(default_factory=lambda: defaults_for_origin("processo")["art_523"], frozen=True)
 
 
@@ -56,6 +56,22 @@ class Settings(Contract):
     extraction_max_attempts: int = Field(default=3, ge=1, le=5)
     extraction_retry_delay_seconds: int = Field(default=5, ge=1, le=300)
     extraction_lease_seconds: int = Field(default=900, ge=60, le=3600)
+
+    # FinOps da IA: limites são aplicados sobre métricas observáveis. Custos só são
+    # calculados quando a organização informa tarifas verificadas por milhão de tokens.
+    ai_finops_cache_enabled: bool = True
+    ai_finops_cache_ttl_days: int = Field(default=30, ge=1, le=365)
+    ai_finops_max_calls_per_job: int = Field(default=60, ge=1, le=500)
+    ai_finops_max_input_chars_per_job: int = Field(default=1_500_000, ge=50_000, le=20_000_000)
+    ai_finops_input_usd_per_million_tokens: Decimal | None = Field(default=None, ge=0)
+    ai_finops_output_usd_per_million_tokens: Decimal | None = Field(default=None, ge=0)
+    ai_finops_cached_input_usd_per_million_tokens: Decimal | None = Field(default=None, ge=0)
+    ai_finops_monthly_budget_usd: Decimal | None = Field(default=None, ge=0)
+    ai_finops_budget_warning_ratio: Decimal = Field(default=Decimal("0.80"), ge=0, le=1)
+    ai_finops_enforce_monthly_budget: bool = False
+    learning_examples_enabled: bool = True
+    learning_max_examples_per_task: int = Field(default=3, ge=0, le=8)
+    learning_max_chars_per_task: int = Field(default=1800, ge=0, le=10000)
 
     gateway_token: SecretStr = SecretStr("")
     index_timeout_seconds: int = Field(default=30, ge=1, le=60)
@@ -117,6 +133,19 @@ def load_settings() -> Settings:
         "EXTRACTION_MAX_ATTEMPTS": "extraction_max_attempts",
         "EXTRACTION_RETRY_DELAY_SECONDS": "extraction_retry_delay_seconds",
         "EXTRACTION_LEASE_SECONDS": "extraction_lease_seconds",
+        "AI_FINOPS_CACHE_ENABLED": "ai_finops_cache_enabled",
+        "AI_FINOPS_CACHE_TTL_DAYS": "ai_finops_cache_ttl_days",
+        "AI_FINOPS_MAX_CALLS_PER_JOB": "ai_finops_max_calls_per_job",
+        "AI_FINOPS_MAX_INPUT_CHARS_PER_JOB": "ai_finops_max_input_chars_per_job",
+        "AI_FINOPS_INPUT_USD_PER_MILLION_TOKENS": "ai_finops_input_usd_per_million_tokens",
+        "AI_FINOPS_OUTPUT_USD_PER_MILLION_TOKENS": "ai_finops_output_usd_per_million_tokens",
+        "AI_FINOPS_CACHED_INPUT_USD_PER_MILLION_TOKENS": "ai_finops_cached_input_usd_per_million_tokens",
+        "AI_FINOPS_MONTHLY_BUDGET_USD": "ai_finops_monthly_budget_usd",
+        "AI_FINOPS_BUDGET_WARNING_RATIO": "ai_finops_budget_warning_ratio",
+        "AI_FINOPS_ENFORCE_MONTHLY_BUDGET": "ai_finops_enforce_monthly_budget",
+        "LEARNING_EXAMPLES_ENABLED": "learning_examples_enabled",
+        "LEARNING_MAX_EXAMPLES_PER_TASK": "learning_max_examples_per_task",
+        "LEARNING_MAX_CHARS_PER_TASK": "learning_max_chars_per_task",
         "GATEWAY_TOKEN": "gateway_token",
     }
     # O ambiente tem precedência mesmo quando usa o nome alternativo da chave.
@@ -124,7 +153,14 @@ def load_settings() -> Settings:
         for variable, field in mapping.items():
             if variable in layer:
                 value = layer[variable].strip()
-                data[field] = (value or None) if field == "bradesco_ca_bundle" else value
+                nullable_fields = {
+                    "bradesco_ca_bundle",
+                    "ai_finops_input_usd_per_million_tokens",
+                    "ai_finops_output_usd_per_million_tokens",
+                    "ai_finops_cached_input_usd_per_million_tokens",
+                    "ai_finops_monthly_budget_usd",
+                }
+                data[field] = (value or None) if field in nullable_fields else value
         if "CORS_ORIGINS" in layer:
             data["cors_origins"] = [item.strip() for item in layer["CORS_ORIGINS"].split(",")]
     try:

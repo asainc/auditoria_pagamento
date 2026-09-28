@@ -67,7 +67,6 @@ class CalculationService:
         ).encode("utf-8")
         input_hash = hashlib.sha256(canonical_input).hexdigest()
         current_policy_hash = policy_hash()
-        archived_pdf: bytes | None = None
         try:
             with self.facade.lock:
                 if expected_indices_hash and self.facade.index_hash() != expected_indices_hash:
@@ -82,7 +81,10 @@ class CalculationService:
                     revisao_humana_confirmada=True,
                 )
                 if pdf:
-                    output: CalculationResponse | bytes = self.facade.pdf(result)
+                    output: CalculationResponse | bytes = self.facade.pdf(
+                        result,
+                        identificador_calculo=str(payload.identificador_calculo or ""),
+                    )
                 else:
                     output = CalculationResponse(
                         origem_calculo=payload.origem_calculo,
@@ -91,18 +93,16 @@ class CalculationService:
                         memoria=dataframe_table(result.memoria),
                         resumo=[SummaryEntry(campo=str(row["campo"]), valor=str(row["valor"])) for row in result.resumo.to_dict("records")],
                         parametros=payload.parametros,
+                        parametros_por_dano=payload.parametros_por_dano,
                         metadata=metadata,
                     )
-                    if persist_version:
-                        # A memória PDF nasce do mesmo resultado e fica congelada na execução.
-                        archived_pdf = self.facade.pdf(result)
         except Timeout as exc:
             raise ServiceError("Índices em atualização. Aguarde e tente novamente.", 503, code="INDICES_BUSY", retryable=True) from exc
         except (RequestException, FileNotFoundError) as exc:
             raise ServiceError("Não foi possível obter a série de índices necessária. Confira a disponibilidade dos índices.", 503, code="INDICES_UNAVAILABLE", retryable=True) from exc
         except (ModuleNotFoundError, ImportError) as exc:
-            # Em estações corporativas sem virtualenv, uma instalação antiga do
-            # motor no perfil do usuário não deve virar erro 500 sem diagnóstico.
+            # Em estações corporativas sem virtualenv, uma instalação externa do motor
+            # não deve substituir silenciosamente o código que acompanha o projeto.
             logger.error("engine_import_error", extra={"error_type": type(exc).__name__})
             raise ServiceError(
                 "O motor local não foi carregado corretamente. Reinicie o backend a partir da raiz do projeto atualizado.",
@@ -120,17 +120,21 @@ class CalculationService:
         registration = None
         execution = None
         if persist_version:
-            if payload.identificador_calculo is None or archived_pdf is None:
+            if payload.identificador_calculo is None:
                 raise ServiceError("Não foi possível preparar o cadastro versionado do cálculo.", 500)
             try:
                 registration, execution = self.repository.append_version(
                     request=payload,
                     response=response,
-                    pdf=archived_pdf,
                     actor=actor,
                     calculation_id=calculation_id,
                     base_version=base_version,
                     expected_current_version=expected_current_version,
+                    pdf_factory=lambda _resolved_calculation_id, resolved_version: self.facade.pdf(
+                        result,
+                        identificador_calculo=str(payload.identificador_calculo),
+                        versao_calculo=resolved_version,
+                    ),
                 )
             except ValueError as exc:
                 raise ServiceError(str(exc), 409, code="CALCULATION_VERSION_CONFLICT") from exc

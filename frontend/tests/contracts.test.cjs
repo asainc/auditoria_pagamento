@@ -9,7 +9,7 @@ const {PARAM_FIELDS, interestTypeOptions} = require('../.test-build/calculation/
 
 /** Fixture inteiramente sintética é produzida pelo mapper realmente usado no Angular. */
 function draft() {
-  return {...blankDraft('1001'),humanReviewed:true,parameters:{mes_atualizacao:'março',ano_atualizacao:2026,indice:'sem_correcao',juros_moratorios_tipo:'sem_juros',juros_compensatorios_tipo:'sem_juros'},installments:[{data:'2025-01-01',valor_singelo:'1.234,56',descricao:'Parcela sintética',verba_tipo:'dano_material'}]};
+  return {...blankDraft('1001'),humanReviewed:true,parameters:{mes_atualizacao:'março',ano_atualizacao:2026,indice:'sem_correcao',juros_moratorios_tipo:'sem_juros'},installments:[{data:'2025-01-01',valor_singelo:'1.234,56',descricao:'Parcela sintética',verba_tipo:'dano_material'}]};
 }
 test('payload Angular tem snake_case e decimal exato para integração FastAPI', () => {
   const payload = toCalculationRequest(draft());
@@ -72,7 +72,6 @@ test('cálculo manual aceita rascunho independente sem processo documental', () 
   assert.equal(payload.numero_processo,null);
   assert.equal(payload.identificador_calculo,'MANUAL-UI-001');
   assert.equal(payload.parametros.juros_moratorios_tipo,'sem_juros');
-  assert.equal(payload.parametros.juros_compensatorios_tipo,'sem_juros');
   assert.equal(payload.parametros.art_523,'nao_aplicar');
   assert.equal(payload.parcelas[0].descricao,'Entrada manual de teste');
 });
@@ -80,12 +79,10 @@ test('cálculo manual aceita rascunho independente sem processo documental', () 
 test('rascunho manual mostra os padrões de juros e art. 523 antes da edição', () => {
   const manual = blankDraft('', 'manual');
   assert.equal(manual.parameters.juros_moratorios_tipo,'sem_juros');
-  assert.equal(manual.parameters.juros_compensatorios_tipo,'sem_juros');
   assert.equal(manual.parameters.art_523,'nao_aplicar');
 
   const real = blankDraft('1001');
   assert.equal(real.parameters.juros_moratorios_tipo,undefined);
-  assert.equal(real.parameters.juros_compensatorios_tipo,undefined);
   assert.equal(real.parameters.art_523,undefined);
 });
 
@@ -100,13 +97,11 @@ test('processo real mostra padrões operacionais apenas quando o documento não 
     versao_prompts:'teste',
     ajustes_operacionais:[
       {campo:'parametros.juros_moratorios_tipo',valor:'taxa_legal_12_aa_6_aa',motivo:'Padrão'},
-      {campo:'parametros.juros_compensatorios_tipo',valor:'taxa_legal_12_aa_6_aa',motivo:'Padrão'},
       {campo:'parametros.art_523',valor:'nao_aplicar',motivo:'Padrão'},
     ],
   };
   const applied = applyExtraction(blankDraft('1001'),result,'job');
   assert.equal(applied.parameters.juros_moratorios_tipo,'capitalizacao_simples');
-  assert.equal(applied.parameters.juros_compensatorios_tipo,'taxa_legal_12_aa_6_aa');
   assert.equal(applied.parameters.art_523,'nao_aplicar');
 });
 
@@ -174,12 +169,12 @@ test('versão histórica vira base editável do mesmo cálculo sem reaproveitar 
     requisicao:{
       origem_calculo:'processo',numero_processo:'1001',identificador_calculo:'1001',revisao_humana_confirmada:true,
       parcelas:[{data:'2025-01-01',valor_singelo:'100.00',descricao:'Sintético',verba_tipo:'dano_material',origem:'informada'}],
-      parametros:{mes_atualizacao:'março',ano_atualizacao:2026,indice:'sem_correcao',juros_moratorios_tipo:'sem_juros',juros_compensatorios_tipo:'sem_juros'},
+      parametros:{mes_atualizacao:'março',ano_atualizacao:2026,indice:'sem_correcao',juros_moratorios_tipo:'sem_juros'},
       honorarios_sobre_danos_morais:false,competencia_automatica:false,
     },
     resultado:{
       origem_calculo:'processo',numero_processo:'1001',identificador_calculo:'1001',memoria:{colunas:[],linhas:[]},resumo:[],
-      parametros:{mes_atualizacao:'março',ano_atualizacao:2026,indice:'sem_correcao',juros_moratorios_tipo:'sem_juros',juros_compensatorios_tipo:'sem_juros'},
+      parametros:{mes_atualizacao:'março',ano_atualizacao:2026,indice:'sem_correcao',juros_moratorios_tipo:'sem_juros'},
       metadata:{entrada_sha256:'a'.repeat(64),politica_sha256:'b'.repeat(64),motor_sha256:'c'.repeat(64),indices_sha256:'d'.repeat(64),duracao_ms:1,revisao_humana_confirmada:true},
     },
   };
@@ -191,4 +186,28 @@ test('versão histórica vira base editável do mesmo cálculo sem reaproveitar 
   assert.equal(draft.humanReviewed,false);
   assert.equal(draft.result.registro.versao,2);
   assert.equal(draft.installments[0].valor_singelo,'100.00');
+});
+
+test('request preserva atualização e juros independentes para dano material e moral', () => {
+  const value = blankDraft('1001');
+  value.humanReviewed = true;
+  value.installments = [
+    {data:'2025-01-01',valor_singelo:'100',descricao:'Material',verba_tipo:'dano_material'},
+    {data:'2025-01-01',valor_singelo:'200',descricao:'Moral',verba_tipo:'dano_moral'},
+  ];
+  value.damageParameters.dano_material = {
+    indice:'ipca_ibge',mes_atualizacao:'março',ano_atualizacao:2026,
+    juros_moratorios_tipo:'sem_juros',
+  };
+  value.damageParameters.dano_moral = {
+    indice:'ipca_e_ibge',mes_atualizacao:'abril',ano_atualizacao:2026,
+    juros_moratorios_tipo:'capitalizacao_simples',juros_moratorios_taxa:'1',juros_moratorios_periodicidade:'mensal',
+  };
+  const payload = toCalculationRequest(value);
+  assert.equal(payload.parametros_por_dano.dano_material.indice,'ipca_ibge');
+  assert.equal(payload.parametros_por_dano.dano_material.juros_moratorios_tipo,'sem_juros');
+  assert.equal(payload.parametros_por_dano.dano_moral.indice,'ipca_e_ibge');
+  assert.equal(payload.parametros_por_dano.dano_moral.mes_atualizacao,'abril');
+  assert.equal(payload.parametros_por_dano.dano_moral.juros_moratorios_taxa,'1');
+  assert.notDeepEqual(payload.parametros_por_dano.dano_material,payload.parametros_por_dano.dano_moral);
 });

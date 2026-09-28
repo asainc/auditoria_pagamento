@@ -1,7 +1,7 @@
-"""Fachada de compatibilidade para contratos do domínio de cálculo.
+"""Exportações centrais dos contratos relacionados ao domínio de cálculo.
 
-Novos módulos podem importar diretamente de ``calculation_input``,
-``calculation_output``, ``calculation_parameters`` ou ``calculation_history``.
+As definições ficam separadas por entrada, saída, parâmetros e histórico; este
+arquivo reúne os símbolos mais usados por routers e serviços.
 """
 from backend.contracts.calculation_parameters import *  # noqa: F401,F403
 from backend.contracts.calculation_input import *  # noqa: F401,F403

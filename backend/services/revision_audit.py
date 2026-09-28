@@ -25,7 +25,14 @@ class RevisionAuditService:
             result = self.extraction_repository.result(change.numero_processo)
             if result:
                 key = change.campo
-                path = f"parametros.{key}"
+                if key.startswith("dano_material.") or key.startswith("dano_moral."):
+                    damage, field = key.split(".", 1)
+                    path = f"parametros_por_dano.{damage}.{field}"
+                    consolidated_key = f"{damage}.{field}"
+                else:
+                    field = key
+                    path = f"parametros.{field}"
+                    consolidated_key = field
                 decision = next((item for item in reversed(result.decisoes_cronologicas) if item.campo == path), None)
                 chronology_defined = decision is not None
                 if decision is not None:
@@ -34,8 +41,8 @@ class RevisionAuditService:
                         f"{decision.documento} · página {decision.pagina} · sequência {decision.sequencia} "
                         f"· efeito {decision.efeito}"
                     )
-                elif key in result.parametros_consolidados:
-                    extracted_value = result.parametros_consolidados[key]
+                elif consolidated_key in result.parametros_consolidados:
+                    extracted_value = result.parametros_consolidados[consolidated_key]
                 if extracted_value is None and not chronology_defined:
                     adjustment = next((item for item in reversed(result.ajustes_operacionais) if item.campo == path), None)
                     if adjustment:

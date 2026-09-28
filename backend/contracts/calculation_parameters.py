@@ -1,6 +1,6 @@
 """Contratos dos parâmetros de cálculo, separados do transporte HTTP.
 
-A API pública permanece retrocompatível e plana. A composição em classes menores
+A API pública recebe campos planos. A composição em classes menores
 faz cada grupo de regras ter uma única responsabilidade e permite conversão para
 o modelo de domínio normalizado sem contaminar os endpoints.
 """
@@ -24,15 +24,6 @@ class MonetaryUpdateParameters(Contract):
     competencia_final_taxa_legal: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
 
 
-class CompensatoryInterestParameters(Contract):
-    """Juros compensatórios."""
-
-    juros_compensatorios_tipo: InterestType
-    juros_compensatorios_taxa: Rate | None = None
-    juros_compensatorios_periodicidade: Periodicity | None = None
-    juros_compensatorios_pro_rata: bool | None = None
-    juros_compensatorios_data_inicio: date | None = None
-
 
 class MoratoryInterestParameters(Contract):
     """Juros moratórios."""
@@ -42,13 +33,27 @@ class MoratoryInterestParameters(Contract):
     juros_moratorios_periodicidade: Periodicity | None = None
     juros_moratorios_pro_rata: bool | None = None
     juros_moratorios_data_inicio: date | None = None
-    juros_moratorios_sobre_compensatorios: bool | None = None
+
+
+class DamageFinancialCriteria(MonetaryUpdateParameters, MoratoryInterestParameters):
+    """Critérios financeiros próprios de uma natureza de dano.
+
+    Dano material e dano moral podem usar índices, competência final, termo
+    inicial e regime de juros distintos. Estes campos são intencionalmente
+    separados dos parâmetros globais do processo.
+    """
+
+
+class DamageParameters(Contract):
+    """Critérios independentes para dano material e dano moral."""
+
+    dano_material: DamageFinancialCriteria
+    dano_moral: DamageFinancialCriteria
 
 
 class PenaltyAndFeeParameters(Contract):
     """Multa, honorários e art. 523 com modalidade explicitamente tipada."""
 
-    incidir_multa_sobre_juros_compensatorios: bool | None = None
     incidir_multa_sobre_juros_moratorios: bool | None = None
     incidir_multa_sobre_parcelas_a_vencer: bool | None = None
     incidir_honorarios_sobre_multa: bool | None = None
@@ -92,7 +97,6 @@ class DualIndexParameters(Contract):
 
 class CalculationParameters(
     MonetaryUpdateParameters,
-    CompensatoryInterestParameters,
     MoratoryInterestParameters,
     PenaltyAndFeeParameters,
     PrescriptionParameters,
@@ -106,10 +110,9 @@ class CalculationParameters(
     @model_validator(mode="after")
     def require_active_fields(self) -> "CalculationParameters":
         """Valida apenas dependências estruturais dos grupos habilitados."""
-        for prefix in ("juros_compensatorios", "juros_moratorios"):
-            if getattr(self, prefix + "_tipo") in {"capitalizacao_simples", "capitalizacao_composta"}:
-                if getattr(self, prefix + "_taxa") is None or getattr(self, prefix + "_periodicidade") is None:
-                    raise ValueError(f"Informe taxa e periodicidade para {prefix}.")
+        if self.juros_moratorios_tipo in {"capitalizacao_simples", "capitalizacao_composta"}:
+            if self.juros_moratorios_taxa is None or self.juros_moratorios_periodicidade is None:
+                raise ValueError("Informe taxa e periodicidade para juros_moratorios.")
         required: list[str] = []
         if self.prescricao_flag:
             required += ["prescricao_anos", "prescricao_data_referencia_tipo"]

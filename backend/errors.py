@@ -17,7 +17,7 @@ class ErrorField:
 class ServiceError(Exception):
     """Falha esperada com código de máquina e mensagem segura para a interface.
 
-    A assinatura mantém compatibilidade com chamadas legadas ``ServiceError(msg, 409)``.
+    A assinatura também aceita o código HTTP como segundo argumento posicional, como em ``ServiceError(msg, 409)``.
     Novos pontos devem informar ``code=`` para que o frontend não dependa do texto.
     """
 

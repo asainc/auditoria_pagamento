@@ -1,7 +1,6 @@
 """Persistência exclusiva do fluxo e fila de extração."""
 from __future__ import annotations
 
-import sqlite3
 import time
 
 from backend.contracts.extraction import ExtractionResult, ExtractionStatus

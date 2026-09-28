@@ -12,6 +12,7 @@ import importlib
 import inspect
 import logging
 import re
+from dataclasses import dataclass
 
 import requests
 from typing import Any, Sequence
@@ -20,6 +21,15 @@ from backend.config import Settings
 from backend.errors import ServiceError
 
 logger = logging.getLogger("judicial")
+
+
+@dataclass(frozen=True)
+class TextGenerationResult:
+    """Texto e contadores reais quando o gateway os expõe explicitamente."""
+    text: str
+    input_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    output_tokens: int | None = None
 
 
 class BradescoBridgeError(ServiceError):
@@ -90,7 +100,7 @@ class BradescoBridgeClient:
                 "ca_bundle": str(self.settings.bradesco_ca_bundle) if self.settings.bradesco_ca_bundle else "",
             }
             # As opções adicionais pertencem ao cliente distribuído neste projeto.
-            # Módulos legados continuam recebendo somente o contrato anterior.
+            # Quando o módulo não aceita metadados adicionais, enviamos somente os argumentos essenciais.
             if getattr(module, "CONNECTION_CONFIG_VERSION", 0) == 1:
                 credentials.update({
                     "timeout": self.settings.bradesco_timeout_seconds,
@@ -113,7 +123,7 @@ class BradescoBridgeClient:
     def _safe_status_code(exc: Exception) -> int | None:
         """Recupera apenas o código HTTP sem propagar corpo de resposta ou documento.
 
-        Algumas versões legadas de ``gpt_bradesco.py`` levantam ``Exception`` comum
+        Algumas implementações de ``gpt_bradesco.py`` levantam ``Exception`` comum
         com texto no formato ``Erro na execução: 400 - ...`` em vez de anexar
         ``status_code`` ao objeto. A calculadora extrai somente os três dígitos para
         produzir diagnóstico acionável, descartando todo o restante da mensagem.
@@ -154,7 +164,7 @@ class BradescoBridgeClient:
         suffix = f" Referência técnica: {request_id}." if request_id else ""
 
         # O módulo corporativo novo fornece um código técnico sanitizado. Versões
-        # anteriores não possuem esse atributo, por isso mantemos fallback abaixo.
+        # O atributo de métricas é opcional; quando ausente, usamos os dados disponíveis na resposta.
         external_code = next(
             (getattr(item, "code", None) for item in causes if getattr(item, "code", None)),
             None,
@@ -265,23 +275,10 @@ class BradescoBridgeClient:
             )
             raise self._classify_error(exc, operation) from None
 
-    def generate_text(self, payload: str, *, max_tokens: int) -> str:
-        """Executa qualquer prompt da calculadora exclusivamente por ``text_generator``.
-
-        Args:
-            payload: String final contendo prompt especializado + texto extraído do PDF.
-            max_tokens: Limite de saída definido para a tarefa atual.
-
-        Returns:
-            String produzida pelo deployment corporativo. Para a extração, o chamador
-            valida posteriormente que o conteúdo é um JSON aderente ao contrato.
-        """
+    def generate_text_with_metadata(self, payload: str, *, max_tokens: int) -> TextGenerationResult:
+        """Executa geração e preserva contadores reais apenas quando expostos pelo gateway."""
         module = self._load()
         function = getattr(module, "text_generator")
-        # Contrato mínimo comum às versões corporativas fornecidas pelo usuário.
-        # O formato estruturado é exigido no PROMPT e validado pelo backend; não
-        # dependemos de ``response_format=json_object``, que alguns gateways/modelos
-        # corporativos rejeitam mesmo quando conseguem produzir JSON em modo texto.
         parameters = {
             "deployment_name": self.settings.bradesco_text_model,
             "temperature": self.settings.bradesco_text_temperature,
@@ -296,4 +293,23 @@ class BradescoBridgeClient:
                 "bradesco_saida_vazia",
                 "O gerador corporativo não retornou texto para a etapa de extração.",
             )
-        return response.strip()
+        usage: dict[str, Any] = {}
+        usage_reader = getattr(module, "get_last_text_usage", None)
+        if callable(usage_reader):
+            try:
+                candidate = usage_reader()
+                if isinstance(candidate, dict):
+                    usage = candidate
+            except Exception:
+                # Telemetria opcional nunca invalida uma resposta funcional.
+                usage = {}
+        return TextGenerationResult(
+            text=response.strip(),
+            input_tokens=usage.get("input_tokens") if isinstance(usage.get("input_tokens"), int) else None,
+            cached_input_tokens=usage.get("cached_input_tokens") if isinstance(usage.get("cached_input_tokens"), int) else None,
+            output_tokens=usage.get("output_tokens") if isinstance(usage.get("output_tokens"), int) else None,
+        )
+
+    def generate_text(self, payload: str, *, max_tokens: int) -> str:
+        """Retorna somente o texto para consumidores que não precisam das métricas."""
+        return self.generate_text_with_metadata(payload, max_tokens=max_tokens).text

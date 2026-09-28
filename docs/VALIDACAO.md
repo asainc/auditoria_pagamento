@@ -1,38 +1,70 @@
-# Validação
+# Validação do projeto
 
-## Backend
+## 1. Objetivo
+
+A validação deve comprovar que o código compila, que as fronteiras arquiteturais continuam respeitadas e que cenários financeiros já cobertos pela suíte permanecem estáveis. Números de testes executados não ficam gravados neste documento, porque mudam com a evolução da suíte; o resultado válido é o produzido pela execução atual ou pela CI.
+
+## 2. Backend e motor
+
+Na raiz do projeto:
 
 ```bash
-python -m pytest
+PYTHONPATH="src:." pytest -q
 python scripts/validate_architecture.py
+python -m compileall -q backend src scripts
 ```
 
-A suíte cobre motor, contratos, cronologia, política operacional, imports e integração corporativa com dublês sem rede.
+A suíte cobre, entre outros pontos:
 
-### Integração corporativa
+- normalização de parâmetros;
+- cálculo e cenários de referência;
+- dano material e dano moral;
+- persistência e auditoria;
+- contratos HTTP;
+- extração documental com dublês, sem enviar documentos reais;
+- atualização e resiliência de índices;
+- regras do bootstrap e escopo do WatchFiles.
 
-`tests/test_bradesco_bridge.py` simula a geração de texto corporativa sem executar HTTP real. A leitura de PDF é validada separadamente com PyMuPDF e fixtures sintéticas.
+## 3. Frontend
 
-Uma validação end-to-end real precisa ocorrer na rede autorizada e deve começar com PDF sintético.
+Depois de instalar as dependências pelo processo autorizado:
 
-## Frontend
-
-Quando as dependências aprovadas estiverem disponíveis:
-
-```powershell
+```bash
 cd frontend
 npm test
 npm run build
 ```
 
-## Gate arquitetural
+Também é possível validar a sintaxe do iniciador conjunto sem instalar o Angular:
 
-A validação impede reintrodução de Streamlit, acesso direto do frontend ao motor e referências à integração externa removida.
+```bash
+node --check scripts/start-dev.mjs
+```
 
-## Resultado desta entrega
+## 4. Artefatos gerados
 
-- 104 testes Python aprovados.
-- 28 testes do frontend aprovados; 4 testes de governança dependentes de lockfile corporativo ficaram ignorados, como previsto.
-- `validate_architecture.py` aprovado.
-- O build Angular não foi concluído nesta sessão porque o projeto deliberadamente não inclui um `package-lock.json` corporativo; o `prebuild` bloqueou a compilação antes de instalar dependências fora do fluxo autorizado.
-- Não houve chamada real aos serviços corporativos; a geração de texto foi validada com dublês e a leitura local com PDFs sintéticos.
+Quando código, política ou contratos mudarem, regere os artefatos aplicáveis:
+
+```bash
+python scripts/generate_parameter_catalog.py
+python scripts/generate_parameter_docs.py
+python scripts/generate_code_reference.py
+python scripts/generate_module_guide.py
+python scripts/generate_engine_manifest.py
+```
+
+Se a API pública mudar, execute também o gerador de contratos conforme o procedimento do projeto.
+
+## 5. Integração corporativa
+
+Testes automatizados não substituem uma validação no ambiente corporativo. A conectividade real do `text_generator`, o deployment configurado, a autorização e a rede precisam ser verificados no ambiente autorizado. Comece com conteúdo sintético; não use documentos reais apenas para diagnóstico de infraestrutura.
+
+## 6. Gate de segurança
+
+Antes da entrega confirme que:
+
+- não há segredos versionados;
+- não há dados reais de produção não anonimizados em fixtures ou documentação;
+- logs não reproduzem conteúdo integral dos documentos;
+- critérios jurídicos alterados foram encaminhados para validação do responsável aplicável;
+- o manifesto do motor corresponde ao código atual.

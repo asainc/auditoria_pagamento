@@ -2,7 +2,7 @@
 
 Os modelos complementam a API pública principal ``calcular_debitos(parcelas,
 **params)``. Eles servem como contrato interno para validação, serialização e
-trilha auditável: valores extraídos por IA devem carregar fonte, evidência,
+trilha rastreável: valores extraídos por IA devem carregar fonte, evidência,
 escopo e confiança antes de virarem parâmetros finais.
 """
 from __future__ import annotations
@@ -13,7 +13,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-SCHEMA_VERSION = "2026-05-26.v1-auditavel"
+SCHEMA_VERSION = "2026-09-26.v2-memoria"
 
 TipoVerba = Literal["dano_material", "dano_moral", "honorarios", "custas"]
 TipoEscopo = Literal["caso_concreto", "jurisprudencia_citada", "indeterminado"]
@@ -106,7 +106,7 @@ class DuploIndiceParams(StrictBaseModel):
 
 
 class CalculoJudicialInput(StrictBaseModel):
-    """Payload versionado completo para cálculo judicial auditável."""
+    """Payload versionado completo para cálculo judicial rastreável."""
 
     schema_version: str = SCHEMA_VERSION
     processo_id: str | None = None

@@ -40,9 +40,9 @@ export class HistoryExecutionsComponent implements OnInit {
   readonly totalPages=signal(0);
   private readonly pageSize=10;
 
-  ngOnInit(): void { void this.loadPage(1,false); }
+  ngOnInit(): void { void this.loadPage(1); }
   loadMore(): void { if(this.page()<this.totalPages()) void this.loadPage(this.page()+1,true); }
-  private async loadPage(page:number,append:boolean):Promise<void>{
+  private async loadPage(page:number,append:boolean=false):Promise<void>{
     if(this.loading())return;this.loading.set(true);
     try{
       const result=await firstValueFrom(this.api.executions(this.calculation.calculo_id,this.version,page,this.pageSize));
@@ -51,7 +51,7 @@ export class HistoryExecutionsComponent implements OnInit {
     }catch(error){this.notices.error(error);}finally{this.loading.set(false);}
   }
   async download(execution:CalculationExecutionSummary):Promise<void>{
-    try{const content=await firstValueFrom(this.api.executionPdf(this.calculation.calculo_id,execution.execucao_id,false));const safe=this.calculation.identificador_calculo.replace(/[^A-Za-z0-9._-]+/g,'_');saveBlob(content,`execucao_${safe}_v${execution.versao}_${execution.execucao_id.slice(-8)}.pdf`);}catch(error){this.notices.error(error);}
+    try{const content=await firstValueFrom(this.api.executionPdf(this.calculation.calculo_id,execution.execucao_id));const safe=this.calculation.identificador_calculo.replace(/[^A-Za-z0-9._-]+/g,'_');saveBlob(content,`execucao_${safe}_v${execution.versao}_${execution.execucao_id.slice(-8)}.pdf`);}catch(error){this.notices.error(error);}
   }
   dateTime(value:string):string{const d=new Date(value);return Number.isNaN(d.getTime())?value:new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(d);}
   shortHash(value:string):string{return value?`${value.slice(0,10)}…`:'—';}

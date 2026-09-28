@@ -15,14 +15,16 @@ from backend.persistence.schema import timestamp
 from backend.repositories.audit_repository import AuditRepository
 from backend.repositories.document_repository import DocumentRepository
 from backend.repositories.extraction_repository import ExtractionRepository
+from backend.repositories.ai_operations_repository import AiOperationsRepository
+from backend.repositories.quality_repository import QualityRepository
 from backend.services.bradesco_bridge import BradescoBridgeClient
 from backend.services.chronology import ordered_documents
 from backend.services.documents import DocumentService
 from backend.services.evidence_validator import EvidenceValidator
 from backend.services.extraction_jobs import ClaimedExtractionJob, DurableExtractionWorkers
-from backend.services.extraction_types import ExtractionFragment, ProviderResult
+from backend.services.extraction_types import ProviderResult
 from backend.services.operational_policy import OperationalPolicy
-from backend.services.pdf_text_extractor import PdfTextDocument, PdfTextExtractor, PdfTextPage
+from backend.services.pdf_text_extractor import PdfTextDocument, PdfTextExtractor
 from backend.services.prompt_context import PromptContextBuilder
 from backend.services.prompt_executor import PromptExecutionError, PromptExecutionMetrics, PromptExecutor
 
@@ -41,11 +43,17 @@ class ExtractionProviderError(ServiceError):
 class ExtractionProvider:
     """Fachada testável para PyMuPDF, roteamento de páginas e text_generator."""
 
-    def __init__(self, settings: Settings, bridge: BradescoBridgeClient | None = None):
+    def __init__(
+        self,
+        settings: Settings,
+        bridge: BradescoBridgeClient | None = None,
+        ai_repository: AiOperationsRepository | None = None,
+        quality_repository: QualityRepository | None = None,
+    ):
         self.settings = settings
         self.bridge = bridge or BradescoBridgeClient(settings)
         self.pdf = PdfTextExtractor(settings)
-        self.prompts = PromptExecutor(settings, self.bridge)
+        self.prompts = PromptExecutor(settings, self.bridge, ai_repository=ai_repository, quality_repository=quality_repository)
 
     @property
     def configured(self) -> bool:
@@ -66,10 +74,11 @@ class ExtractionProvider:
         *,
         stage: str,
         max_output_tokens: int,
+        job_id: str | None = None,
     ) -> tuple[ProviderResult, PromptExecutionMetrics]:
-        """Executa a tarefa e devolve métricas sem quebrar provedores de teste legados.
+        """Executa a tarefa e devolve métricas sem quebrar provedores de teste com interface mínima.
 
-        Provedores especializados anteriores sobrescreviam ``extract`` diretamente.
+        Alguns provedores de teste implementam ``extract`` diretamente.
         A refatoração para métricas preserva esse contrato para evitar que integrações
         internas precisem conhecer a implementação de observabilidade do orquestrador.
         """
@@ -89,6 +98,7 @@ class ExtractionProvider:
                 documents,
                 stage=stage,
                 max_output_tokens=max_output_tokens,
+                job_id=job_id,
             )
         except PromptExecutionError as exc:
             raise ExtractionProviderError(exc.code, exc.message, exc.status_code, exc.retryable) from None
@@ -100,6 +110,7 @@ class ExtractionProvider:
         *,
         stage: str,
         max_output_tokens: int,
+        job_id: str | None = None,
     ) -> ProviderResult:
         """Compatibilidade para testes e integrações que não consomem métricas detalhadas."""
         return self.extract_with_metrics(
@@ -107,6 +118,7 @@ class ExtractionProvider:
             documents,
             stage=stage,
             max_output_tokens=max_output_tokens,
+            job_id=job_id,
         )[0]
 
 
@@ -284,6 +296,7 @@ class ExtractionService:
                 pdf_documents,
                 stage=stage,
                 max_output_tokens=budget,
+                job_id=status.identificador,
             )
             fragment = provider_result.fragmento
             usages.extend(provider_result.usos)
@@ -357,13 +370,21 @@ class ExtractionService:
 
     @classmethod
     def _summarize_usage(cls, usages: list[AiUsage]) -> AiUsageSummary:
+        costs = [item.custo_estimado_usd for item in usages if item.custo_estimado_usd is not None]
+        estimated_values = [
+            (item.tokens_estimados_entrada or 0) + (item.tokens_estimados_saida or 0)
+            for item in usages
+        ]
         return AiUsageSummary(
             chamadas=len(usages),
+            chamadas_api=sum(1 for item in usages if not item.cache_hit),
+            acertos_cache=sum(1 for item in usages if item.cache_hit),
             tokens_entrada=cls._sum_optional([item.tokens_entrada for item in usages]),
             tokens_entrada_cache=cls._sum_optional([item.tokens_entrada_cache for item in usages]),
             tokens_saida=cls._sum_optional([item.tokens_saida for item in usages]),
             tokens_total=cls._sum_optional([item.tokens_total for item in usages]),
-            custo_estimado_usd=None,
+            tokens_estimados_total=sum(estimated_values) if usages else None,
+            custo_estimado_usd=sum(costs) if costs else None,
             duracao_total_ms=round(sum(item.duracao_ms for item in usages), 2),
             detalhamento=list(usages),
         )

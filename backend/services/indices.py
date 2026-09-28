@@ -72,23 +72,25 @@ class IndexService:
     def __init__(
         self,
         settings: Settings,
-        repository: IndexRepository | object,
-        audit_repository: AuditRepository | object,
-        facade: EngineFacade | None = None,
-    ):
-        """Recebe repositórios especializados e preserva a assinatura legada dos testes.
+        repository: IndexRepository,
+        audit_repository: AuditRepository,
+        facade: EngineFacade,
+    ) -> None:
+        """Recebe apenas as dependências realmente usadas pelo serviço.
 
-        Quando a terceira posição contém a fachada antiga, os stores são obtidos da
-        fachada ``Repository`` sem criar uma segunda conexão persistente.
+        Entrada:
+            ``settings``: limites e tempos de espera da aplicação.
+            ``repository``: armazenamento do estado de atualização dos índices.
+            ``audit_repository``: armazenamento da trilha de auditoria.
+            ``facade``: fornece a trava compartilhada com o motor de cálculo.
+
+        Saída:
+            A instância fica pronta para listar índices, consultar estado e iniciar
+            uma atualização. Nenhuma atualização externa é executada no construtor.
         """
         self.settings = settings
-        if facade is None:
-            legacy_registry = repository
-            facade = audit_repository  # type: ignore[assignment]
-            repository = getattr(legacy_registry, "index_store")
-            audit_repository = getattr(legacy_registry, "audit_store")
-        self.repository = repository  # type: ignore[assignment]
-        self.audit_repository = audit_repository  # type: ignore[assignment]
+        self.repository = repository
+        self.audit_repository = audit_repository
         self.facade = facade
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="indices")
         previous = self.status()
@@ -223,10 +225,9 @@ class IndexService:
     def run(self) -> None:
         """Atualiza as séries sob a mesma trava usada pelo cálculo.
 
-        ``DrCalcUpdateResult.success`` é a fonte de verdade. A versão anterior
-        inferia sucesso a partir de ``executed`` e de uma palavra na mensagem, o
-        que podia transformar um resultado válido e ignorado por já estar em dia
-        em uma falsa mensagem de falha.
+        ``DrCalcUpdateResult.success`` é a fonte de verdade. O texto da mensagem
+        serve somente para comunicação; ele não decide sozinho se a operação
+        funcionou ou falhou.
         """
         try:
             with self.facade.lock:

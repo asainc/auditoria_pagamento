@@ -1,6 +1,6 @@
 {
   "name": "judicial-calculator-angular21",
-  "version": "2.1.0",
+  "version": "2.3.2",
   "private": true,
   "packageManager": "npm@10.9.0",
   "scripts": {

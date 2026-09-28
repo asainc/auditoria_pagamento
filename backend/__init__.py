@@ -2,7 +2,7 @@
 
 A aplicação usa layout ``src/`` para o motor financeiro. Em estações em que o
 projeto não pode ser instalado em modo editável, o Python poderia resolver uma
-cópia antiga de ``judicial_calc`` presente no perfil do usuário. A raiz ``src``
+instalação externa de ``judicial_calc`` presente no perfil do usuário. A raiz ``src``
 do próprio projeto é inserida na frente do caminho de importação antes de os
 serviços do backend serem carregados.
 

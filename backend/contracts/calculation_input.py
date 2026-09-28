@@ -9,7 +9,7 @@ from pydantic import Field, model_validator
 from backend.calculation_identity import display_process_number
 from backend.calculation_policy import CalculationOrigin, apply_missing_defaults
 from backend.contracts.base import CalculationIdentifier, Contract, DamageType, Money, ProcessId, Rate
-from backend.contracts.calculation_parameters import CalculationParameters
+from backend.contracts.calculation_parameters import CalculationParameters, DamageFinancialCriteria, DamageParameters
 
 
 class Installment(Contract):
@@ -31,6 +31,7 @@ class CalculationDraft(Contract):
     identificador_calculo: CalculationIdentifier | None = None
     parcelas: list[Installment] = Field(min_length=1, max_length=10000)
     parametros: CalculationParameters
+    parametros_por_dano: DamageParameters | None = None
     revisao_humana_confirmada: bool = False
     honorarios_sobre_danos_morais: bool = False
     competencia_automatica: bool = False
@@ -49,7 +50,23 @@ class CalculationDraft(Contract):
             canonical_process = display_process_number(str(prepared.get("numero_processo")))
             prepared["numero_processo"] = canonical_process
             prepared["identificador_calculo"] = canonical_process
-        prepared["parametros"] = apply_missing_defaults(dict(prepared.get("parametros") or {}), origin)  # type: ignore[arg-type]
+        flat_parameters = apply_missing_defaults(dict(prepared.get("parametros") or {}), origin)  # type: ignore[arg-type]
+        prepared["parametros"] = flat_parameters
+
+        # Retrocompatibilidade: requisições antigas possuíam um único conjunto de
+        # atualização/juros. Na ausência do bloco novo, ele é replicado para os dois
+        # danos. A partir da UI 2.3, cada dano envia seu próprio conjunto.
+        scoped_raw = prepared.get("parametros_por_dano")
+        scoped = dict(scoped_raw) if isinstance(scoped_raw, dict) else {}
+        financial_fields = tuple(DamageFinancialCriteria.model_fields)
+        for damage in ("dano_material", "dano_moral"):
+            branch_raw = scoped.get(damage)
+            branch = dict(branch_raw) if isinstance(branch_raw, dict) else {}
+            for field in financial_fields:
+                if branch.get(field) in (None, "") and flat_parameters.get(field) not in (None, ""):
+                    branch[field] = flat_parameters[field]
+            scoped[damage] = branch
+        prepared["parametros_por_dano"] = scoped
         return prepared
 
     @model_validator(mode="after")

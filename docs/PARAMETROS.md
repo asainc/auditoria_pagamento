@@ -12,7 +12,6 @@
 | --- | --- | --- |
 | `art_523` | `nao_aplicar` | `nao_aplicar` |
 | `indice` | sem padrão | `tjsp_inpc_ipca15_lei_14905` |
-| `juros_compensatorios_tipo` | `sem_juros` | `taxa_legal_12_aa_6_aa` |
 | `juros_moratorios_tipo` | `sem_juros` | `taxa_legal_12_aa_6_aa` |
 | `multa_tipo` | `percentual` | `percentual` |
 | `valor_dobrado_flag` | `false` | `false` |
@@ -27,16 +26,11 @@ Os padrões completam somente campos ausentes. Um valor explicitamente informado
 - Duplo índice habilitado exige índice, data inicial e data final para as duas faixas.
 - Valores monetários e taxas atravessam a API como texto decimal e são validados com `Decimal` no Python.
 
-## Juros moratórios
+## Dano (Parcelas)
 
 | Chave | Rótulo | Tipo visual | Obrigatório base | Opções/observações |
 | --- | --- | --- | --- | --- |
-| `juros_moratorios_sobre_compensatorios` | Juros moratórios sobre compensatórios | `checkbox` | não | — |
-| `juros_moratorios_tipo` | Juros moratórios - tipo | `select` | sim | juros_moratorios_stj1368_lei_14905, taxa_legal_12_aa_6_aa, capitalizacao_composta, capitalizacao_simples, sem_juros, juros_moratorios_ctn_lei_14905, taxa_legal_diaria_selic_ipcae, taxa_legal |
-| `juros_moratorios_taxa` | Juros moratórios - taxa | `text` | não | — |
-| `juros_moratorios_periodicidade` | Juros moratórios - periodicidade | `select` | não | diaria, mensal, anual |
-| `juros_moratorios_pro_rata` | Aplicar juros moratórios pro rata | `checkbox` | não | — |
-| `juros_moratorios_data_inicio` | Data inicial dos juros moratórios | `date` | não | — |
+| `valor_dobrado_flag` | Aplicar valor em dobro às parcelas de dano material | `checkbox` | não | Marque somente quando o título ou decisão determinar restituição/devolução em dobro. O motor duplica apenas as parcelas de dano material antes da correção, juros, multa e honorários; dano moral e demais verbas não são duplicados. |
 
 ## Atualização monetária
 
@@ -48,29 +42,15 @@ Os padrões completam somente campos ausentes. Um valor explicitamente informado
 | `deflacionar_valor_nominal` | Deflacionar valor nominal | `checkbox` | não | Marque quando o valor informado precisar ser trazido para a competência-base. |
 | `competencia_final_taxa_legal` | Competência final da Taxa Legal | `text` | não | Opcional. Use o padrão aaaa-mm quando necessário. |
 
-## Juros compensatórios
+## Juros moratórios
 
 | Chave | Rótulo | Tipo visual | Obrigatório base | Opções/observações |
 | --- | --- | --- | --- | --- |
-| `juros_compensatorios_tipo` | Juros compensatórios - tipo | `select` | sim | juros_moratorios_stj1368_lei_14905, taxa_legal_12_aa_6_aa, capitalizacao_composta, capitalizacao_simples, sem_juros, juros_moratorios_ctn_lei_14905, taxa_legal_diaria_selic_ipcae, taxa_legal |
-| `juros_compensatorios_taxa` | Juros compensatórios - taxa | `text` | não | — |
-| `juros_compensatorios_periodicidade` | Juros compensatórios - periodicidade | `select` | não | diaria, mensal, anual |
-| `juros_compensatorios_pro_rata` | Aplicar juros compensatórios pro rata | `checkbox` | não | — |
-| `juros_compensatorios_data_inicio` | Data inicial dos juros compensatórios | `date` | não | — |
-
-## Multa, honorários e art. 523
-
-| Chave | Rótulo | Tipo visual | Obrigatório base | Opções/observações |
-| --- | --- | --- | --- | --- |
-| `multa_valor` | Multa | `text` | não | Informe o percentual ou o valor monetário conforme o tipo selecionado. |
-| `multa_tipo` | Multa - tipo | `select` | não | percentual, fixo |
-| `incidir_multa_sobre_juros_compensatorios` | Incidir multa sobre juros compensatórios | `checkbox` | não | — |
-| `incidir_multa_sobre_juros_moratorios` | Incidir multa sobre juros moratórios | `checkbox` | não | — |
-| `incidir_multa_sobre_parcelas_a_vencer` | Incidir multa sobre parcelas a vencer | `checkbox` | não | — |
-| `honorarios` | Honorários | `text` | não | — |
-| `honorarios_tipo` | Honorários - tipo | `select` | não | percentual, fixo |
-| `incidir_honorarios_sobre_multa` | Incidir honorários sobre multa | `checkbox` | não | — |
-| `art_523` | Art. 523 do CPC | `select` | não | Marque quando houver incidência expressa da multa/ônus do art. 523. |
+| `juros_moratorios_tipo` | Juros moratórios - tipo | `select` | sim | juros_moratorios_stj1368_lei_14905, taxa_legal_12_aa_6_aa, capitalizacao_composta, capitalizacao_simples, sem_juros, juros_moratorios_ctn_lei_14905, taxa_legal_diaria_selic_ipcae, taxa_legal |
+| `juros_moratorios_taxa` | Juros moratórios - taxa | `text` | não | — |
+| `juros_moratorios_periodicidade` | Juros moratórios - periodicidade | `select` | não | diaria, mensal, anual |
+| `juros_moratorios_pro_rata` | Aplicar juros moratórios pro rata | `checkbox` | não | — |
+| `juros_moratorios_data_inicio` | Data inicial dos juros moratórios | `date` | não | — |
 
 ## Prescrição
 
@@ -81,6 +61,24 @@ Os padrões completam somente campos ausentes. Um valor explicitamente informado
 | `prescricao_data_referencia_tipo` | Data de referência da prescrição | `select` | não | data_ajuizamento, data_decisao, data_ultima_parcela |
 | `prescricao_data_referencia` | Valor da data de referência | `date` | não | — |
 
+## Honorários
+
+| Chave | Rótulo | Tipo visual | Obrigatório base | Opções/observações |
+| --- | --- | --- | --- | --- |
+| `honorarios` | Honorários | `text` | não | — |
+| `honorarios_tipo` | Honorários - tipo | `select` | não | percentual, fixo |
+| `incidir_honorarios_sobre_multa` | Incidir honorários sobre multa | `checkbox` | não | — |
+
+## Multa
+
+| Chave | Rótulo | Tipo visual | Obrigatório base | Opções/observações |
+| --- | --- | --- | --- | --- |
+| `multa_valor` | Multa | `text` | não | Informe o percentual ou o valor monetário conforme o tipo selecionado. |
+| `multa_tipo` | Multa - tipo | `select` | não | percentual, fixo |
+| `incidir_multa_sobre_juros_moratorios` | Incidir multa sobre juros moratórios | `checkbox` | não | — |
+| `incidir_multa_sobre_parcelas_a_vencer` | Incidir multa sobre parcelas a vencer | `checkbox` | não | — |
+| `art_523` | Art. 523 do CPC | `select` | não | Marque quando houver incidência expressa da multa/ônus do art. 523. |
+
 ## Compensação
 
 | Chave | Rótulo | Tipo visual | Obrigatório base | Opções/observações |
@@ -88,12 +86,6 @@ Os padrões completam somente campos ausentes. Um valor explicitamente informado
 | `compensacao_flag` | Processo com compensação | `checkbox` | não | — |
 | `compensacao_tipo_calculo` | Tipo de compensação | `select` | não | fixo, percentual |
 | `compensacao_valor` | Valor ou percentual da compensação | `text` | não | — |
-
-## Valor em dobro
-
-| Chave | Rótulo | Tipo visual | Obrigatório base | Opções/observações |
-| --- | --- | --- | --- | --- |
-| `valor_dobrado_flag` | Aplicar valor em dobro | `checkbox` | não | Marque somente quando o título ou decisão determinar restituição/devolução em dobro. O motor duplica apenas as parcelas de dano material antes da correção, juros, multa e honorários; dano moral e demais verbas não são duplicados. |
 
 ## Duplo índice
 

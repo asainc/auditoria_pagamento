@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 
-from judicial_calc.core.dates import competencia_data, parse_data, somar_meses, ultimo_dia_mes
+from judicial_calc.core.dates import parse_data, somar_meses, ultimo_dia_mes
 from judicial_calc.core.numbers import D, moeda
 from judicial_calc.data_sources.local_excel import load_daily_rate_table, load_taxa_legal_mensal_percentual
 

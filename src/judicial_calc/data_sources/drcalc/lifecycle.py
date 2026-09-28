@@ -8,7 +8,7 @@ import shutil
 import time
 from typing import Any
 from judicial_calc.data_sources.local_excel import (
-    DIARIA_12_6_XLSX, DIARIA_SELIC_IPCAE_XLSX, MENSAL_XLSX, _resource_path,
+    MENSAL_XLSX, _resource_path,
     load_daily_rate_table, load_index_series, load_monthly_indices, load_taxa_legal_mensal_percentual,
 )
 from .models import BACKUP_DIRNAME, LOCK_FILENAME, PLANILHAS_OBRIGATORIAS, STATE_FILENAME, DrCalcUpdateError, DrCalcUpdateResult

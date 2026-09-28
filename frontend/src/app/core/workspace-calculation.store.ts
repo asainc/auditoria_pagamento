@@ -6,12 +6,14 @@ import { Notifications, saveBlob } from './notifications';
 import { decimalText, toCalculationRequest } from './calculation-mapper';
 import { WorkspaceStateStore } from './workspace-state.store';
 import { WorkspaceAuditStore } from './workspace-audit.store';
+import { QualityApiService } from './quality-api.service';
 
 @Injectable({providedIn:'root'})
 export class WorkspaceCalculationStore {
   private readonly api = inject(CalculationApiService);
   private readonly state = inject(WorkspaceStateStore);
   private readonly audits = inject(WorkspaceAuditStore);
+  private readonly quality = inject(QualityApiService);
   private readonly notices = inject(Notifications);
   readonly calculating = signal(false);
   readonly exporting = signal(false);
@@ -29,15 +31,44 @@ export class WorkspaceCalculationStore {
     const snapshot = this.state.drafts()[key];
     this.reviewing.set(true);
     try {
-      const automatic = snapshot.automaticCompetence || (!snapshot.parameters.mes_atualizacao && !snapshot.parameters.ano_atualizacao);
-      const selectedIndex = String(snapshot.parameters.indice ?? '').trim();
-      const current = automatic ? await firstValueFrom(this.api.defaults(selectedIndex || undefined)) : null;
+      const activeDamages = [...new Set(snapshot.installments
+        .map(row => row.verba_tipo)
+        .filter((value): value is 'dano_material'|'dano_moral' => value === 'dano_material' || value === 'dano_moral'))];
+      const reviewedDamageParameters = {
+        dano_material:{...snapshot.damageParameters.dano_material},
+        dano_moral:{...snapshot.damageParameters.dano_moral},
+      };
+      let automatic = snapshot.automaticCompetence;
+      for (const damage of activeDamages) {
+        const branch = reviewedDamageParameters[damage];
+        const branchAutomatic = snapshot.automaticCompetence || (!branch.mes_atualizacao && !branch.ano_atualizacao);
+        automatic = automatic || branchAutomatic;
+        if (!branchAutomatic) continue;
+        const selectedIndex = String(branch.indice ?? '').trim();
+        const current = await firstValueFrom(this.api.defaults(selectedIndex || undefined));
+        branch.mes_atualizacao = current.mes;
+        branch.ano_atualizacao = current.ano;
+      }
+      if (this.state.drafts()[key].revision !== snapshot.revision || this.state.draftKey() !== key) return;
+      const reviewedParameters = snapshot.parameters;
+      if (snapshot.calculationOrigin === 'processo' && snapshot.numeroProcesso && snapshot.appliedExtractionId) {
+        await firstValueFrom(this.quality.captureReview({
+          origem_calculo:'processo',
+          numero_processo:snapshot.numeroProcesso,
+          rascunho_id:snapshot.draftId,
+          extracao_id:snapshot.appliedExtractionId,
+          parametros:reviewedParameters,
+          parametros_por_dano:reviewedDamageParameters,
+          parcelas:snapshot.installments.map(row => ({...row, valor_singelo:decimalText(row.valor_singelo)})),
+        }));
+      }
       if (this.state.drafts()[key].revision !== snapshot.revision || this.state.draftKey() !== key) return;
       this.state.drafts.update(values => ({
         ...values,
         [key]:{
           ...values[key],
-          parameters:current ? {...values[key].parameters,mes_atualizacao:current.mes,ano_atualizacao:current.ano} : values[key].parameters,
+          parameters:reviewedParameters,
+          damageParameters:reviewedDamageParameters,
           automaticCompetence:automatic,
           humanReviewed:true,
           result:null,
@@ -115,9 +146,9 @@ export class WorkspaceCalculationStore {
       const registration = draft.result?.registro;
       const execution = draft.result?.execucao;
       const blob = registration && execution
-        ? await firstValueFrom(this.api.executionPdf(registration.calculo_id, execution.execucao_id, false))
+        ? await firstValueFrom(this.api.executionPdf(registration.calculo_id, execution.execucao_id))
         : registration
-          ? await firstValueFrom(this.api.versionPdf(registration.calculo_id, registration.versao, false))
+          ? await firstValueFrom(this.api.versionPdf(registration.calculo_id, registration.versao))
           : await firstValueFrom(this.api.pdf(request, draft.result?.metadata.indices_sha256 ?? ''));
       saveBlob(blob, 'memoria_calculo.pdf');
     } catch(error) { this.notices.error(error); }
